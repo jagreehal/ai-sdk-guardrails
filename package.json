@@ -81,7 +81,7 @@
     "mathjs": "^14.5.3",
     "ollama": "^0.5.16",
     "ollama-ai-provider": "^1.2.0",
-    "openai": "^5.9.2",
+    "openai": "^5.10.0",
     "prettier": "^3.6.2",
     "tsup": "^8.5.0",
     "typescript": "^5.8.3",
