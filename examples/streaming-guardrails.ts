@@ -37,14 +37,16 @@ async function example1_BasicStreamingLimit() {
 
 // Example 2: Content Filtering During Streaming
 async function example2_ContentFilteringStream() {
-  console.log('\n=== Example 2: Content Filtering During Streaming ===');
+  console.log(
+    '\n=== Example 2: Content Filtering During Streaming For Hacking ===',
+  );
 
   const contentFilterGuardrail = createOutputGuardrail(
     'content-filter',
     async (context, accumulatedText) => {
       const { text } = extractContent(context.result);
       const content = accumulatedText || text || '';
-      const blockedWords = ['donkey', 'inappropriate', 'harmful'];
+      const blockedWords = ['hack', 'inappropriate', 'harmful'];
       const hasBlocked = blockedWords.some((word) =>
         content.toLowerCase().includes(word),
       );
@@ -69,7 +71,7 @@ async function example2_ContentFilteringStream() {
   const result = await streamTextWithGuardrails(
     {
       model,
-      prompt: 'Write a 100 words story about a donkey called Donkey',
+      prompt: 'Write a 100 words story about a hacking',
     },
     {
       outputGuardrails: [contentFilterGuardrail],
