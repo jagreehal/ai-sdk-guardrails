@@ -11,6 +11,8 @@ The safest way to build production AI applications with the Vercel AI SDK. A com
 
 Building AI applications is exciting, but deploying them safely in production requires careful consideration. This library provides the safety net you need without sacrificing developer experience or performance.
 
+![Guardrails](./media/guardrail-example.gif)
+
 ### 🛡️ Complete Protection
 
 Validate inputs before they reach your model and outputs before they reach users. Catch harmful content, PII, prompt injections, and more.
@@ -517,7 +519,7 @@ const monitoredGuardrails = {
   },
   onOutputBlocked: (error) => {
     // Alert on critical issues
-    if (error.issues.some(i => i.severity === 'critical')) {
+    if (error.issues.some((i) => i.severity === 'critical')) {
       alerting.notify('Critical guardrail violation', error);
     }
   },
