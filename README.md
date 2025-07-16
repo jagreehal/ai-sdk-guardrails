@@ -29,55 +29,15 @@ Simple API with TypeScript autocompletion, helpful error messages, and sensible 
 
 ## How It Works
 
-```mermaid
-graph TB
-    A[User Input] --> B{Input Guardrails}
-    B -->|✅ Pass| C[AI Model]
-    B -->|❌ Block| D[GuardrailError]
+Every AI application faces the same fundamental challenge: ensuring safe, reliable interactions without compromising user experience. AI SDK Guardrails solves this through a simple but powerful approach.
 
-    C --> E[AI Response]
-    E --> F{Output Guardrails}
-    F -->|✅ Pass| G[Safe Response]
-    F -->|❌ Block| H[GuardrailError]
+Your prompts pass through **input guardrails** before reaching the AI model. These validate content, check for harmful patterns, and enforce business rules. If everything looks good, the request continues to your AI model.
 
-    subgraph "Input Guardrails"
-        I1[Length Limit]
-        I2[Blocked Keywords]
-        I3[PII Detection]
-        I4[Prompt Injection]
-        I5[Rate Limiting]
-    end
+The AI's response then flows through **output guardrails** before reaching your users. These ensure quality, filter sensitive information, and validate against your requirements. Only safe, compliant responses make it through.
 
-    subgraph "Output Guardrails"
-        O1[Quality Check]
-        O2[Toxicity Filter]
-        O3[Privacy Leakage]
-        O4[Schema Validation]
-        O5[Confidence Threshold]
-    end
+For streaming responses, guardrails monitor content in real-time. If a violation occurs mid-stream, the library immediately stops the response and provides clear feedback about what went wrong.
 
-    B -.-> I1
-    B -.-> I2
-    B -.-> I3
-    B -.-> I4
-    B -.-> I5
-
-    F -.-> O1
-    F -.-> O2
-    F -.-> O3
-    F -.-> O4
-    F -.-> O5
-
-    classDef inputNode fill:#e1f5fe
-    classDef outputNode fill:#f3e5f5
-    classDef blockNode fill:#ffebee
-    classDef passNode fill:#e8f5e8
-
-    class I1,I2,I3,I4,I5 inputNode
-    class O1,O2,O3,O4,O5 outputNode
-    class D,H blockNode
-    class G passNode
-```
+This creates a robust safety net that works transparently with your existing AI SDK code, requiring minimal changes to implement comprehensive protection.
 
 ## Installation
 
@@ -541,100 +501,28 @@ onInputBlocked: (error) => {
 };
 ```
 
-### 3. **Publishing Process (Using Changesets)**
+### 3. Monitor and Iterate
 
-You're already set up with **Changesets** which is the recommended approach. Here's the process:
+Track guardrail performance and adjust thresholds:
 
-#### **Step 1: Create a Changeset**
-
-```bash
-npx changeset
+```typescript
+const monitoredGuardrails = {
+  onInputBlocked: (error) => {
+    // Log to your monitoring service
+    analytics.track('guardrail_triggered', {
+      type: 'input',
+      guardrail: error.guardrailName,
+      severity: error.issues[0]?.severity,
+    });
+  },
+  onOutputBlocked: (error) => {
+    // Alert on critical issues
+    if (error.issues.some(i => i.severity === 'critical')) {
+      alerting.notify('Critical guardrail violation', error);
+    }
+  },
+};
 ```
-
-This will:
-
-- Ask you what type of change (patch/minor/major)
-- Let you write a summary of changes
-- Create a changeset file
-
-#### **Step 2: Version and Publish**
-
-You have two options:
-
-**Option A: Manual Control**
-
-```bash
-# 1. Run CI to ensure everything passes
-npm run ci
-
-# 2. Version the package (reads changesets and updates version)
-npx changeset version
-
-# 3. Publish to npm
-npx changeset publish
-```
-
-**Option B: Use Your Local Release Script**
-
-```bash
-npm run local-release
-```
-
-This runs: `npm run ci && changeset version && changeset publish`
-
-### 4. **First Release Steps**
-
-For your first release, I recommend:
-
-1. **Fix any remaining issues** (like the prettier formatting):
-
-```bash
-npm run format
-```
-
-2. **Create your first changeset**:
-
-```bash
-npx changeset
-```
-
-- Select "major" (since this is 0.0.1 → 1.0.0)
-- Write: "Initial release of AI SDK Guardrails"
-
-3. **Release it**:
-
-```bash
-npm run local-release
-```
-
-### 5. **Package Name Assessment**
-
-**✅ `ai-sdk-guardrails` is excellent because:**
-
-- Available on npm
-- Descriptive and searchable
-- Follows naming conventions
-- Clearly indicates it's for AI SDK
-- Professional sounding
-
-### 6. **Additional Recommendations**
-
-Consider these npm badges for your README:
-
-```markdown
-<code_block_to_apply_changes_from>
-[![npm version](https://badge.fury.io/js/ai-sdk-guardrails.svg)](https://www.npmjs.com/package/ai-sdk-guardrails)
-[![Downloads](https://img.shields.io/npm/dm/ai-sdk-guardrails.svg)](https://www.npmjs.com/package/ai-sdk-guardrails)
-```
-
-### 7. **GitHub Release Integration**
-
-After publishing to npm, you might want to:
-
-- Create GitHub releases that match your npm versions
-- Set up GitHub Actions for automated publishing (optional)
-
-**Would you like me to help you run through the first release process now?**
 
 ## All AI SDK Functions Supported
 
@@ -718,7 +606,7 @@ Each example is fully functional and demonstrates different aspects of the libra
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! Please open issues and pull requests on [GitHub](https://github.com/jagreehal/ai-sdk-guardrails).
 
 ## License
 
