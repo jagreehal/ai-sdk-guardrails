@@ -17,7 +17,7 @@ function createMockContext(overrides: {
   system?: string;
   model?: string;
   temperature?: number;
-  maxTokens?: number;
+  maxOutputTokens?: number;
 }): InputGuardrailContext {
   const mockModel = {
     modelId: overrides.model || 'test-model',
@@ -38,7 +38,7 @@ function createMockContext(overrides: {
     system: overrides.system || '',
     model: mockModel,
     temperature: overrides.temperature,
-    maxTokens: overrides.maxTokens,
+    maxOutputTokens: overrides.maxOutputTokens,
     output: 'no-schema',
   } as unknown as InputGuardrailContext;
 }
@@ -97,13 +97,13 @@ describe('Input Guardrails', () => {
           prompt: 'Test',
           model: 'gpt-4',
           temperature: 0.7,
-          maxTokens: 1000,
+          maxOutputTokens: 1000,
         }),
       );
 
       expect(result.metadata?.model).toBeDefined();
       expect(result.metadata?.temperature).toBe(0.7);
-      expect(result.metadata?.maxTokens).toBe(1000);
+      expect(result.metadata?.maxOutputTokens).toBe(1000);
     });
   });
 
@@ -329,7 +329,7 @@ describe('Input Guardrails', () => {
           prompt: 'Test',
           model: 'gpt-4',
           temperature: 0.5,
-          maxTokens: 500,
+          maxOutputTokens: 500,
         }),
       );
 
@@ -338,7 +338,7 @@ describe('Input Guardrails', () => {
       expect(result.metadata?.resetTime).toBeDefined();
       expect(result.metadata?.model).toBeDefined();
       expect(result.metadata?.temperature).toBe(0.5);
-      expect(result.metadata?.maxTokens).toBe(500);
+      expect(result.metadata?.maxOutputTokens).toBe(500);
       expect(result.metadata?.promptLength).toBe(4);
     });
   });
@@ -447,7 +447,7 @@ describe('Input Guardrails', () => {
         system: 'System',
         model: 'gpt-4',
         temperature: 0.7,
-        maxTokens: 1000,
+        maxOutputTokens: 1000,
       });
 
       await guardrail.execute(input);
@@ -458,7 +458,7 @@ describe('Input Guardrails', () => {
         system: 'System',
         model: expect.any(Object),
         temperature: 0.7,
-        maxTokens: 1000,
+        maxOutputTokens: 1000,
       });
     });
 
@@ -475,7 +475,7 @@ describe('Input Guardrails', () => {
           prompt: 'Test',
           model: 'gpt-4',
           temperature: 0.7,
-          maxTokens: 1000,
+          maxOutputTokens: 1000,
         }),
       );
 
@@ -483,7 +483,7 @@ describe('Input Guardrails', () => {
       expect(result.metadata?.inputKeys).toContain('prompt');
       expect(result.metadata?.model).toBeDefined();
       expect(result.metadata?.temperature).toBe(0.7);
-      expect(result.metadata?.maxTokens).toBe(1000);
+      expect(result.metadata?.maxOutputTokens).toBe(1000);
     });
   });
 

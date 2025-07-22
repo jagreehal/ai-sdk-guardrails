@@ -57,17 +57,17 @@ export function extractTextContent(context: InputGuardrailContext): {
 export function extractMetadata(context: InputGuardrailContext): {
   model?: unknown;
   temperature?: number;
-  maxTokens?: number;
+  maxOutputTokens?: number;
 } {
   const contextWithMetadata = context as {
     model?: unknown;
     temperature?: number;
-    maxTokens?: number;
+    maxOutputTokens?: number;
   };
   return {
     model: contextWithMetadata.model,
     temperature: contextWithMetadata.temperature,
-    maxTokens: contextWithMetadata.maxTokens,
+    maxOutputTokens: contextWithMetadata.maxOutputTokens,
   };
 }
 
@@ -77,7 +77,7 @@ export const lengthLimit = (maxLength: number): InputGuardrail =>
     'Enforces maximum input length limit',
     (context) => {
       const { prompt, messages, system } = extractTextContent(context);
-      const { model, temperature, maxTokens } = extractMetadata(context);
+      const { model, temperature, maxOutputTokens } = extractMetadata(context);
 
       const totalLength =
         prompt.length +
@@ -97,7 +97,7 @@ export const lengthLimit = (maxLength: number): InputGuardrail =>
           maxLength,
           model: model ? String(model) : undefined,
           temperature,
-          maxTokens,
+          maxOutputTokens,
           messageCount: messages.length,
         },
       };
@@ -204,7 +204,8 @@ export const rateLimiting = (maxRequestsPerMinute: number): InputGuardrail => {
     'Enforces rate limiting per minute',
     (inputContext) => {
       const { prompt } = extractTextContent(inputContext);
-      const { model, temperature, maxTokens } = extractMetadata(inputContext);
+      const { model, temperature, maxOutputTokens } =
+        extractMetadata(inputContext);
 
       let contextData:
         | { user?: { id?: string }; request?: { ip?: string } }
@@ -243,7 +244,7 @@ export const rateLimiting = (maxRequestsPerMinute: number): InputGuardrail => {
           userIp: contextData?.request?.ip,
           model: model ? String(model) : undefined,
           temperature,
-          maxTokens,
+          maxOutputTokens,
           promptLength: prompt.length,
         },
       };
@@ -295,15 +296,22 @@ export const customValidation = (
     system?: string;
     model?: unknown;
     temperature?: number;
-    maxTokens?: number;
+    maxOutputTokens?: number;
   }) => boolean,
   message: string,
 ): InputGuardrail =>
   createInputGuardrail(name, description, (context) => {
     const { prompt, messages, system } = extractTextContent(context);
-    const { model, temperature, maxTokens } = extractMetadata(context);
+    const { model, temperature, maxOutputTokens } = extractMetadata(context);
 
-    const input = { prompt, messages, system, model, temperature, maxTokens };
+    const input = {
+      prompt,
+      messages,
+      system,
+      model,
+      temperature,
+      maxOutputTokens,
+    };
     const blocked = validator(input);
     return {
       tripwireTriggered: blocked,
@@ -314,14 +322,10 @@ export const customValidation = (
         inputKeys: Object.keys(input),
         model: model ? String(model) : undefined,
         temperature,
-        maxTokens,
+        maxOutputTokens,
       },
     };
   });
-
-// ============================================================================
-// ADVANCED SECURITY GUARDRAILS
-// ============================================================================
 
 export const promptInjectionDetector = (): InputGuardrail =>
   createInputGuardrail(
@@ -464,10 +468,6 @@ export const toxicityDetector = (threshold: number = 0.7): InputGuardrail =>
       };
     },
   );
-
-// ============================================================================
-// BUSINESS LOGIC GUARDRAILS
-// ============================================================================
 
 export const mathHomeworkDetector = (): InputGuardrail =>
   createInputGuardrail(
