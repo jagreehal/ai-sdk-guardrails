@@ -1,13 +1,21 @@
 import _ollama from 'ollama';
+import 'dotenv/config';
+
 import { ollama } from 'ollama-ai-provider';
-import type { LanguageModel } from 'ai';
 
 export const MODEL_NAME = 'llama3.2';
-export const llama3_2: LanguageModel = ollama(MODEL_NAME, {
-  structuredOutputs: true,
-});
+// export const llama3_2: LanguageModel = ollama(MODEL_NAME, {
+//   structuredOutputs: true,
+// });
 
-export const model: LanguageModel = llama3_2;
+import { mistral } from '@ai-sdk/mistral';
+import { openai } from '@ai-sdk/openai';
+
+export const mistralModel = mistral('mistral-small-latest');
+export const openaiModel = openai('gpt-4o-mini');
+
+// Use Mistral for object generation (no API key required)
+export const model = mistralModel;
 
 export async function getEmbedding(input: string): Promise<number[]> {
   const { embeddings } = await _ollama.embed({

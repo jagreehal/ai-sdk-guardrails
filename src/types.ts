@@ -6,12 +6,6 @@ import {
   embed,
 } from 'ai';
 
-import type { GuardrailError } from './core';
-
-// ============================================================================
-// CORE TYPES
-// ============================================================================
-
 export interface GuardrailResult {
   /** Whether the guardrail was triggered (blocked the request) */
   tripwireTriggered: boolean;
@@ -23,16 +17,12 @@ export interface GuardrailResult {
   severity?: 'low' | 'medium' | 'high' | 'critical';
   /** Suggested action to resolve the issue */
   suggestion?: string;
-  /** Performance metrics for the guardrail execution */
-  performance?: {
-    executionTimeMs: number;
-    memoryUsage?: number;
-  };
   /** Additional context information */
   context?: {
     guardrailName: string;
     guardrailVersion?: string;
     executedAt: Date;
+    executionTimeMs?: number;
     environment?: string;
   };
 }
@@ -40,15 +30,9 @@ export interface GuardrailResult {
 export type GuardrailsParams = {
   inputGuardrails?: InputGuardrail[];
   outputGuardrails?: OutputGuardrail[];
-  onInputBlocked?: (error: GuardrailError) => void;
-  onOutputBlocked?: (error: GuardrailError) => void;
   throwOnBlocked?: boolean;
   enablePerformanceMonitoring?: boolean;
 };
-
-// ============================================================================
-// AI SDK PARAMETER TYPES
-// ============================================================================
 
 export type GenerateTextParams = Parameters<typeof generateText>[0];
 export type GenerateObjectParams = Parameters<typeof generateObject>[0];
@@ -56,11 +40,34 @@ export type StreamTextParams = Parameters<typeof streamText>[0];
 export type StreamObjectParams = Parameters<typeof streamObject>[0];
 export type EmbedParams = Parameters<typeof embed>[0];
 
+// Derive result types since the AI SDK types are generic and require type parameters
 export type GenerateTextResult = Awaited<ReturnType<typeof generateText>>;
 export type GenerateObjectResult = Awaited<ReturnType<typeof generateObject>>;
 export type StreamTextResult = ReturnType<typeof streamText>;
 export type StreamObjectResult = ReturnType<typeof streamObject>;
 export type EmbedResult = ReturnType<typeof embed>;
+
+// Re-export available AI SDK utility types
+export type {
+  CallWarning,
+  FinishReason,
+  ProviderMetadata,
+  LanguageModelUsage,
+  LanguageModelRequestMetadata,
+  LanguageModelResponseMetadata,
+} from 'ai';
+
+// Re-export middleware and provider types for convenience
+export type {
+  LanguageModelV2,
+  LanguageModelV2Middleware,
+  LanguageModelV2CallOptions,
+  LanguageModelV2StreamPart,
+  LanguageModelV2FinishReason,
+  LanguageModelV2CallWarning,
+  LanguageModelV2ResponseMetadata,
+  LanguageModelV2Usage,
+} from '@ai-sdk/provider';
 
 export type InputGuardrailContext =
   | GenerateTextParams
@@ -80,10 +87,6 @@ export type OutputGuardrailContext = {
   input: InputGuardrailContext;
   result: AIResult;
 };
-
-// ============================================================================
-// GUARDRAIL INTERFACES
-// ============================================================================
 
 export interface InputGuardrail {
   /** Unique identifier for the guardrail */
@@ -134,4 +137,43 @@ export interface OutputGuardrail {
   setup?: () => Promise<void> | void;
   /** Optional cleanup function called when guardrail is destroyed */
   cleanup?: () => Promise<void> | void;
+}
+
+export interface InputGuardrailsMiddlewareConfig {
+  /** Input guardrails to execute before AI calls */
+  inputGuardrails: InputGuardrail[];
+  /** Execution options for guardrails */
+  executionOptions?: {
+    parallel?: boolean;
+    timeout?: number;
+    continueOnFailure?: boolean;
+    logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
+  };
+  /** Callback for when input is blocked */
+  onInputBlocked?: (
+    results: GuardrailResult[],
+    originalParams: InputGuardrailContext,
+  ) => void;
+  /** Whether to throw errors when guardrails are triggered */
+  throwOnBlocked?: boolean;
+}
+
+export interface OutputGuardrailsMiddlewareConfig {
+  /** Output guardrails to execute after AI calls */
+  outputGuardrails: OutputGuardrail[];
+  /** Execution options for guardrails */
+  executionOptions?: {
+    parallel?: boolean;
+    timeout?: number;
+    continueOnFailure?: boolean;
+    logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
+  };
+  /** Callback for when output is blocked */
+  onOutputBlocked?: (
+    results: GuardrailResult[],
+    originalParams: InputGuardrailContext,
+    result: unknown,
+  ) => void;
+  /** Whether to throw errors when guardrails are triggered */
+  throwOnBlocked?: boolean;
 }
