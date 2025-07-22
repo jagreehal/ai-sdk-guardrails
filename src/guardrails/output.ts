@@ -47,33 +47,62 @@ export function extractContent(result: AIResult): {
   reasoningText?: string;
 } {
   // Handle newer AI SDK result format with content array
-  if ('content' in result && Array.isArray((result as { content: unknown }).content)) {
-    const content = (result as { content: Array<{ type: string; text?: string }> }).content;
+  if (
+    'content' in result &&
+    Array.isArray((result as { content: unknown }).content)
+  ) {
+    const content = (
+      result as { content: Array<{ type: string; text?: string }> }
+    ).content;
     const textContent = content
       .filter((item) => item.type === 'text' && item.text)
       .map((item) => item.text)
       .join('');
-    
+
     // Try to map usage fields from different formats
     const usage = (result as { usage?: Record<string, unknown> }).usage || {};
     const mappedUsage = {
-      promptTokens: (typeof usage.inputTokens === 'number' ? usage.inputTokens : 
-                    (typeof usage.promptTokens === 'number' ? usage.promptTokens : undefined)),
-      completionTokens: (typeof usage.outputTokens === 'number' ? usage.outputTokens : 
-                        (typeof usage.completionTokens === 'number' ? usage.completionTokens : undefined)),
-      totalTokens: (typeof usage.totalTokens === 'number' ? usage.totalTokens : undefined),
+      promptTokens:
+        typeof usage.inputTokens === 'number'
+          ? usage.inputTokens
+          : typeof usage.promptTokens === 'number'
+            ? usage.promptTokens
+            : undefined,
+      completionTokens:
+        typeof usage.outputTokens === 'number'
+          ? usage.outputTokens
+          : typeof usage.completionTokens === 'number'
+            ? usage.completionTokens
+            : undefined,
+      totalTokens:
+        typeof usage.totalTokens === 'number' ? usage.totalTokens : undefined,
     };
-    
+
     return {
       text: textContent || '',
       object: null,
       usage: mappedUsage,
       finishReason: (result as { finishReason?: string }).finishReason,
-      generationTimeMs: (result as { experimental_providerMetadata?: { generationTimeMs?: number } }).experimental_providerMetadata?.generationTimeMs,
-      reasoningText: (result as { reasoningText?: string; experimental_providerMetadata?: { reasoningText?: string } }).reasoningText || (result as { experimental_providerMetadata?: { reasoningText?: string } }).experimental_providerMetadata?.reasoningText,
+      generationTimeMs: (
+        result as {
+          experimental_providerMetadata?: { generationTimeMs?: number };
+        }
+      ).experimental_providerMetadata?.generationTimeMs,
+      reasoningText:
+        (
+          result as {
+            reasoningText?: string;
+            experimental_providerMetadata?: { reasoningText?: string };
+          }
+        ).reasoningText ||
+        (
+          result as {
+            experimental_providerMetadata?: { reasoningText?: string };
+          }
+        ).experimental_providerMetadata?.reasoningText,
     };
   }
-  
+
   // Handle different result types
   if ('object' in result && result.object != null) {
     // GenerateObjectResult - prioritize object over text

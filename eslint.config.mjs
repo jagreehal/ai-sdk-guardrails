@@ -18,6 +18,7 @@ export default tseslint.config(
       'unicorn/filename-case': 'off',
       'unicorn/no-null': 'off',
       'unicorn/prefer-top-level-await': 'off',
+      'unicorn/no-nested-ternary': 'off',
     },
   },
 );

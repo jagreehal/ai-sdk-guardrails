@@ -17,14 +17,22 @@ describe('Error System', () => {
   describe('GuardrailValidationError', () => {
     it('should create validation error with proper properties', () => {
       const validationErrors: ValidationError[] = [
-        { field: 'prompt', message: 'Prompt is too long', code: 'LENGTH_EXCEEDED' },
-        { field: 'system', message: 'System message is invalid', code: 'INVALID_FORMAT' },
+        {
+          field: 'prompt',
+          message: 'Prompt is too long',
+          code: 'LENGTH_EXCEEDED',
+        },
+        {
+          field: 'system',
+          message: 'System message is invalid',
+          code: 'INVALID_FORMAT',
+        },
       ];
 
       const error = new GuardrailValidationError(
         'content-filter',
         validationErrors,
-        { userId: 'test123' }
+        { userId: 'test123' },
       );
 
       expect(error.name).toBe('GuardrailValidationError');
@@ -40,8 +48,11 @@ describe('Error System', () => {
       const validationErrors: ValidationError[] = [
         { message: 'Invalid input', code: 'INVALID' },
       ];
-      
-      const error = new GuardrailValidationError('test-guardrail', validationErrors);
+
+      const error = new GuardrailValidationError(
+        'test-guardrail',
+        validationErrors,
+      );
       const json = error.toJSON();
 
       expect(json.name).toBe('GuardrailValidationError');
@@ -54,11 +65,9 @@ describe('Error System', () => {
   describe('GuardrailExecutionError', () => {
     it('should create execution error with original error', () => {
       const originalError = new Error('Network timeout');
-      const error = new GuardrailExecutionError(
-        'api-checker',
-        originalError,
-        { endpoint: '/api/check' }
-      );
+      const error = new GuardrailExecutionError('api-checker', originalError, {
+        endpoint: '/api/check',
+      });
 
       expect(error.name).toBe('GuardrailExecutionError');
       expect(error.code).toBe('GUARDRAIL_EXECUTION_FAILED');
@@ -78,24 +87,31 @@ describe('Error System', () => {
 
   describe('GuardrailTimeoutError', () => {
     it('should create timeout error with proper properties', () => {
-      const error = new GuardrailTimeoutError('slow-guardrail', 5000, { attempt: 1 });
+      const error = new GuardrailTimeoutError('slow-guardrail', 5000, {
+        attempt: 1,
+      });
 
       expect(error.name).toBe('GuardrailTimeoutError');
       expect(error.code).toBe('GUARDRAIL_TIMEOUT');
       expect(error.guardrailName).toBe('slow-guardrail');
       expect(error.timeoutMs).toBe(5000);
       expect(error.metadata.attempt).toBe(1);
-      expect(error.message).toBe('Guardrail "slow-guardrail" timed out after 5000ms');
+      expect(error.message).toBe(
+        'Guardrail "slow-guardrail" timed out after 5000ms',
+      );
     });
   });
 
   describe('GuardrailConfigurationError', () => {
     it('should create configuration error with path', () => {
-      const configErrors = ['Missing required field: name', 'Invalid timeout value'];
+      const configErrors = [
+        'Missing required field: name',
+        'Invalid timeout value',
+      ];
       const error = new GuardrailConfigurationError(
         configErrors,
         'guardrails.config.js',
-        { line: 10 }
+        { line: 10 },
       );
 
       expect(error.name).toBe('GuardrailConfigurationError');
@@ -118,11 +134,21 @@ describe('Error System', () => {
   describe('InputBlockedError', () => {
     it('should create input blocked error', () => {
       const blockedGuardrails = [
-        { name: 'content-filter', message: 'Inappropriate content', severity: 'high' as const },
-        { name: 'length-check', message: 'Too long', severity: 'medium' as const },
+        {
+          name: 'content-filter',
+          message: 'Inappropriate content',
+          severity: 'high' as const,
+        },
+        {
+          name: 'length-check',
+          message: 'Too long',
+          severity: 'medium' as const,
+        },
       ];
 
-      const error = new InputBlockedError(blockedGuardrails, { requestId: 'req123' });
+      const error = new InputBlockedError(blockedGuardrails, {
+        requestId: 'req123',
+      });
 
       expect(error.name).toBe('InputBlockedError');
       expect(error.code).toBe('INPUT_BLOCKED');
@@ -146,10 +172,16 @@ describe('Error System', () => {
   describe('OutputBlockedError', () => {
     it('should create output blocked error', () => {
       const blockedGuardrails = [
-        { name: 'pii-filter', message: 'PII detected', severity: 'critical' as const },
+        {
+          name: 'pii-filter',
+          message: 'PII detected',
+          severity: 'critical' as const,
+        },
       ];
 
-      const error = new OutputBlockedError(blockedGuardrails, { responseId: 'res456' });
+      const error = new OutputBlockedError(blockedGuardrails, {
+        responseId: 'res456',
+      });
 
       expect(error.name).toBe('OutputBlockedError');
       expect(error.code).toBe('OUTPUT_BLOCKED');
@@ -161,12 +193,9 @@ describe('Error System', () => {
   describe('MiddlewareError', () => {
     it('should create middleware error with original error', () => {
       const originalError = new TypeError('Invalid parameter');
-      const error = new MiddlewareError(
-        'input',
-        'transform',
-        originalError,
-        { step: 'validation' }
-      );
+      const error = new MiddlewareError('input', 'transform', originalError, {
+        step: 'validation',
+      });
 
       expect(error.name).toBe('MiddlewareError');
       expect(error.code).toBe('MIDDLEWARE_ERROR');
@@ -197,7 +226,9 @@ describe('Error System', () => {
     });
 
     it('should extract error info from guardrails error', () => {
-      const error = new GuardrailTimeoutError('slow-check', 1000, { retry: true });
+      const error = new GuardrailTimeoutError('slow-check', 1000, {
+        retry: true,
+      });
       const info = extractErrorInfo(error);
 
       expect(info.name).toBe('GuardrailTimeoutError');
@@ -249,7 +280,9 @@ describe('Error System', () => {
       const error = new InputBlockedError([]);
 
       expect(error.constructor.name).toBe('InputBlockedError');
-      expect(Object.getPrototypeOf(error).constructor.name).toBe('InputBlockedError');
+      expect(Object.getPrototypeOf(error).constructor.name).toBe(
+        'InputBlockedError',
+      );
     });
   });
 
@@ -257,18 +290,21 @@ describe('Error System', () => {
     it('should include timestamp in all errors', () => {
       const error = new GuardrailExecutionError('test');
       const before = new Date();
-      
+
       expect(error.timestamp).toBeInstanceOf(Date);
-      expect(error.timestamp.getTime()).toBeGreaterThanOrEqual(before.getTime() - 100);
-      expect(error.timestamp.getTime()).toBeLessThanOrEqual(new Date().getTime());
+      expect(error.timestamp.getTime()).toBeGreaterThanOrEqual(
+        before.getTime() - 100,
+      );
+      expect(error.timestamp.getTime()).toBeLessThanOrEqual(
+        new Date().getTime(),
+      );
     });
 
     it('should merge metadata correctly', () => {
-      const error = new GuardrailValidationError(
-        'test',
-        [],
-        { custom: 'value', nested: { prop: 123 } }
-      );
+      const error = new GuardrailValidationError('test', [], {
+        custom: 'value',
+        nested: { prop: 123 },
+      });
 
       expect(error.metadata.custom).toBe('value');
       expect(error.metadata.nested).toEqual({ prop: 123 });
@@ -279,7 +315,9 @@ describe('Error System', () => {
   describe('Error Serialization', () => {
     it('should serialize all error properties to JSON', () => {
       const originalError = new Error('Original');
-      const error = new GuardrailExecutionError('test', originalError, { extra: 'data' });
+      const error = new GuardrailExecutionError('test', originalError, {
+        extra: 'data',
+      });
       const json = error.toJSON();
 
       expect(json.name).toBe('GuardrailExecutionError');

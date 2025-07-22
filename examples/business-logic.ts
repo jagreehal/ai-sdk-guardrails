@@ -1,9 +1,9 @@
 /**
  * Business Logic Guardrails Example - Custom Rules for Your Organization
- * 
+ *
  * This example demonstrates how to implement business-specific guardrails that:
  * - Save money by blocking requests during off-hours or for low-value work
- * - Enforce company standards and coding practices  
+ * - Enforce company standards and coding practices
  * - Ensure technical accuracy and professional communication
  * - Prevent embarrassing responses that don't meet business standards
  */
@@ -16,7 +16,10 @@ import {
   defineInputGuardrail,
   defineOutputGuardrail,
 } from '../src/guardrails';
-import type { InputGuardrailContext, OutputGuardrailContext } from '../src/types';
+import type {
+  InputGuardrailContext,
+  OutputGuardrailContext,
+} from '../src/types';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
 import inquirer from 'inquirer';
@@ -32,27 +35,29 @@ import { setupGracefulShutdown, safePrompt } from './utils/interactive-menu';
  */
 const businessHoursGuardrail = defineInputGuardrail({
   name: 'business-hours',
-  description: 'Blocks non-essential AI usage outside business hours to control costs',
+  description:
+    'Blocks non-essential AI usage outside business hours to control costs',
   execute: async () => {
     const now = new Date();
     const hour = now.getHours();
     const day = now.getDay();
-    
+
     const isBusinessHours = hour >= 9 && hour <= 17;
     const isWeekend = day === 0 || day === 6;
     const isHoliday = checkHoliday(now); // You can implement holiday checking
-    
+
     if (!isBusinessHours || isWeekend || isHoliday) {
       return {
         tripwireTriggered: true,
         message: `💰 Cost Control: Service unavailable outside business hours (currently ${hour}:00${isWeekend ? ', weekend' : ''})`,
         severity: 'medium',
-        suggestion: 'For urgent requests, contact on-call support. Otherwise, try again during business hours (9 AM - 5 PM, Mon-Fri).',
-        metadata: { 
-          currentHour: hour, 
-          isWeekend, 
+        suggestion:
+          'For urgent requests, contact on-call support. Otherwise, try again during business hours (9 AM - 5 PM, Mon-Fri).',
+        metadata: {
+          currentHour: hour,
+          isWeekend,
           isBusinessHours,
-          estimatedSavings: '$0.05-$0.50 per blocked request'
+          estimatedSavings: '$0.05-$0.50 per blocked request',
         },
       };
     }
@@ -73,7 +78,7 @@ function checkHoliday(date: Date): boolean {
     '2024-07-04', // July 4th
     // Add your organization's holidays
   ];
-  
+
   const dateString = date.toISOString().split('T')[0]!;
   return holidays.includes(dateString);
 }
@@ -101,7 +106,7 @@ const codeQualityStandardsGuardrail = defineInputGuardrail({
       ];
 
       const foundPatterns = lowQualityPatterns.filter((pattern) =>
-        prompt.toLowerCase().includes(pattern)
+        prompt.toLowerCase().includes(pattern),
       );
 
       if (foundPatterns.length > 0) {
@@ -109,10 +114,11 @@ const codeQualityStandardsGuardrail = defineInputGuardrail({
           tripwireTriggered: true,
           message: `🏗️ Code Quality: Request promotes poor practices - "${foundPatterns[0]}" detected`,
           severity: 'medium',
-          suggestion: 'Please rephrase your request to ask for proper, maintainable solutions and best practices.',
-          metadata: { 
+          suggestion:
+            'Please rephrase your request to ask for proper, maintainable solutions and best practices.',
+          metadata: {
             detectedPatterns: foundPatterns,
-            qualityStandard: 'enterprise-grade'
+            qualityStandard: 'enterprise-grade',
           },
         };
       }
@@ -147,7 +153,7 @@ const workFocusGuardrail = defineInputGuardrail({
       ];
 
       const foundPersonalUse = personalUsePatterns.find((pattern) =>
-        prompt.toLowerCase().includes(pattern)
+        prompt.toLowerCase().includes(pattern),
       );
 
       // Only block during business hours
@@ -159,10 +165,11 @@ const workFocusGuardrail = defineInputGuardrail({
           tripwireTriggered: true,
           message: `💼 Work Focus: Personal use detected during business hours - "${foundPersonalUse}"`,
           severity: 'low',
-          suggestion: 'Please use AI for work-related tasks during business hours. Personal queries are welcome during breaks or after hours.',
-          metadata: { 
+          suggestion:
+            'Please use AI for work-related tasks during business hours. Personal queries are welcome during breaks or after hours.',
+          metadata: {
             personalPattern: foundPersonalUse,
-            suggestion: 'Save personal queries for lunch break or after 5 PM'
+            suggestion: 'Save personal queries for lunch break or after 5 PM',
           },
         };
       }
@@ -182,10 +189,11 @@ const workFocusGuardrail = defineInputGuardrail({
  */
 const professionalToneGuardrail = defineOutputGuardrail({
   name: 'professional-tone',
-  description: 'Ensures responses maintain professional business communication standards',
+  description:
+    'Ensures responses maintain professional business communication standards',
   execute: async (context: OutputGuardrailContext) => {
     const { text } = extractContent(context.result);
-    
+
     const unprofessionalPhrases = [
       'lol',
       'lmao',
@@ -201,7 +209,7 @@ const professionalToneGuardrail = defineOutputGuardrail({
     ];
 
     const foundUnprofessional = unprofessionalPhrases.filter((phrase) =>
-      text.toLowerCase().includes(phrase)
+      text.toLowerCase().includes(phrase),
     );
 
     if (foundUnprofessional.length > 0) {
@@ -210,9 +218,9 @@ const professionalToneGuardrail = defineOutputGuardrail({
         message: `🎯 Professional Standards: Informal language detected - "${foundUnprofessional[0]}"`,
         severity: 'medium',
         suggestion: 'Please regenerate with professional business language.',
-        metadata: { 
+        metadata: {
           unprofessionalPhrases: foundUnprofessional,
-          businessStandard: 'formal communication required'
+          businessStandard: 'formal communication required',
         },
       };
     }
@@ -230,7 +238,7 @@ const technicalAccuracyGuardrail = defineOutputGuardrail({
   description: 'Validates technical responses for confidence and accuracy',
   execute: async (context: OutputGuardrailContext) => {
     const { text } = extractContent(context.result);
-    
+
     const uncertaintyPhrases = [
       'i think',
       'maybe',
@@ -244,7 +252,7 @@ const technicalAccuracyGuardrail = defineOutputGuardrail({
     ];
 
     const foundUncertainty = uncertaintyPhrases.filter((phrase) =>
-      text.toLowerCase().includes(phrase)
+      text.toLowerCase().includes(phrase),
     );
 
     // Flag if too much uncertainty in technical response
@@ -253,11 +261,12 @@ const technicalAccuracyGuardrail = defineOutputGuardrail({
         tripwireTriggered: true,
         message: `🔧 Technical Standards: High uncertainty detected (${foundUncertainty.length} uncertain phrases)`,
         severity: 'medium',
-        suggestion: 'Please request more specific technical guidance or verify the information independently.',
+        suggestion:
+          'Please request more specific technical guidance or verify the information independently.',
         metadata: {
           uncertaintyPhrases: foundUncertainty,
           confidenceLevel: 'low',
-          recommendation: 'Seek additional technical verification'
+          recommendation: 'Seek additional technical verification',
         },
       };
     }
@@ -272,7 +281,7 @@ const technicalAccuracyGuardrail = defineOutputGuardrail({
     ];
 
     const foundDangerous = dangerousPhrases.find((phrase) =>
-      text.toLowerCase().includes(phrase)
+      text.toLowerCase().includes(phrase),
     );
 
     if (foundDangerous) {
@@ -280,10 +289,11 @@ const technicalAccuracyGuardrail = defineOutputGuardrail({
         tripwireTriggered: true,
         message: `⚠️ Safety Alert: Potentially dangerous technical instruction detected - "${foundDangerous}"`,
         severity: 'critical',
-        suggestion: 'Review this instruction carefully and consider safer alternatives.',
+        suggestion:
+          'Review this instruction carefully and consider safer alternatives.',
         metadata: {
           dangerousCommand: foundDangerous,
-          safetyLevel: 'critical review required'
+          safetyLevel: 'critical review required',
         },
       };
     }
@@ -317,10 +327,7 @@ const businessStandardsModel = wrapLanguageModel({
       },
     }),
     createOutputGuardrailsMiddleware({
-      outputGuardrails: [
-        professionalToneGuardrail,
-        technicalAccuracyGuardrail,
-      ],
+      outputGuardrails: [professionalToneGuardrail, technicalAccuracyGuardrail],
       throwOnBlocked: false,
       onOutputBlocked: (results) => {
         console.log('\n🎯 Quality Standards Violations:');
@@ -343,8 +350,10 @@ async function testBusinessPolicies() {
   // DEMO 1: BLOCKING MODE - Strict Policy Enforcement
   console.log('\n🚫 DEMO 1: BLOCKING MODE (throwOnBlocked: true)');
   console.log('===============================================');
-  console.log('Violations completely block requests - no responses generated\n');
-  
+  console.log(
+    'Violations completely block requests - no responses generated\n',
+  );
+
   const blockingBusinessModel = wrapLanguageModel({
     model,
     middleware: [
@@ -356,9 +365,13 @@ async function testBusinessPolicies() {
         ],
         throwOnBlocked: true, // STRICT enforcement
         onInputBlocked: (results) => {
-          console.log('🚫 BLOCKED: Business policy violation - no response generated');
+          console.log(
+            '🚫 BLOCKED: Business policy violation - no response generated',
+          );
           for (const result of results) {
-            console.log(`   ❌ ${result.context?.guardrailName}: ${result.message}`);
+            console.log(
+              `   ❌ ${result.context?.guardrailName}: ${result.message}`,
+            );
             if (result.suggestion) {
               console.log(`   💡 ${result.suggestion}`);
             }
@@ -374,7 +387,9 @@ async function testBusinessPolicies() {
         onOutputBlocked: (results) => {
           console.log('🚫 BLOCKED: Output quality standards violation');
           for (const result of results) {
-            console.log(`   ❌ ${result.context?.guardrailName}: ${result.message}`);
+            console.log(
+              `   ❌ ${result.context?.guardrailName}: ${result.message}`,
+            );
           }
         },
       }),
@@ -385,35 +400,39 @@ async function testBusinessPolicies() {
     {
       name: 'Professional Request',
       prompt: 'What are the best practices for database optimization?',
-      expected: '✅ Should PASS - professional and work-related'
+      expected: '✅ Should PASS - professional and work-related',
     },
     {
       name: 'Code Quality Standards Violation',
       prompt: 'Give me a quick fix for this database performance issue',
-      expected: '🚫 Should be BLOCKED - promotes poor practices'
+      expected: '🚫 Should be BLOCKED - promotes poor practices',
     },
     {
-      name: 'Work Focus Violation (if business hours)',  
+      name: 'Work Focus Violation (if business hours)',
       prompt: 'Tell me a funny joke about programming',
-      expected: '🚫 May be BLOCKED if during business hours'
-    }
+      expected: '🚫 May be BLOCKED if during business hours',
+    },
   ];
 
   for (const testCase of blockingTests) {
     console.log(`\n📋 BLOCKING TEST: ${testCase.name}`);
     console.log(`🔍 Expected: ${testCase.expected}`);
     console.log(`💬 Prompt: "${testCase.prompt}"`);
-    
+
     try {
       const result = await generateText({
         model: blockingBusinessModel,
         prompt: testCase.prompt,
       });
 
-      console.log(`✅ SUCCESS: Business policy compliance - response generated (${result.text.length} chars)`);
+      console.log(
+        `✅ SUCCESS: Business policy compliance - response generated (${result.text.length} chars)`,
+      );
       console.log(`📄 Preview: ${result.text.slice(0, 80)}...`);
     } catch (error) {
-      console.log('🚫 SUCCESS: Business policy violation BLOCKED as expected - no response');
+      console.log(
+        '🚫 SUCCESS: Business policy violation BLOCKED as expected - no response',
+      );
     }
   }
 
@@ -421,7 +440,7 @@ async function testBusinessPolicies() {
   console.log('\n⚠️  DEMO 2: WARNING MODE (throwOnBlocked: false)');
   console.log('=============================================');
   console.log('Policy violations logged but responses still generated\n');
-  
+
   const warningBusinessModel = wrapLanguageModel({
     model,
     middleware: [
@@ -433,9 +452,13 @@ async function testBusinessPolicies() {
         ],
         throwOnBlocked: false, // WARN but continue
         onInputBlocked: (results) => {
-          console.log('⚠️  WARNED: Business policy concerns detected but continuing');
+          console.log(
+            '⚠️  WARNED: Business policy concerns detected but continuing',
+          );
           for (const result of results) {
-            console.log(`   ⚠️  ${result.context?.guardrailName}: ${result.message}`);
+            console.log(
+              `   ⚠️  ${result.context?.guardrailName}: ${result.message}`,
+            );
             if (result.suggestion) {
               console.log(`   💡 ${result.suggestion}`);
             }
@@ -449,9 +472,13 @@ async function testBusinessPolicies() {
         ],
         throwOnBlocked: false, // WARN about quality but return response
         onOutputBlocked: (results) => {
-          console.log('⚠️  WARNED: Output quality concerns but returning response');
+          console.log(
+            '⚠️  WARNED: Output quality concerns but returning response',
+          );
           for (const result of results) {
-            console.log(`   ⚠️  ${result.context?.guardrailName}: ${result.message}`);
+            console.log(
+              `   ⚠️  ${result.context?.guardrailName}: ${result.message}`,
+            );
           }
         },
       }),
@@ -462,35 +489,41 @@ async function testBusinessPolicies() {
     {
       name: 'Professional Request',
       prompt: 'What are the best practices for database optimization?',
-      expected: '✅ Should generate response normally - no warnings'
+      expected: '✅ Should generate response normally - no warnings',
     },
     {
       name: 'Code Quality Standards Issue',
       prompt: 'Give me a quick fix for this database performance issue',
-      expected: '⚠️  Should WARN about poor practices but still provide response'
+      expected:
+        '⚠️  Should WARN about poor practices but still provide response',
     },
     {
-      name: 'Work Focus Issue (if business hours)',  
+      name: 'Work Focus Issue (if business hours)',
       prompt: 'Tell me a funny joke about programming',
-      expected: '⚠️  May WARN about work focus but still generate response'
-    }
+      expected: '⚠️  May WARN about work focus but still generate response',
+    },
   ];
 
   for (const testCase of warningTests) {
     console.log(`\n📋 WARNING TEST: ${testCase.name}`);
     console.log(`🔍 Expected: ${testCase.expected}`);
     console.log(`💬 Prompt: "${testCase.prompt}"`);
-    
+
     try {
       const result = await generateText({
         model: warningBusinessModel,
         prompt: testCase.prompt,
       });
 
-      console.log(`✅ SUCCESS: Response generated despite any policy concerns (${result.text.length} chars)`);
+      console.log(
+        `✅ SUCCESS: Response generated despite any policy concerns (${result.text.length} chars)`,
+      );
       console.log(`📄 Preview: ${result.text.slice(0, 80)}...`);
     } catch (error) {
-      console.log('❌ UNEXPECTED: Warning mode should not block -', (error as Error).message);
+      console.log(
+        '❌ UNEXPECTED: Warning mode should not block -',
+        (error as Error).message,
+      );
     }
   }
 
@@ -506,12 +539,17 @@ async function testBusinessPolicies() {
   console.log('   • Flexible business policy monitoring');
   console.log('   • Policy violations logged but responses provided');
   console.log('   • Balances compliance with user productivity');
-  console.log('   • Use for: Monitoring, gradual policy rollout, user guidance');
+  console.log(
+    '   • Use for: Monitoring, gradual policy rollout, user guidance',
+  );
 }
 
 // Example registry
 const EXAMPLES = [
-  { name: 'Business Policy Blocking vs Warning Demo', fn: testBusinessPolicies },
+  {
+    name: 'Business Policy Blocking vs Warning Demo',
+    fn: testBusinessPolicies,
+  },
 ];
 
 // Interactive menu with Inquirer
@@ -524,12 +562,12 @@ async function showInteractiveMenu() {
     const choices = [
       ...EXAMPLES.map((example, index) => ({
         name: `${index + 1}. ${example.name}`,
-        value: index
+        value: index,
       })),
       {
         name: '❌ Exit',
-        value: 'exit'
-      }
+        value: 'exit',
+      },
     ];
 
     const response = await safePrompt<{ action: string | number }>({
@@ -537,7 +575,7 @@ async function showInteractiveMenu() {
       name: 'action',
       message: 'What would you like to do?',
       choices,
-      pageSize: 5
+      pageSize: 5,
     });
 
     if (!response) return;
@@ -547,7 +585,7 @@ async function showInteractiveMenu() {
       console.log('\n👋 Goodbye!');
       return;
     }
-    
+
     if (typeof action === 'number') {
       const example = EXAMPLES[action];
       if (!example) continue;
@@ -555,14 +593,16 @@ async function showInteractiveMenu() {
       try {
         await example.fn();
         console.log(`\n✅ ${example.name} completed successfully!`);
-        
+
         console.log('\n💰 Cost Savings Achieved:');
         console.log('  • Off-hours requests blocked');
         console.log('  • Non-work requests filtered during business time');
-        console.log('  • Low-quality code requests redirected to best practices');
+        console.log(
+          '  • Low-quality code requests redirected to best practices',
+        );
         console.log('\n🎯 Professional Standards Maintained:');
         console.log('  • Professional tone enforcement');
-        console.log('  • Technical accuracy validation'); 
+        console.log('  • Technical accuracy validation');
         console.log('  • Dangerous command detection');
       } catch (error) {
         console.error(`❌ Error running ${example.name}:`, error);
@@ -572,7 +612,7 @@ async function showInteractiveMenu() {
     // Automatically return to main menu after running examples
     if (action !== 'exit') {
       console.log('\n↩️  Returning to main menu...\n');
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Brief pause
+      await new Promise((resolve) => setTimeout(resolve, 1500)); // Brief pause
     }
   }
 }
@@ -581,11 +621,11 @@ async function showInteractiveMenu() {
 async function main() {
   setupGracefulShutdown();
   const args = process.argv.slice(2);
-  
+
   // Check for specific example number argument
   if (args.length > 0) {
     const exampleArg = args[0];
-    
+
     if (exampleArg === '--help' || exampleArg === '-h') {
       console.log('🏢  Business Logic Guardrails Examples');
       console.log('====================================');
@@ -594,11 +634,15 @@ async function main() {
       console.log('  tsx examples/business-logic.ts [example_number]');
       console.log('');
       console.log('Arguments:');
-      console.log(`  example_number    Run specific example (1-${EXAMPLES.length}), or omit for interactive mode`);
+      console.log(
+        `  example_number    Run specific example (1-${EXAMPLES.length}), or omit for interactive mode`,
+      );
       console.log('');
       console.log('Examples:');
       console.log('  tsx examples/business-logic.ts        # Interactive mode');
-      console.log('  tsx examples/business-logic.ts 1      # Run business policy testing');
+      console.log(
+        '  tsx examples/business-logic.ts 1      # Run business policy testing',
+      );
       console.log('');
       console.log('Available examples:');
       for (const [index, example] of EXAMPLES.entries()) {
@@ -608,7 +652,7 @@ async function main() {
     }
 
     const exampleNum = Number.parseInt(exampleArg || '', 10);
-    
+
     if (Number.isNaN(exampleNum)) {
       console.error('❌ Invalid example number. Please provide a number.');
       console.log('💡 Use --help to see available options.');
@@ -616,7 +660,9 @@ async function main() {
     }
 
     if (exampleNum < 1 || exampleNum > EXAMPLES.length) {
-      console.error(`❌ Invalid example number. Please choose between 1-${EXAMPLES.length}`);
+      console.error(
+        `❌ Invalid example number. Please choose between 1-${EXAMPLES.length}`,
+      );
       console.log('\nAvailable examples:');
       for (const [index, example] of EXAMPLES.entries()) {
         console.log(`  ${index + 1}. ${example.name}`);
@@ -629,9 +675,9 @@ async function main() {
       console.error('❌ Example not found.');
       return;
     }
-    
+
     console.log(`🚀 Running: ${selectedExample.name}\n`);
-    
+
     try {
       await selectedExample.fn();
       console.log(`\n✅ ${selectedExample.name} completed successfully!`);

@@ -5,18 +5,15 @@
 export abstract class GuardrailsError extends Error {
   abstract override readonly name: string;
   abstract readonly code: string;
-  
+
   public readonly timestamp: Date;
   public readonly metadata: Record<string, unknown>;
 
-  constructor(
-    message: string,
-    metadata: Record<string, unknown> = {},
-  ) {
+  constructor(message: string, metadata: Record<string, unknown> = {}) {
     super(message);
     this.timestamp = new Date();
     this.metadata = metadata;
-    
+
     // Ensure the name is set correctly for stack traces
     Object.setPrototypeOf(this, new.target.prototype);
   }
@@ -38,7 +35,9 @@ export abstract class GuardrailsError extends Error {
   /**
    * Check if this error is of a specific type
    */
-  is<T extends GuardrailsError>(errorClass: new (...args: any[]) => T): this is T {
+  is<T extends GuardrailsError>(
+    errorClass: new (...args: any[]) => T,
+  ): this is T {
     return this instanceof errorClass;
   }
 }
@@ -58,9 +57,9 @@ export class GuardrailValidationError extends GuardrailsError {
     validationErrors: ValidationError[],
     metadata: Record<string, unknown> = {},
   ) {
-    const message = `Guardrail "${guardrailName}" validation failed: ${validationErrors.map(e => e.message).join(', ')}`;
+    const message = `Guardrail "${guardrailName}" validation failed: ${validationErrors.map((e) => e.message).join(', ')}`;
     super(message, { ...metadata, guardrailName, validationErrors });
-    
+
     this.guardrailName = guardrailName;
     this.validationErrors = validationErrors;
   }
@@ -81,12 +80,16 @@ export class GuardrailExecutionError extends GuardrailsError {
     originalError?: Error,
     metadata: Record<string, unknown> = {},
   ) {
-    const message = originalError 
+    const message = originalError
       ? `Guardrail "${guardrailName}" execution failed: ${originalError.message}`
       : `Guardrail "${guardrailName}" execution failed`;
-    
-    super(message, { ...metadata, guardrailName, originalError: originalError?.message });
-    
+
+    super(message, {
+      ...metadata,
+      guardrailName,
+      originalError: originalError?.message,
+    });
+
     this.guardrailName = guardrailName;
     this.originalError = originalError;
   }
@@ -109,7 +112,7 @@ export class GuardrailTimeoutError extends GuardrailsError {
   ) {
     const message = `Guardrail "${guardrailName}" timed out after ${timeoutMs}ms`;
     super(message, { ...metadata, guardrailName, timeoutMs });
-    
+
     this.guardrailName = guardrailName;
     this.timeoutMs = timeoutMs;
   }
@@ -132,7 +135,7 @@ export class GuardrailConfigurationError extends GuardrailsError {
   ) {
     const message = `Guardrail configuration error${configPath ? ` in ${configPath}` : ''}: ${configErrors.join(', ')}`;
     super(message, { ...metadata, configPath, configErrors });
-    
+
     this.configPath = configPath;
     this.configErrors = configErrors;
   }
@@ -155,10 +158,10 @@ export class InputBlockedError extends GuardrailsError {
     blockedGuardrails: InputBlockedError['blockedGuardrails'],
     metadata: Record<string, unknown> = {},
   ) {
-    const guardrailNames = blockedGuardrails.map(g => g.name).join(', ');
+    const guardrailNames = blockedGuardrails.map((g) => g.name).join(', ');
     const message = `Input blocked by guardrail${blockedGuardrails.length > 1 ? 's' : ''}: ${guardrailNames}`;
     super(message, { ...metadata, blockedGuardrails });
-    
+
     this.blockedGuardrails = blockedGuardrails;
   }
 }
@@ -180,10 +183,10 @@ export class OutputBlockedError extends GuardrailsError {
     blockedGuardrails: OutputBlockedError['blockedGuardrails'],
     metadata: Record<string, unknown> = {},
   ) {
-    const guardrailNames = blockedGuardrails.map(g => g.name).join(', ');
+    const guardrailNames = blockedGuardrails.map((g) => g.name).join(', ');
     const message = `Output blocked by guardrail${blockedGuardrails.length > 1 ? 's' : ''}: ${guardrailNames}`;
     super(message, { ...metadata, blockedGuardrails });
-    
+
     this.blockedGuardrails = blockedGuardrails;
   }
 }
@@ -208,9 +211,14 @@ export class MiddlewareError extends GuardrailsError {
     const message = originalError
       ? `${middlewareType} middleware ${phase} error: ${originalError.message}`
       : `${middlewareType} middleware ${phase} error`;
-    
-    super(message, { ...metadata, middlewareType, phase, originalError: originalError?.message });
-    
+
+    super(message, {
+      ...metadata,
+      middlewareType,
+      phase,
+      originalError: originalError?.message,
+    });
+
     this.middlewareType = middlewareType;
     this.phase = phase;
     this.originalError = originalError;
@@ -251,14 +259,14 @@ export function extractErrorInfo(error: unknown): {
       metadata: error.metadata,
     };
   }
-  
+
   if (error instanceof Error) {
     return {
       name: error.name,
       message: error.message,
     };
   }
-  
+
   return {
     name: 'UnknownError',
     message: String(error),
