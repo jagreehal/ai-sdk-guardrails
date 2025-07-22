@@ -1,6 +1,6 @@
 {
   "name": "ai-sdk-guardrails",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Input and output guardrails middleware for Vercel AI SDK.",
   "keywords": [
     "ai",
