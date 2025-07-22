@@ -26,7 +26,7 @@ describe('Output Guardrails', () => {
         input: {} as any,
         result: {
           text: 'Short response',
-          usage: { totalTokens: 10, promptTokens: 5, completionTokens: 5 },
+          usage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
           finishReason: 'stop',
           experimental_providerMetadata: { generationTimeMs: 1000 },
         } as any,
@@ -42,7 +42,7 @@ describe('Output Guardrails', () => {
         input: {} as any,
         result: {
           text: 'This is a very long response that exceeds the limit',
-          usage: { totalTokens: 20, promptTokens: 10, completionTokens: 10 },
+          usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
           finishReason: 'stop',
           experimental_providerMetadata: { generationTimeMs: 2000 },
         } as any,
@@ -80,7 +80,7 @@ describe('Output Guardrails', () => {
         input: {} as any,
         result: {
           text: 'Test',
-          usage: { totalTokens: 20, promptTokens: 10, completionTokens: 10 },
+          usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
           finishReason: 'stop',
           experimental_providerMetadata: { generationTimeMs: 2000 },
         } as any,
@@ -283,7 +283,7 @@ describe('Output Guardrails', () => {
           object: null,
           usage: { totalTokens: 10 },
           finishReason: 'stop',
-          reasoning: 'High confidence response',
+          reasoningText: 'High confidence response',
         } as any,
       });
 
@@ -332,10 +332,10 @@ describe('Output Guardrails', () => {
         result: {
           text: 'Maybe this is correct',
           object: null,
-          usage: { totalTokens: 20, promptTokens: 10, completionTokens: 10 },
+          usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
           finishReason: 'stop',
-          reasoning: 'Uncertain response',
-          experimental_providerMetadata: { reasoning: 'Uncertain response' },
+          reasoningText: 'Uncertain response',
+          experimental_providerMetadata: { reasoningText: 'Uncertain response' },
         } as any,
       });
 
@@ -345,7 +345,7 @@ describe('Output Guardrails', () => {
       expect(result.metadata?.textLength).toBe(21);
       expect(result.metadata?.usage).toBeDefined();
       expect(result.metadata?.finishReason).toBe('stop');
-      expect(result.metadata?.reasoning).toBe('Uncertain response');
+      expect(result.metadata?.reasoningText).toBe('Uncertain response');
     });
   });
 
@@ -462,7 +462,7 @@ describe('Output Guardrails', () => {
       const output = {
         text: 'Test output',
         object: { test: true },
-        usage: { totalTokens: 10, promptTokens: 5, completionTokens: 5 },
+        usage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
         finishReason: 'stop',
         generationTimeMs: 1000,
         experimental_providerMetadata: { generationTimeMs: 1000 },
@@ -476,7 +476,7 @@ describe('Output Guardrails', () => {
       expect(mockValidator).toHaveBeenCalledWith({
         text: 'Test output',
         object: { test: true },
-        usage: { totalTokens: 10, promptTokens: 5, completionTokens: 5 },
+        usage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
         finishReason: 'stop',
         generationTimeMs: 1000,
       });
@@ -494,7 +494,7 @@ describe('Output Guardrails', () => {
         result: {
           text: 'Test output',
           object: { test: true },
-          usage: { totalTokens: 10, promptTokens: 5, completionTokens: 5 },
+          usage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
           finishReason: 'stop',
           generationTimeMs: 1000,
           experimental_providerMetadata: { generationTimeMs: 1000 },
@@ -609,7 +609,7 @@ describe('Output Guardrails', () => {
         result: {
           text: 'Output text',
           object: null,
-          usage: { totalTokens: 50, promptTokens: 20, completionTokens: 30 },
+          usage: { totalTokens: 50, inputTokens: 20, outputTokens: 30 },
           generationTimeMs: 1000,
         } as any,
       });
@@ -624,7 +624,7 @@ describe('Output Guardrails', () => {
         result: {
           text: 'Output text',
           object: null,
-          usage: { totalTokens: 100, promptTokens: 40, completionTokens: 60 },
+          usage: { totalTokens: 100, inputTokens: 40, outputTokens: 60 },
           generationTimeMs: 2000,
           experimental_providerMetadata: { generationTimeMs: 2000 },
         } as any,
@@ -635,8 +635,8 @@ describe('Output Guardrails', () => {
       expect(result.severity).toBe('medium');
       expect(result.metadata?.totalTokens).toBe(100);
       expect(result.metadata?.maxTokens).toBe(50);
-      expect(result.metadata?.promptTokens).toBe(40);
-      expect(result.metadata?.completionTokens).toBe(60);
+      expect(result.metadata?.inputTokens).toBe(40);
+      expect(result.metadata?.outputTokens).toBe(60);
       expect(result.metadata?.tokensPerMs).toBe(0.05); // 100 / 2000
     });
 
@@ -665,7 +665,7 @@ describe('Output Guardrails', () => {
         result: {
           text: 'Fast response',
           object: null,
-          usage: { totalTokens: 20, promptTokens: 10, completionTokens: 10 },
+          usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
           generationTimeMs: 3000,
         } as any,
       });
@@ -680,7 +680,7 @@ describe('Output Guardrails', () => {
         result: {
           text: 'Slow response',
           object: null,
-          usage: { totalTokens: 20, promptTokens: 10, completionTokens: 10 },
+          usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
           generationTimeMs: 5000,
           experimental_providerMetadata: { generationTimeMs: 5000 },
         } as any,
@@ -702,7 +702,7 @@ describe('Output Guardrails', () => {
         result: {
           text: 'Response with metrics',
           object: null,
-          usage: { totalTokens: 100, promptTokens: 40, completionTokens: 60 },
+          usage: { totalTokens: 100, inputTokens: 40, outputTokens: 60 },
           generationTimeMs: 4000,
           experimental_providerMetadata: { generationTimeMs: 4000 },
         } as any,

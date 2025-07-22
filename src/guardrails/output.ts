@@ -15,9 +15,9 @@ interface BaseResult {
   finishReason?: string;
   experimental_providerMetadata?: {
     generationTimeMs?: number;
-    reasoning?: string;
+    reasoningText?: string;
   };
-  reasoning?: string;
+  reasoningText?: string;
 }
 
 interface ObjectResult extends BaseResult {
@@ -44,8 +44,36 @@ export function extractContent(result: AIResult): {
   };
   finishReason?: string;
   generationTimeMs?: number;
-  reasoning?: string;
+  reasoningText?: string;
 } {
+  // Handle newer AI SDK result format with content array
+  if ('content' in result && Array.isArray((result as { content: unknown }).content)) {
+    const content = (result as { content: Array<{ type: string; text?: string }> }).content;
+    const textContent = content
+      .filter((item) => item.type === 'text' && item.text)
+      .map((item) => item.text)
+      .join('');
+    
+    // Try to map usage fields from different formats
+    const usage = (result as { usage?: Record<string, unknown> }).usage || {};
+    const mappedUsage = {
+      promptTokens: (typeof usage.inputTokens === 'number' ? usage.inputTokens : 
+                    (typeof usage.promptTokens === 'number' ? usage.promptTokens : undefined)),
+      completionTokens: (typeof usage.outputTokens === 'number' ? usage.outputTokens : 
+                        (typeof usage.completionTokens === 'number' ? usage.completionTokens : undefined)),
+      totalTokens: (typeof usage.totalTokens === 'number' ? usage.totalTokens : undefined),
+    };
+    
+    return {
+      text: textContent || '',
+      object: null,
+      usage: mappedUsage,
+      finishReason: (result as { finishReason?: string }).finishReason,
+      generationTimeMs: (result as { experimental_providerMetadata?: { generationTimeMs?: number } }).experimental_providerMetadata?.generationTimeMs,
+      reasoningText: (result as { reasoningText?: string; experimental_providerMetadata?: { reasoningText?: string } }).reasoningText || (result as { experimental_providerMetadata?: { reasoningText?: string } }).experimental_providerMetadata?.reasoningText,
+    };
+  }
+  
   // Handle different result types
   if ('object' in result && result.object != null) {
     // GenerateObjectResult - prioritize object over text
@@ -57,9 +85,9 @@ export function extractContent(result: AIResult): {
       finishReason: objectResult.finishReason,
       generationTimeMs:
         objectResult.experimental_providerMetadata?.generationTimeMs,
-      reasoning:
-        objectResult.reasoning ||
-        objectResult.experimental_providerMetadata?.reasoning,
+      reasoningText:
+        objectResult.reasoningText ||
+        objectResult.experimental_providerMetadata?.reasoningText,
     };
   } else if ('text' in result) {
     // GenerateTextResult
@@ -71,9 +99,9 @@ export function extractContent(result: AIResult): {
       finishReason: textResult.finishReason,
       generationTimeMs:
         textResult.experimental_providerMetadata?.generationTimeMs,
-      reasoning:
-        textResult.reasoning ||
-        textResult.experimental_providerMetadata?.reasoning,
+      reasoningText:
+        textResult.reasoningText ||
+        textResult.experimental_providerMetadata?.reasoningText,
     };
   } else if ('textStream' in result) {
     // StreamTextResult
@@ -113,10 +141,6 @@ export function extractContent(result: AIResult): {
     generationTimeMs: undefined,
   };
 }
-
-// ============================================================================
-// OUTPUT GUARDRAILS
-// ============================================================================
 
 export const lengthLimit = (maxLength: number): OutputGuardrail =>
   createOutputGuardrail(
@@ -255,8 +279,14 @@ export const confidenceThreshold = (minConfidence: number): OutputGuardrail =>
   createOutputGuardrail(
     'confidence-threshold',
     (context: OutputGuardrailContext) => {
-      const { text, object, usage, finishReason, generationTimeMs, reasoning } =
-        extractContent(context.result);
+      const {
+        text,
+        object,
+        usage,
+        finishReason,
+        generationTimeMs,
+        reasoningText,
+      } = extractContent(context.result);
       const content = text || (object ? JSON.stringify(object) : '');
 
       const hasUncertainty =
@@ -284,7 +314,7 @@ export const confidenceThreshold = (minConfidence: number): OutputGuardrail =>
           finishReason,
           generationTimeMs,
           finishReasonPenalty,
-          reasoning,
+          reasoningText,
         },
       };
     },
@@ -431,8 +461,12 @@ export const tokenUsageLimit = (maxTokens: number): OutputGuardrail =>
         metadata: {
           totalTokens,
           maxTokens,
-          promptTokens: usage?.promptTokens,
-          completionTokens: usage?.completionTokens,
+          inputTokens:
+            (usage as { inputTokens?: number })?.inputTokens ||
+            (usage as { promptTokens?: number })?.promptTokens,
+          outputTokens:
+            (usage as { outputTokens?: number })?.outputTokens ||
+            (usage as { completionTokens?: number })?.completionTokens,
           contentLength: content.length,
           generationTimeMs,
           tokensPerMs:
@@ -476,10 +510,6 @@ export const performanceMonitor = (
       };
     },
   );
-
-// ============================================================================
-// ADVANCED QUALITY & SAFETY GUARDRAILS
-// ============================================================================
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
