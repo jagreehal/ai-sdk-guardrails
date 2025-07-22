@@ -1,5 +1,11 @@
 # ai-sdk-guardrails
 
+## 2.0.0
+
+### Major Changes
+
+- Updated to use AI SDK v5
+
 ## 1.0.0
 
 ### Major Changes
