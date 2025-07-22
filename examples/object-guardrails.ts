@@ -7,7 +7,10 @@ import {
   defineInputGuardrail,
   defineOutputGuardrail,
 } from '../src/guardrails';
-import type { InputGuardrailContext, OutputGuardrailContext } from '../src/types';
+import type {
+  InputGuardrailContext,
+  OutputGuardrailContext,
+} from '../src/types';
 import { extractContent } from '../src/guardrails/output';
 import { extractTextContent } from '../src/guardrails/input';
 import inquirer from 'inquirer';
@@ -54,7 +57,7 @@ async function example1_SchemaValidation() {
   console.log('\n🚫 DEMO 1: BLOCKING MODE (throwOnBlocked: true)');
   console.log('===============================================');
   console.log('Invalid objects are rejected - no object returned\n');
-  
+
   const blockingModel = wrapLanguageModel({
     model,
     middleware: [
@@ -62,10 +65,13 @@ async function example1_SchemaValidation() {
         outputGuardrails: [schemaValidator],
         throwOnBlocked: true, // BLOCKS invalid objects
         onOutputBlocked: (results) => {
-          console.log('🚫 BLOCKED: Invalid object rejected -', results[0]?.message);
-        }
-      })
-    ]
+          console.log(
+            '🚫 BLOCKED: Invalid object rejected -',
+            results[0]?.message,
+          );
+        },
+      }),
+    ],
   });
 
   // Test 1A: Valid object request
@@ -77,13 +83,18 @@ async function example1_SchemaValidation() {
       prompt: 'Generate a user: John Doe, age 30, email john@example.com',
       schema: userSchema,
     });
-    console.log('✅ SUCCESS: Valid object generated -', JSON.stringify(result.object));
+    console.log(
+      '✅ SUCCESS: Valid object generated -',
+      JSON.stringify(result.object),
+    );
   } catch (error) {
     console.log('❌ Error generating valid object:', (error as Error).message);
   }
 
-  // Test 1B: Potentially invalid object request  
-  console.log('\n🚫 Testing request likely to produce INVALID object in BLOCKING mode...');
+  // Test 1B: Potentially invalid object request
+  console.log(
+    '\n🚫 Testing request likely to produce INVALID object in BLOCKING mode...',
+  );
   console.log('Expected: Should be BLOCKED if object validation fails');
   try {
     const result = await generateObject({
@@ -91,7 +102,10 @@ async function example1_SchemaValidation() {
       prompt: 'Generate user data with invalid age -50 and malformed email', // Likely to produce invalid data
       schema: userSchema,
     });
-    console.log('✅ Object validated successfully -', JSON.stringify(result.object));
+    console.log(
+      '✅ Object validated successfully -',
+      JSON.stringify(result.object),
+    );
   } catch (error) {
     console.log('🚫 SUCCESS: Invalid object was BLOCKED as expected');
   }
@@ -100,7 +114,7 @@ async function example1_SchemaValidation() {
   console.log('\n⚠️  DEMO 2: WARNING MODE (throwOnBlocked: false)');
   console.log('===========================================');
   console.log('Invalid objects trigger warnings but are still returned\n');
-  
+
   const warningModel = wrapLanguageModel({
     model,
     middleware: [
@@ -108,10 +122,13 @@ async function example1_SchemaValidation() {
         outputGuardrails: [schemaValidator],
         throwOnBlocked: false, // WARNS but returns object
         onOutputBlocked: (results) => {
-          console.log('⚠️  WARNED: Object validation issue detected but returning object -', results[0]?.message);
-        }
-      })
-    ]
+          console.log(
+            '⚠️  WARNED: Object validation issue detected but returning object -',
+            results[0]?.message,
+          );
+        },
+      }),
+    ],
   });
 
   // Test 2A: Valid object request
@@ -123,29 +140,45 @@ async function example1_SchemaValidation() {
       prompt: 'Generate a user: Jane Smith, age 25, email jane@example.com',
       schema: userSchema,
     });
-    console.log('✅ SUCCESS: Valid object generated normally -', JSON.stringify(result.object));
+    console.log(
+      '✅ SUCCESS: Valid object generated normally -',
+      JSON.stringify(result.object),
+    );
   } catch (error) {
     console.log('❌ Error:', (error as Error).message);
   }
 
   // Test 2B: Potentially invalid object request
-  console.log('\n⚠️  Testing request likely to produce INVALID object in WARNING mode...');
-  console.log('Expected: Should WARN about validation but still return object if possible');
+  console.log(
+    '\n⚠️  Testing request likely to produce INVALID object in WARNING mode...',
+  );
+  console.log(
+    'Expected: Should WARN about validation but still return object if possible',
+  );
   try {
     const result = await generateObject({
       model: warningModel,
       prompt: 'Generate user data with invalid age -50 and malformed email',
       schema: userSchema,
     });
-    console.log('✅ SUCCESS: Object returned despite validation issues -', JSON.stringify(result.object));
+    console.log(
+      '✅ SUCCESS: Object returned despite validation issues -',
+      JSON.stringify(result.object),
+    );
   } catch (error) {
-    console.log('⚠️  Note: Object generation failed due to technical issues, not guardrail blocking');
+    console.log(
+      '⚠️  Note: Object generation failed due to technical issues, not guardrail blocking',
+    );
   }
 
   console.log('\n📋 SCHEMA VALIDATION SUMMARY:');
   console.log('==============================');
-  console.log('🚫 BLOCKING mode = Invalid objects rejected, no response returned');
-  console.log('⚠️  WARNING mode = Validation issues logged but objects still returned when possible');
+  console.log(
+    '🚫 BLOCKING mode = Invalid objects rejected, no response returned',
+  );
+  console.log(
+    '⚠️  WARNING mode = Validation issues logged but objects still returned when possible',
+  );
 }
 
 // Example 2: Custom Object Validation
@@ -171,7 +204,7 @@ async function example2_CustomObjectValidation() {
           severity: 'high',
         };
       }
-      
+
       const recipe = object as {
         ingredients?: string[];
         instructions?: string[];
@@ -212,21 +245,22 @@ async function example2_CustomObjectValidation() {
         throwOnBlocked: false,
         onOutputBlocked: (results) => {
           console.log('❌ Recipe blocked:', results[0]?.message);
-        }
-      })
-    ]
+        },
+      }),
+    ],
   });
 
   console.log('Testing recipe validation...');
   try {
     const result = await generateObject({
       model: protectedModel,
-      prompt: 'Generate a JSON object for a pasta recipe with these exact fields: name (string), ingredients (array of strings), instructions (array of strings), cookingTime (number in minutes). Create a complete recipe. Return only valid JSON.',
+      prompt:
+        'Generate a JSON object for a pasta recipe with these exact fields: name (string), ingredients (array of strings), instructions (array of strings), cookingTime (number in minutes). Create a complete recipe. Return only valid JSON.',
       schema: recipeSchema,
       experimental_telemetry: {
         isEnabled: true,
         functionId: 'recipe-validation',
-        metadata: { example: 'custom-object-validation' }
+        metadata: { example: 'custom-object-validation' },
       },
     });
     console.log('✅ Valid recipe generated:');
@@ -236,9 +270,11 @@ async function example2_CustomObjectValidation() {
   }
 }
 
-// Example 3: Object Content Filtering - Blocking vs Warning Demo  
+// Example 3: Object Content Filtering - Blocking vs Warning Demo
 async function example3_ObjectContentFiltering() {
-  console.log('\n=== Example 3: Object Content Filtering - Blocking vs Warning ===');
+  console.log(
+    '\n=== Example 3: Object Content Filtering - Blocking vs Warning ===',
+  );
 
   const messageSchema = z.object({
     subject: z.string(),
@@ -258,7 +294,7 @@ async function example3_ObjectContentFiltering() {
           severity: 'high',
         };
       }
-      
+
       const message = object as {
         subject?: string;
         body?: string;
@@ -291,7 +327,7 @@ async function example3_ObjectContentFiltering() {
   console.log('\n🚫 DEMO 1: BLOCKING MODE (throwOnBlocked: true)');
   console.log('===============================================');
   console.log('Messages with blocked content are rejected\n');
-  
+
   const blockingModel = wrapLanguageModel({
     model,
     middleware: [
@@ -299,10 +335,13 @@ async function example3_ObjectContentFiltering() {
         outputGuardrails: [contentFilterGuardrail],
         throwOnBlocked: true, // BLOCKS inappropriate content
         onOutputBlocked: (results) => {
-          console.log('🚫 BLOCKED: Message contains inappropriate content -', results[0]?.message);
-        }
-      })
-    ]
+          console.log(
+            '🚫 BLOCKED: Message contains inappropriate content -',
+            results[0]?.message,
+          );
+        },
+      }),
+    ],
   });
 
   // Test 1A: Clean message
@@ -326,7 +365,8 @@ async function example3_ObjectContentFiltering() {
   try {
     const result = await generateObject({
       model: blockingModel,
-      prompt: 'Create an urgent marketing message that says "act now immediately"',
+      prompt:
+        'Create an urgent marketing message that says "act now immediately"',
       schema: messageSchema,
     });
     console.log('✅ Message passed content filter:');
@@ -338,8 +378,10 @@ async function example3_ObjectContentFiltering() {
   // DEMO 2: WARNING MODE
   console.log('\n⚠️  DEMO 2: WARNING MODE (throwOnBlocked: false)');
   console.log('===========================================');
-  console.log('Content issues trigger warnings but messages are still returned\n');
-  
+  console.log(
+    'Content issues trigger warnings but messages are still returned\n',
+  );
+
   const warningModel = wrapLanguageModel({
     model,
     middleware: [
@@ -347,10 +389,13 @@ async function example3_ObjectContentFiltering() {
         outputGuardrails: [contentFilterGuardrail],
         throwOnBlocked: false, // WARNS but returns message
         onOutputBlocked: (results) => {
-          console.log('⚠️  WARNED: Content issue detected but returning message -', results[0]?.message);
-        }
-      })
-    ]
+          console.log(
+            '⚠️  WARNED: Content issue detected but returning message -',
+            results[0]?.message,
+          );
+        },
+      }),
+    ],
   });
 
   // Test 2A: Clean message
@@ -374,19 +419,27 @@ async function example3_ObjectContentFiltering() {
   try {
     const result = await generateObject({
       model: warningModel,
-      prompt: 'Create an urgent marketing message that says "act now immediately"',
+      prompt:
+        'Create an urgent marketing message that says "act now immediately"',
       schema: messageSchema,
     });
     console.log('✅ SUCCESS: Message returned despite content warnings:');
     console.log(JSON.stringify(result.object, null, 2));
   } catch (error) {
-    console.log('❌ Unexpected error in warning mode:', (error as Error).message);
+    console.log(
+      '❌ Unexpected error in warning mode:',
+      (error as Error).message,
+    );
   }
 
   console.log('\n📋 CONTENT FILTERING SUMMARY:');
   console.log('===============================');
-  console.log('🚫 BLOCKING mode = Inappropriate content prevents object generation');
-  console.log('⚠️  WARNING mode = Content issues logged but objects still returned');
+  console.log(
+    '🚫 BLOCKING mode = Inappropriate content prevents object generation',
+  );
+  console.log(
+    '⚠️  WARNING mode = Content issues logged but objects still returned',
+  );
 }
 
 // Example 4: Input Validation for Object Generation
@@ -435,9 +488,9 @@ async function example4_InputValidationForObjects() {
         throwOnBlocked: false,
         onInputBlocked: (results) => {
           console.log('❌ Input blocked:', results[0]?.message);
-        }
-      })
-    ]
+        },
+      }),
+    ],
   });
 
   // Test with appropriate product
@@ -450,7 +503,7 @@ async function example4_InputValidationForObjects() {
       experimental_telemetry: {
         isEnabled: true,
         functionId: 'input-validation',
-        metadata: { example: 'object-input-validation' }
+        metadata: { example: 'object-input-validation' },
       },
     });
     console.log('✅ Appropriate product generated:');
@@ -469,7 +522,7 @@ async function example4_InputValidationForObjects() {
       experimental_telemetry: {
         isEnabled: true,
         functionId: 'input-validation',
-        metadata: { example: 'object-input-validation' }
+        metadata: { example: 'object-input-validation' },
       },
     });
     console.log(
@@ -483,10 +536,19 @@ async function example4_InputValidationForObjects() {
 
 // Example registry
 const EXAMPLES = [
-  { name: 'Schema Validation (Blocking vs Warning Demo)', fn: example1_SchemaValidation },
+  {
+    name: 'Schema Validation (Blocking vs Warning Demo)',
+    fn: example1_SchemaValidation,
+  },
   { name: 'Custom Object Validation', fn: example2_CustomObjectValidation },
-  { name: 'Object Content Filtering (Blocking vs Warning Demo)', fn: example3_ObjectContentFiltering },
-  { name: 'Input Validation for Objects', fn: example4_InputValidationForObjects },
+  {
+    name: 'Object Content Filtering (Blocking vs Warning Demo)',
+    fn: example3_ObjectContentFiltering,
+  },
+  {
+    name: 'Input Validation for Objects',
+    fn: example4_InputValidationForObjects,
+  },
 ];
 
 // Interactive menu with Inquirer
@@ -499,20 +561,20 @@ async function showInteractiveMenu() {
     const choices = [
       ...EXAMPLES.map((example, index) => ({
         name: `${index + 1}. ${example.name}`,
-        value: index
+        value: index,
       })),
       {
         name: `${EXAMPLES.length + 1}. Run all examples`,
-        value: 'all'
+        value: 'all',
       },
       {
         name: '🔧 Select multiple examples to run',
-        value: 'multiple'
+        value: 'multiple',
       },
       {
         name: '❌ Exit',
-        value: 'exit'
-      }
+        value: 'exit',
+      },
     ];
 
     const response = await safePrompt<{ action: string | number }>({
@@ -520,7 +582,7 @@ async function showInteractiveMenu() {
       name: 'action',
       message: 'What would you like to do?',
       choices,
-      pageSize: 8
+      pageSize: 8,
     });
 
     if (!response) return;
@@ -530,7 +592,7 @@ async function showInteractiveMenu() {
       console.log('\n👋 Goodbye!');
       return;
     }
-    
+
     if (action === 'all') {
       await runAllExamples();
     } else if (action === 'multiple') {
@@ -550,7 +612,7 @@ async function showInteractiveMenu() {
     // Automatically return to main menu after running examples
     if (action !== 'exit') {
       console.log('\n↩️  Returning to main menu...\n');
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Brief pause
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Brief pause
     }
   }
 }
@@ -564,21 +626,23 @@ async function runMultipleExamples() {
     choices: EXAMPLES.map((example, index) => ({
       name: example.name,
       value: index,
-      checked: false
+      checked: false,
     })),
     validate: (input: number[]) => {
       if (input.length === 0) {
         return 'Please select at least one example';
       }
       return true;
-    }
+    },
   });
 
   if (!response) return;
   const { selectedExamples } = response;
 
-  console.log(`\n🚀 Running ${selectedExamples.length} selected object examples...\n`);
-  
+  console.log(
+    `\n🚀 Running ${selectedExamples.length} selected object examples...\n`,
+  );
+
   for (const exampleIndex of selectedExamples) {
     const example = EXAMPLES[exampleIndex];
     if (!example) continue;
@@ -591,13 +655,15 @@ async function runMultipleExamples() {
     }
   }
 
-  console.log(`\n🎉 All ${selectedExamples.length} selected object examples completed!`);
+  console.log(
+    `\n🎉 All ${selectedExamples.length} selected object examples completed!`,
+  );
 }
 
 // Run all examples
 async function runAllExamples() {
   console.log('\n🚀 Running all object guardrails examples...\n');
-  
+
   try {
     for (const example of EXAMPLES) {
       console.log(`\n--- Running: ${example.name} ---`);
@@ -618,11 +684,11 @@ async function runAllExamples() {
 async function main() {
   setupGracefulShutdown();
   const args = process.argv.slice(2);
-  
+
   // Check for specific example number argument
   if (args.length > 0) {
     const exampleArg = args[0];
-    
+
     if (exampleArg === '--help' || exampleArg === '-h') {
       console.log('🔷  AI SDK Object Guardrails Examples');
       console.log('====================================');
@@ -631,12 +697,20 @@ async function main() {
       console.log('  tsx examples/object-guardrails.ts [example_number]');
       console.log('');
       console.log('Arguments:');
-      console.log(`  example_number    Run specific example (1-${EXAMPLES.length}), or omit for interactive mode`);
+      console.log(
+        `  example_number    Run specific example (1-${EXAMPLES.length}), or omit for interactive mode`,
+      );
       console.log('');
       console.log('Examples:');
-      console.log('  tsx examples/object-guardrails.ts        # Interactive mode');
-      console.log('  tsx examples/object-guardrails.ts 1      # Run schema validation');
-      console.log('  tsx examples/object-guardrails.ts 2      # Run custom object validation');
+      console.log(
+        '  tsx examples/object-guardrails.ts        # Interactive mode',
+      );
+      console.log(
+        '  tsx examples/object-guardrails.ts 1      # Run schema validation',
+      );
+      console.log(
+        '  tsx examples/object-guardrails.ts 2      # Run custom object validation',
+      );
       console.log('');
       console.log('Available examples:');
       for (const [index, example] of EXAMPLES.entries()) {
@@ -646,7 +720,7 @@ async function main() {
     }
 
     const exampleNum = Number.parseInt(exampleArg || '', 10);
-    
+
     if (Number.isNaN(exampleNum)) {
       console.error('❌ Invalid example number. Please provide a number.');
       console.log('💡 Use --help to see available options.');
@@ -654,7 +728,9 @@ async function main() {
     }
 
     if (exampleNum < 1 || exampleNum > EXAMPLES.length) {
-      console.error(`❌ Invalid example number. Please choose between 1-${EXAMPLES.length}`);
+      console.error(
+        `❌ Invalid example number. Please choose between 1-${EXAMPLES.length}`,
+      );
       console.log('\nAvailable examples:');
       for (const [index, example] of EXAMPLES.entries()) {
         console.log(`  ${index + 1}. ${example.name}`);
@@ -667,9 +743,9 @@ async function main() {
       console.error('❌ Example not found.');
       return;
     }
-    
+
     console.log(`🚀 Running: ${selectedExample.name}\n`);
-    
+
     try {
       await selectedExample.fn();
       console.log(`\n✅ ${selectedExample.name} completed successfully!`);

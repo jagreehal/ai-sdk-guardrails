@@ -29,12 +29,16 @@ import { setupGracefulShutdown, safePrompt } from './utils/interactive-menu';
 
 // Example 1: Streaming Length Limits - Blocking vs Warning Demo
 async function example1_BasicStreamingLimit() {
-  console.log('\n=== Example 1: Streaming Length Limits - Blocking vs Warning ===');
+  console.log(
+    '\n=== Example 1: Streaming Length Limits - Blocking vs Warning ===',
+  );
 
   // DEMO 1: BLOCKING MODE for streaming
   console.log('\n🚫 DEMO 1: STREAMING BLOCKING MODE (throwOnBlocked: true)');
   console.log('===========================================================');
-  console.log('If length exceeds limit: Stream completes but final result is BLOCKED\n');
+  console.log(
+    'If length exceeds limit: Stream completes but final result is BLOCKED\n',
+  );
 
   const blockingModel = wrapLanguageModel({
     model,
@@ -43,14 +47,21 @@ async function example1_BasicStreamingLimit() {
         outputGuardrails: [outputLengthLimit(100)], // Short limit for demo
         throwOnBlocked: true, // BLOCKS the final result
         onOutputBlocked: (results) => {
-          console.log('\n🚫 BLOCKED: Stream result rejected -', results[0]?.message);
+          console.log(
+            '\n🚫 BLOCKED: Stream result rejected -',
+            results[0]?.message,
+          );
         },
       }),
     ],
   });
 
-  console.log('✅ Testing SHORT story request in BLOCKING mode (should stay under 100 chars)...');
-  console.log('Expected: Stream should complete and result should be accepted\n');
+  console.log(
+    '✅ Testing SHORT story request in BLOCKING mode (should stay under 100 chars)...',
+  );
+  console.log(
+    'Expected: Stream should complete and result should be accepted\n',
+  );
   try {
     const stream = await streamText({
       model: blockingModel,
@@ -63,18 +74,25 @@ async function example1_BasicStreamingLimit() {
       process.stdout.write(chunk);
       fullText += chunk;
     }
-    
-    console.log(`\n✅ SUCCESS: Stream completed normally (${fullText.length} chars)`);
+
+    console.log(
+      `\n✅ SUCCESS: Stream completed normally (${fullText.length} chars)`,
+    );
   } catch (error) {
     console.log('\n🚫 BLOCKED: Stream result was rejected due to length limit');
   }
 
-  console.log('\n🚫 Testing LONG story request in BLOCKING mode (will exceed 100 chars)...');
-  console.log('Expected: Stream will flow but final result will be BLOCKED if over limit\n');
+  console.log(
+    '\n🚫 Testing LONG story request in BLOCKING mode (will exceed 100 chars)...',
+  );
+  console.log(
+    'Expected: Stream will flow but final result will be BLOCKED if over limit\n',
+  );
   try {
     const stream = await streamText({
       model: blockingModel,
-      prompt: 'Tell me a detailed story about robots and AI with lots of description',
+      prompt:
+        'Tell me a detailed story about robots and AI with lots of description',
     });
 
     console.log('🔄 Streaming started (will be checked after completion):');
@@ -83,16 +101,22 @@ async function example1_BasicStreamingLimit() {
       process.stdout.write(chunk);
       fullText += chunk;
     }
-    
-    console.log(`\n✅ Stream completed, length: ${fullText.length} chars - awaiting guardrail check...`);
+
+    console.log(
+      `\n✅ Stream completed, length: ${fullText.length} chars - awaiting guardrail check...`,
+    );
   } catch (error) {
-    console.log('\n🚫 SUCCESS: Stream result was BLOCKED due to excessive length');
+    console.log(
+      '\n🚫 SUCCESS: Stream result was BLOCKED due to excessive length',
+    );
   }
 
   // DEMO 2: WARNING MODE for streaming
   console.log('\n⚠️  DEMO 2: STREAMING WARNING MODE (throwOnBlocked: false)');
   console.log('========================================================');
-  console.log('If length exceeds limit: Stream completes and warning is logged but result is PRESERVED\n');
+  console.log(
+    'If length exceeds limit: Stream completes and warning is logged but result is PRESERVED\n',
+  );
 
   const warningModel = wrapLanguageModel({
     model,
@@ -101,7 +125,10 @@ async function example1_BasicStreamingLimit() {
         outputGuardrails: [outputLengthLimit(100)], // Same short limit
         throwOnBlocked: false, // WARNS but preserves result
         onOutputBlocked: (results) => {
-          console.log('\n⚠️  WARNED: Length issue detected but preserving stream result -', results[0]?.message);
+          console.log(
+            '\n⚠️  WARNED: Length issue detected but preserving stream result -',
+            results[0]?.message,
+          );
         },
       }),
     ],
@@ -121,18 +148,26 @@ async function example1_BasicStreamingLimit() {
       process.stdout.write(chunk);
       fullText += chunk;
     }
-    
-    console.log(`\n✅ SUCCESS: Stream completed normally (${fullText.length} chars), no issues`);
+
+    console.log(
+      `\n✅ SUCCESS: Stream completed normally (${fullText.length} chars), no issues`,
+    );
   } catch (error) {
-    console.log('\n❌ Unexpected error in warning mode:', (error as Error).message);
+    console.log(
+      '\n❌ Unexpected error in warning mode:',
+      (error as Error).message,
+    );
   }
 
   console.log('\n⚠️  Testing LONG story request in WARNING mode...');
-  console.log('Expected: Stream will complete, warning will be logged, but full result preserved\n');
+  console.log(
+    'Expected: Stream will complete, warning will be logged, but full result preserved\n',
+  );
   try {
     const stream = await streamText({
       model: warningModel,
-      prompt: 'Tell me a detailed story about robots and AI with lots of description',
+      prompt:
+        'Tell me a detailed story about robots and AI with lots of description',
     });
 
     console.log('🔄 Streaming:');
@@ -141,17 +176,28 @@ async function example1_BasicStreamingLimit() {
       process.stdout.write(chunk);
       fullText += chunk;
     }
-    
-    console.log(`\n✅ SUCCESS: Full stream preserved despite length (${fullText.length} chars)`);
+
+    console.log(
+      `\n✅ SUCCESS: Full stream preserved despite length (${fullText.length} chars)`,
+    );
   } catch (error) {
-    console.log('\n❌ Unexpected error in warning mode:', (error as Error).message);
+    console.log(
+      '\n❌ Unexpected error in warning mode:',
+      (error as Error).message,
+    );
   }
 
   console.log('\n📊 STREAMING SUMMARY:');
   console.log('===================');
-  console.log('🚫 BLOCKING mode = Stream flows normally but final result rejected if guardrails trigger');
-  console.log('⚠️  WARNING mode = Stream flows normally and full result preserved even if guardrails trigger');
-  console.log('📝 Note: Guardrails analyze complete stream content, not individual chunks');
+  console.log(
+    '🚫 BLOCKING mode = Stream flows normally but final result rejected if guardrails trigger',
+  );
+  console.log(
+    '⚠️  WARNING mode = Stream flows normally and full result preserved even if guardrails trigger',
+  );
+  console.log(
+    '📝 Note: Guardrails analyze complete stream content, not individual chunks',
+  );
 }
 
 // Example 2: Content Filtering with Real Streaming
@@ -472,10 +518,19 @@ async function example4_MultipleStreamingGuardrails() {
 
 // Example registry
 const EXAMPLES = [
-  { name: 'Streaming Length Limits (Blocking vs Warning Demo)', fn: example1_BasicStreamingLimit },
-  { name: 'Content Filtering with Real Streaming', fn: example2_ContentFilteringStream },
+  {
+    name: 'Streaming Length Limits (Blocking vs Warning Demo)',
+    fn: example1_BasicStreamingLimit,
+  },
+  {
+    name: 'Content Filtering with Real Streaming',
+    fn: example2_ContentFilteringStream,
+  },
   { name: 'Quality Control Stream', fn: example3_QualityControlStream },
-  { name: 'Multiple Streaming Guardrails', fn: example4_MultipleStreamingGuardrails },
+  {
+    name: 'Multiple Streaming Guardrails',
+    fn: example4_MultipleStreamingGuardrails,
+  },
 ];
 
 // Interactive menu with Inquirer
@@ -488,20 +543,20 @@ async function showInteractiveMenu() {
     const choices = [
       ...EXAMPLES.map((example, index) => ({
         name: `${index + 1}. ${example.name}`,
-        value: index
+        value: index,
       })),
       {
         name: `${EXAMPLES.length + 1}. Run all examples`,
-        value: 'all'
+        value: 'all',
       },
       {
         name: '🔧 Select multiple examples to run',
-        value: 'multiple'
+        value: 'multiple',
       },
       {
         name: '❌ Exit',
-        value: 'exit'
-      }
+        value: 'exit',
+      },
     ];
 
     const response = await safePrompt<{ action: string | number }>({
@@ -509,7 +564,7 @@ async function showInteractiveMenu() {
       name: 'action',
       message: 'What would you like to do?',
       choices,
-      pageSize: 8
+      pageSize: 8,
     });
 
     if (!response) return;
@@ -519,7 +574,7 @@ async function showInteractiveMenu() {
       console.log('\n👋 Goodbye!');
       return;
     }
-    
+
     if (action === 'all') {
       await runAllExamples();
     } else if (action === 'multiple') {
@@ -539,7 +594,7 @@ async function showInteractiveMenu() {
     // Automatically return to main menu after running examples
     if (action !== 'exit') {
       console.log('\n↩️  Returning to main menu...\n');
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Brief pause
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Brief pause
     }
   }
 }
@@ -553,21 +608,23 @@ async function runMultipleExamples() {
     choices: EXAMPLES.map((example, index) => ({
       name: example.name,
       value: index,
-      checked: false
+      checked: false,
     })),
     validate: (input: number[]) => {
       if (input.length === 0) {
         return 'Please select at least one example';
       }
       return true;
-    }
+    },
   });
 
   if (!response) return;
   const { selectedExamples } = response;
 
-  console.log(`\n🚀 Running ${selectedExamples.length} selected streaming examples...\n`);
-  
+  console.log(
+    `\n🚀 Running ${selectedExamples.length} selected streaming examples...\n`,
+  );
+
   for (const exampleIndex of selectedExamples) {
     const example = EXAMPLES[exampleIndex];
     if (!example) continue;
@@ -580,13 +637,15 @@ async function runMultipleExamples() {
     }
   }
 
-  console.log(`\n🎉 All ${selectedExamples.length} selected streaming examples completed!`);
+  console.log(
+    `\n🎉 All ${selectedExamples.length} selected streaming examples completed!`,
+  );
 }
 
 // Run all examples
 async function runAllExamples() {
   console.log('\n🚀 Running all streaming guardrails examples...\n');
-  
+
   try {
     for (const example of EXAMPLES) {
       console.log(`\n--- Running: ${example.name} ---`);
@@ -601,10 +660,16 @@ async function runAllExamples() {
     console.log('  • Composed multiple guardrails with proper blocking');
     console.log('  • Integrated telemetry throughout');
     console.log('');
-    console.log('Key behavior: Streams properly stop when guardrails are triggered');
+    console.log(
+      'Key behavior: Streams properly stop when guardrails are triggered',
+    );
     console.log('Note: These examples use real streamText functionality');
-    console.log('Guardrails execute after stream completion to analyze full output');
-    console.log('For true real-time guardrails, custom stream processing is needed');
+    console.log(
+      'Guardrails execute after stream completion to analyze full output',
+    );
+    console.log(
+      'For true real-time guardrails, custom stream processing is needed',
+    );
   } catch (error) {
     console.error('❌ Error running examples:', error);
   }
@@ -614,11 +679,11 @@ async function runAllExamples() {
 async function main() {
   setupGracefulShutdown();
   const args = process.argv.slice(2);
-  
+
   // Check for specific example number argument
   if (args.length > 0) {
     const exampleArg = args[0];
-    
+
     if (exampleArg === '--help' || exampleArg === '-h') {
       console.log('🌊  AI SDK Streaming Guardrails Examples');
       console.log('======================================');
@@ -627,12 +692,20 @@ async function main() {
       console.log('  tsx examples/streaming-guardrails.ts [example_number]');
       console.log('');
       console.log('Arguments:');
-      console.log(`  example_number    Run specific example (1-${EXAMPLES.length}), or omit for interactive mode`);
+      console.log(
+        `  example_number    Run specific example (1-${EXAMPLES.length}), or omit for interactive mode`,
+      );
       console.log('');
       console.log('Examples:');
-      console.log('  tsx examples/streaming-guardrails.ts        # Interactive mode');
-      console.log('  tsx examples/streaming-guardrails.ts 1      # Run basic streaming limit');
-      console.log('  tsx examples/streaming-guardrails.ts 2      # Run content filtering stream');
+      console.log(
+        '  tsx examples/streaming-guardrails.ts        # Interactive mode',
+      );
+      console.log(
+        '  tsx examples/streaming-guardrails.ts 1      # Run basic streaming limit',
+      );
+      console.log(
+        '  tsx examples/streaming-guardrails.ts 2      # Run content filtering stream',
+      );
       console.log('');
       console.log('Available examples:');
       for (const [index, example] of EXAMPLES.entries()) {
@@ -642,7 +715,7 @@ async function main() {
     }
 
     const exampleNum = Number.parseInt(exampleArg || '', 10);
-    
+
     if (Number.isNaN(exampleNum)) {
       console.error('❌ Invalid example number. Please provide a number.');
       console.log('💡 Use --help to see available options.');
@@ -650,7 +723,9 @@ async function main() {
     }
 
     if (exampleNum < 1 || exampleNum > EXAMPLES.length) {
-      console.error(`❌ Invalid example number. Please choose between 1-${EXAMPLES.length}`);
+      console.error(
+        `❌ Invalid example number. Please choose between 1-${EXAMPLES.length}`,
+      );
       console.log('\nAvailable examples:');
       for (const [index, example] of EXAMPLES.entries()) {
         console.log(`  ${index + 1}. ${example.name}`);
@@ -663,9 +738,9 @@ async function main() {
       console.error('❌ Example not found.');
       return;
     }
-    
+
     console.log(`🚀 Running: ${selectedExample.name}\n`);
-    
+
     try {
       await selectedExample.fn();
       console.log(`\n✅ ${selectedExample.name} completed successfully!`);

@@ -335,7 +335,9 @@ describe('Output Guardrails', () => {
           usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
           finishReason: 'stop',
           reasoningText: 'Uncertain response',
-          experimental_providerMetadata: { reasoningText: 'Uncertain response' },
+          experimental_providerMetadata: {
+            reasoningText: 'Uncertain response',
+          },
         } as any,
       });
 

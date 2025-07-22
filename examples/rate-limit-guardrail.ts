@@ -241,7 +241,9 @@ async function example1_BasicUserRateLimit() {
   // DEMO 1: BLOCKING MODE - Strict Rate Limiting
   console.log('\n🚫 DEMO 1: BLOCKING MODE (throwOnBlocked: true)');
   console.log('===============================================');
-  console.log('Rate limit violations completely block requests - no responses generated\n');
+  console.log(
+    'Rate limit violations completely block requests - no responses generated\n',
+  );
 
   // 3 requests per 10 seconds per user
   const rateLimitGuardrail = createUserRateLimitGuardrail(3, 10_000);
@@ -255,24 +257,33 @@ async function example1_BasicUserRateLimit() {
         onInputBlocked: (results) => {
           const result = results[0];
           console.log(`🚫 BLOCKED: Request rejected - ${result?.message}`);
-          console.log(`📊 Rate limit status:`, result?.metadata?.rateLimitStatus);
-        }
-      })
-    ]
+          console.log(
+            `📊 Rate limit status:`,
+            result?.metadata?.rateLimitStatus,
+          );
+        },
+      }),
+    ],
   });
 
-  console.log('🔥 Making 5 rapid requests in BLOCKING mode (limit: 3 per 10 seconds)...');
-  console.log('Expected: First 3 should succeed, requests 4-5 should be BLOCKED\n');
+  console.log(
+    '🔥 Making 5 rapid requests in BLOCKING mode (limit: 3 per 10 seconds)...',
+  );
+  console.log(
+    'Expected: First 3 should succeed, requests 4-5 should be BLOCKED\n',
+  );
 
   for (let i = 1; i <= 5; i++) {
     console.log(`📋 BLOCKING TEST ${i}:`);
     try {
       const result = await generateText({
         model: blockingRateLimitedModel,
-        prompt: `Request ${i}: What is 2+2?`
+        prompt: `Request ${i}: What is 2+2?`,
       });
-      
-      console.log(`✅ SUCCESS: Request ${i} completed - ${result.text.slice(0, 50)}...`);
+
+      console.log(
+        `✅ SUCCESS: Request ${i} completed - ${result.text.slice(0, 50)}...`,
+      );
     } catch (error) {
       console.log(`🚫 SUCCESS: Request ${i} was BLOCKED by rate limiter`);
     }
@@ -284,7 +295,9 @@ async function example1_BasicUserRateLimit() {
   // DEMO 2: WARNING MODE - Flexible Rate Limiting
   console.log('\n⚠️  DEMO 2: WARNING MODE (throwOnBlocked: false)');
   console.log('=============================================');
-  console.log('Rate limit violations logged as warnings but requests still processed\n');
+  console.log(
+    'Rate limit violations logged as warnings but requests still processed\n',
+  );
 
   const warningRateLimitedModel = wrapLanguageModel({
     model,
@@ -294,38 +307,57 @@ async function example1_BasicUserRateLimit() {
         throwOnBlocked: false, // WARNS but continues
         onInputBlocked: (results) => {
           const result = results[0];
-          console.log(`⚠️  WARNED: Rate limit concern but continuing - ${result?.message}`);
-          console.log(`📊 Rate limit status:`, result?.metadata?.rateLimitStatus);
-        }
-      })
-    ]
+          console.log(
+            `⚠️  WARNED: Rate limit concern but continuing - ${result?.message}`,
+          );
+          console.log(
+            `📊 Rate limit status:`,
+            result?.metadata?.rateLimitStatus,
+          );
+        },
+      }),
+    ],
   });
 
-  console.log('🔥 Making 5 rapid requests in WARNING mode (same limit: 3 per 10 seconds)...');
-  console.log('Expected: All requests should complete, but warnings logged for excess requests\n');
+  console.log(
+    '🔥 Making 5 rapid requests in WARNING mode (same limit: 3 per 10 seconds)...',
+  );
+  console.log(
+    'Expected: All requests should complete, but warnings logged for excess requests\n',
+  );
 
   for (let i = 1; i <= 5; i++) {
     console.log(`📋 WARNING TEST ${i}:`);
     try {
       const result = await generateText({
         model: warningRateLimitedModel,
-        prompt: `Request ${i}: What is 3+3?`
+        prompt: `Request ${i}: What is 3+3?`,
       });
-      
-      console.log(`✅ SUCCESS: Request ${i} completed despite any rate concerns - ${result.text.slice(0, 50)}...`);
+
+      console.log(
+        `✅ SUCCESS: Request ${i} completed despite any rate concerns - ${result.text.slice(0, 50)}...`,
+      );
     } catch (error) {
-      console.log(`❌ UNEXPECTED: Warning mode should not throw - ${(error as Error).message}`);
+      console.log(
+        `❌ UNEXPECTED: Warning mode should not throw - ${(error as Error).message}`,
+      );
     }
 
-    // Small delay between requests  
+    // Small delay between requests
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
   console.log('\n📋 RATE LIMITING SUMMARY:');
   console.log('=========================');
-  console.log('🚫 BLOCKING mode = Rate limit violations prevent response generation entirely');
-  console.log('⚠️  WARNING mode = Rate limit violations logged but responses still generated');
-  console.log('📝 Use BLOCKING for strict enforcement, WARNING for monitoring and gradual rollout');
+  console.log(
+    '🚫 BLOCKING mode = Rate limit violations prevent response generation entirely',
+  );
+  console.log(
+    '⚠️  WARNING mode = Rate limit violations logged but responses still generated',
+  );
+  console.log(
+    '📝 Use BLOCKING for strict enforcement, WARNING for monitoring and gradual rollout',
+  );
 }
 
 async function example2_GlobalRateLimit() {
@@ -343,9 +375,9 @@ async function example2_GlobalRateLimit() {
         onInputBlocked: (results) => {
           const result = results[0];
           console.log(`❌ Global request blocked: ${result?.message}`);
-        }
-      })
-    ]
+        },
+      }),
+    ],
   });
 
   console.log('Testing global rate limit...');
@@ -354,11 +386,14 @@ async function example2_GlobalRateLimit() {
     try {
       const result = await generateText({
         model: globallyLimitedModel,
-        prompt: `Global request ${i}: Tell me a fact`
+        prompt: `Global request ${i}: Tell me a fact`,
       });
-      
+
       if (result.text) {
-        console.log(`✅ Global request ${i} succeeded:`, result.text.slice(0, 50));
+        console.log(
+          `✅ Global request ${i} succeeded:`,
+          result.text.slice(0, 50),
+        );
       } else {
         console.log(`✅ Global request ${i} processed by rate limiter`);
       }
@@ -384,9 +419,9 @@ async function example3_TokenBucketRateLimit() {
           const result = results[0];
           console.log(`❌ Burst request blocked: ${result?.message}`);
           console.log(`🪣 Bucket status:`, result?.metadata?.bucketStatus);
-        }
-      })
-    ]
+        },
+      }),
+    ],
   });
 
   console.log('Making burst requests (should consume tokens then refill)...');
@@ -400,12 +435,15 @@ async function example3_TokenBucketRateLimit() {
         experimental_telemetry: {
           isEnabled: true,
           functionId: 'token-bucket-example',
-          metadata: { pattern: 'token-bucket-rate-limiting' }
+          metadata: { pattern: 'token-bucket-rate-limiting' },
         },
       });
-      
+
       if (result.text) {
-        console.log(`✅ Burst request ${i} succeeded:`, result.text.slice(0, 50));
+        console.log(
+          `✅ Burst request ${i} succeeded:`,
+          result.text.slice(0, 50),
+        );
       } else {
         console.log(`✅ Burst request ${i} processed by token bucket`);
       }
@@ -425,12 +463,15 @@ async function example3_TokenBucketRateLimit() {
       experimental_telemetry: {
         isEnabled: true,
         functionId: 'token-bucket-example',
-        metadata: { pattern: 'token-bucket-rate-limiting' }
+        metadata: { pattern: 'token-bucket-rate-limiting' },
       },
     });
-    
+
     if (result.text) {
-      console.log('✅ After refill request succeeded:', result.text.slice(0, 50));
+      console.log(
+        '✅ After refill request succeeded:',
+        result.text.slice(0, 50),
+      );
     } else {
       console.log('✅ After refill request processed');
     }
@@ -453,12 +494,14 @@ async function example4_CombinedRateLimits() {
         inputGuardrails: [userRateLimit, globalRateLimit, tokenBucket],
         throwOnBlocked: false,
         onInputBlocked: (results) => {
-          results.forEach(result => {
-            console.log(`❌ Combined test blocked by ${result.context?.guardrailName}: ${result.message}`);
+          results.forEach((result) => {
+            console.log(
+              `❌ Combined test blocked by ${result.context?.guardrailName}: ${result.message}`,
+            );
           });
-        }
-      })
-    ]
+        },
+      }),
+    ],
   });
 
   console.log('Testing multiple rate limits together...');
@@ -471,15 +514,22 @@ async function example4_CombinedRateLimits() {
         experimental_telemetry: {
           isEnabled: true,
           functionId: 'combined-rate-limits',
-          metadata: { 
+          metadata: {
             pattern: 'combined-rate-limiting',
-            guardrails: ['user-rate-limit', 'global-rate-limit', 'token-bucket']
-          }
+            guardrails: [
+              'user-rate-limit',
+              'global-rate-limit',
+              'token-bucket',
+            ],
+          },
         },
       });
-      
+
       if (result.text) {
-        console.log(`✅ Combined test ${i} succeeded:`, result.text.slice(0, 50));
+        console.log(
+          `✅ Combined test ${i} succeeded:`,
+          result.text.slice(0, 50),
+        );
       } else {
         console.log(`✅ Combined test ${i} processed by rate limiters`);
       }
@@ -497,13 +547,16 @@ async function example5_SmartRateLimit() {
     description: 'Context-aware rate limiting',
     execute: async (context: InputGuardrailContext) => {
       const { prompt } = extractTextContent(context);
-      
+
       // Different limits based on content type
       let limit = 5; // default
       let window = 60000; // 1 minute
-      
+
       if (typeof prompt === 'string') {
-        if (prompt.toLowerCase().includes('urgent') || prompt.toLowerCase().includes('emergency')) {
+        if (
+          prompt.toLowerCase().includes('urgent') ||
+          prompt.toLowerCase().includes('emergency')
+        ) {
           limit = 10; // Higher limit for urgent requests
         } else if (prompt.length > 500) {
           limit = 2; // Lower limit for long requests
@@ -512,26 +565,30 @@ async function example5_SmartRateLimit() {
 
       // Simple implementation - in real apps, use more sophisticated tracking
       const requestCount = Math.floor(Math.random() * (limit + 2));
-      
+
       if (requestCount > limit) {
         return {
           tripwireTriggered: true,
           message: `Smart rate limit exceeded (${requestCount}/${limit} requests)`,
           severity: 'medium',
-          metadata: { 
-            requestCount, 
-            limit, 
+          metadata: {
+            requestCount,
+            limit,
             window,
-            contentType: typeof prompt === 'string' && prompt.toLowerCase().includes('urgent') ? 'urgent' : 'normal'
-          }
+            contentType:
+              typeof prompt === 'string' &&
+              prompt.toLowerCase().includes('urgent')
+                ? 'urgent'
+                : 'normal',
+          },
         };
       }
 
       return {
         tripwireTriggered: false,
-        metadata: { requestCount, limit, window }
+        metadata: { requestCount, limit, window },
       };
-    }
+    },
   });
 
   const smartModel = wrapLanguageModel({
@@ -544,16 +601,16 @@ async function example5_SmartRateLimit() {
           const result = results[0];
           console.log(`❌ Smart rate limit: ${result?.message}`);
           console.log(`🧠 Context:`, result?.metadata);
-        }
-      })
-    ]
+        },
+      }),
+    ],
   });
 
   const testPrompts = [
     'Normal question about AI',
     'URGENT: Need help with production issue immediately!',
     'This is a very long and detailed question that contains a lot of information and context about a complex technical problem that requires extensive analysis and detailed explanation of multiple interconnected systems and their various components.',
-    'Quick question about weather'
+    'Quick question about weather',
   ];
 
   for (let i = 0; i < testPrompts.length; i++) {
@@ -565,12 +622,15 @@ async function example5_SmartRateLimit() {
         experimental_telemetry: {
           isEnabled: true,
           functionId: 'smart-rate-limit',
-          metadata: { pattern: 'context-aware-rate-limiting' }
+          metadata: { pattern: 'context-aware-rate-limiting' },
         },
       });
-      
+
       if (result.text) {
-        console.log(`✅ Smart test ${i + 1} succeeded:`, result.text.slice(0, 50));
+        console.log(
+          `✅ Smart test ${i + 1} succeeded:`,
+          result.text.slice(0, 50),
+        );
       } else {
         console.log(`✅ Smart test ${i + 1} processed by smart rate limiter`);
       }
@@ -586,7 +646,10 @@ async function example5_SmartRateLimit() {
 
 // Example registry
 const EXAMPLES = [
-  { name: 'User Rate Limiting (Blocking vs Warning Demo)', fn: example1_BasicUserRateLimit },
+  {
+    name: 'User Rate Limiting (Blocking vs Warning Demo)',
+    fn: example1_BasicUserRateLimit,
+  },
   { name: 'Global Rate Limiting', fn: example2_GlobalRateLimit },
   { name: 'Token Bucket Rate Limiting', fn: example3_TokenBucketRateLimit },
   { name: 'Combined Rate Limits', fn: example4_CombinedRateLimits },
@@ -603,20 +666,20 @@ async function showInteractiveMenu() {
     const choices = [
       ...EXAMPLES.map((example, index) => ({
         name: `${index + 1}. ${example.name}`,
-        value: index
+        value: index,
       })),
       {
         name: `${EXAMPLES.length + 1}. Run all examples`,
-        value: 'all'
+        value: 'all',
       },
       {
         name: '🔧 Select multiple examples to run',
-        value: 'multiple'
+        value: 'multiple',
       },
       {
         name: '❌ Exit',
-        value: 'exit'
-      }
+        value: 'exit',
+      },
     ];
 
     const response = await safePrompt<{ action: string | number }>({
@@ -624,7 +687,7 @@ async function showInteractiveMenu() {
       name: 'action',
       message: 'What would you like to do?',
       choices,
-      pageSize: 9
+      pageSize: 9,
     });
 
     if (!response) return;
@@ -634,7 +697,7 @@ async function showInteractiveMenu() {
       console.log('\n👋 Goodbye!');
       return;
     }
-    
+
     if (action === 'all') {
       await runAllExamples();
     } else if (action === 'multiple') {
@@ -654,7 +717,7 @@ async function showInteractiveMenu() {
     // Automatically return to main menu after running examples
     if (action !== 'exit') {
       console.log('\n↩️  Returning to main menu...\n');
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Brief pause
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Brief pause
     }
   }
 }
@@ -668,21 +731,23 @@ async function runMultipleExamples() {
     choices: EXAMPLES.map((example, index) => ({
       name: example.name,
       value: index,
-      checked: false
+      checked: false,
     })),
     validate: (input: number[]) => {
       if (input.length === 0) {
         return 'Please select at least one example';
       }
       return true;
-    }
+    },
   });
 
   if (!response) return;
   const { selectedExamples } = response;
 
-  console.log(`\n🚀 Running ${selectedExamples.length} selected rate limiting examples...\n`);
-  
+  console.log(
+    `\n🚀 Running ${selectedExamples.length} selected rate limiting examples...\n`,
+  );
+
   for (const exampleIndex of selectedExamples) {
     const example = EXAMPLES[exampleIndex];
     if (!example) continue;
@@ -695,13 +760,15 @@ async function runMultipleExamples() {
     }
   }
 
-  console.log(`\n🎉 All ${selectedExamples.length} selected rate limiting examples completed!`);
+  console.log(
+    `\n🎉 All ${selectedExamples.length} selected rate limiting examples completed!`,
+  );
 }
 
 // Run all examples
 async function runAllExamples() {
   console.log('\n🚀 Running all rate limiting examples...\n');
-  
+
   try {
     for (const example of EXAMPLES) {
       console.log(`\n--- Running: ${example.name} ---`);
@@ -723,11 +790,11 @@ async function runAllExamples() {
 async function main() {
   setupGracefulShutdown();
   const args = process.argv.slice(2);
-  
+
   // Check for specific example number argument
   if (args.length > 0) {
     const exampleArg = args[0];
-    
+
     if (exampleArg === '--help' || exampleArg === '-h') {
       console.log('🚦  Rate Limiting Guardrails Examples');
       console.log('===================================');
@@ -736,12 +803,20 @@ async function main() {
       console.log('  tsx examples/rate-limit-guardrail.ts [example_number]');
       console.log('');
       console.log('Arguments:');
-      console.log(`  example_number    Run specific example (1-${EXAMPLES.length}), or omit for interactive mode`);
+      console.log(
+        `  example_number    Run specific example (1-${EXAMPLES.length}), or omit for interactive mode`,
+      );
       console.log('');
       console.log('Examples:');
-      console.log('  tsx examples/rate-limit-guardrail.ts        # Interactive mode');
-      console.log('  tsx examples/rate-limit-guardrail.ts 1      # Run basic user rate limiting');
-      console.log('  tsx examples/rate-limit-guardrail.ts 3      # Run token bucket rate limiting');
+      console.log(
+        '  tsx examples/rate-limit-guardrail.ts        # Interactive mode',
+      );
+      console.log(
+        '  tsx examples/rate-limit-guardrail.ts 1      # Run basic user rate limiting',
+      );
+      console.log(
+        '  tsx examples/rate-limit-guardrail.ts 3      # Run token bucket rate limiting',
+      );
       console.log('');
       console.log('Available examples:');
       for (const [index, example] of EXAMPLES.entries()) {
@@ -751,7 +826,7 @@ async function main() {
     }
 
     const exampleNum = Number.parseInt(exampleArg || '', 10);
-    
+
     if (Number.isNaN(exampleNum)) {
       console.error('❌ Invalid example number. Please provide a number.');
       console.log('💡 Use --help to see available options.');
@@ -759,7 +834,9 @@ async function main() {
     }
 
     if (exampleNum < 1 || exampleNum > EXAMPLES.length) {
-      console.error(`❌ Invalid example number. Please choose between 1-${EXAMPLES.length}`);
+      console.error(
+        `❌ Invalid example number. Please choose between 1-${EXAMPLES.length}`,
+      );
       console.log('\nAvailable examples:');
       for (const [index, example] of EXAMPLES.entries()) {
         console.log(`  ${index + 1}. ${example.name}`);
@@ -772,9 +849,9 @@ async function main() {
       console.error('❌ Example not found.');
       return;
     }
-    
+
     console.log(`🚀 Running: ${selectedExample.name}\n`);
-    
+
     try {
       await selectedExample.fn();
       console.log(`\n✅ ${selectedExample.name} completed successfully!`);

@@ -140,11 +140,11 @@ const positivityGuardrail = defineOutputGuardrail({
 // Example 1: Input Length Limit - Blocking vs Warning Demo
 async function example1_InputLengthLimit() {
   console.log('\n=== Example 1: Input Length Limit - Blocking vs Warning ===');
-  
+
   // DEMO 1: BLOCKING MODE (throwOnBlocked: true)
   console.log('\n🚫 DEMO 1: BLOCKING MODE (throwOnBlocked: true)');
   console.log('===========================================');
-  
+
   const blockingModel = wrapLanguageModel({
     model,
     middleware: [
@@ -166,7 +166,10 @@ async function example1_InputLengthLimit() {
       model: blockingModel,
       prompt: 'Hello world', // 11 chars - under 50 limit
     });
-    console.log('✅ SUCCESS: Response generated -', result.text.slice(0, 50) + '...');
+    console.log(
+      '✅ SUCCESS: Response generated -',
+      result.text.slice(0, 50) + '...',
+    );
   } catch (error) {
     console.error('❌ Unexpected error:', error);
   }
@@ -177,17 +180,23 @@ async function example1_InputLengthLimit() {
   try {
     const result = await generateText({
       model: blockingModel,
-      prompt: 'This is a very long prompt that definitely exceeds the 50 character limit we set in the guardrail configuration and should be completely blocked', // 140+ chars
+      prompt:
+        'This is a very long prompt that definitely exceeds the 50 character limit we set in the guardrail configuration and should be completely blocked', // 140+ chars
     });
-    console.log('🔥 ERROR: This should never appear! Blocking failed:', result.text);
+    console.log(
+      '🔥 ERROR: This should never appear! Blocking failed:',
+      result.text,
+    );
   } catch (error) {
-    console.log('✅ SUCCESS: Request was BLOCKED as expected - no response generated');
+    console.log(
+      '✅ SUCCESS: Request was BLOCKED as expected - no response generated',
+    );
   }
 
   // DEMO 2: WARNING MODE (throwOnBlocked: false)
   console.log('\n⚠️  DEMO 2: WARNING MODE (throwOnBlocked: false)');
   console.log('=========================================');
-  
+
   const warningModel = wrapLanguageModel({
     model,
     middleware: [
@@ -195,7 +204,10 @@ async function example1_InputLengthLimit() {
         inputGuardrails: [lengthLimitGuardrail],
         throwOnBlocked: false, // WARNS but allows requests through
         onInputBlocked: (results) => {
-          console.log('⚠️  WARNED: Issue detected but continuing -', results[0]?.message);
+          console.log(
+            '⚠️  WARNED: Issue detected but continuing -',
+            results[0]?.message,
+          );
         },
       }),
     ],
@@ -209,7 +221,10 @@ async function example1_InputLengthLimit() {
       model: warningModel,
       prompt: 'Hello world', // 11 chars - under 50 limit
     });
-    console.log('✅ SUCCESS: Response generated normally -', result.text.slice(0, 50) + '...');
+    console.log(
+      '✅ SUCCESS: Response generated normally -',
+      result.text.slice(0, 50) + '...',
+    );
   } catch (error) {
     console.error('❌ Unexpected error:', error);
   }
@@ -220,16 +235,27 @@ async function example1_InputLengthLimit() {
   try {
     const result = await generateText({
       model: warningModel,
-      prompt: 'This is a very long prompt that definitely exceeds the 50 character limit we set in the guardrail configuration but should still generate a response', // 150+ chars
+      prompt:
+        'This is a very long prompt that definitely exceeds the 50 character limit we set in the guardrail configuration but should still generate a response', // 150+ chars
     });
-    console.log('✅ SUCCESS: Warning logged but response generated -', result.text.slice(0, 50) + '...');
+    console.log(
+      '✅ SUCCESS: Warning logged but response generated -',
+      result.text.slice(0, 50) + '...',
+    );
   } catch (error) {
-    console.log('❌ Unexpected: Warning mode should not throw -', (error as Error).message);
+    console.log(
+      '❌ Unexpected: Warning mode should not throw -',
+      (error as Error).message,
+    );
   }
 
   console.log('\n📋 SUMMARY:');
-  console.log('• BLOCKING mode (throwOnBlocked: true) = Guardrail violations prevent response generation');
-  console.log('• WARNING mode (throwOnBlocked: false) = Guardrail violations are logged but responses still generated');
+  console.log(
+    '• BLOCKING mode (throwOnBlocked: true) = Guardrail violations prevent response generation',
+  );
+  console.log(
+    '• WARNING mode (throwOnBlocked: false) = Guardrail violations are logged but responses still generated',
+  );
 }
 
 // Example 2: Blocked Keywords - Blocking vs Warning Demo
@@ -239,7 +265,7 @@ async function example2_BlockedKeywords() {
   // DEMO 1: BLOCKING MODE (throwOnBlocked: true)
   console.log('\n🚫 DEMO 1: BLOCKING MODE (throwOnBlocked: true)');
   console.log('===========================================');
-  
+
   const blockingModel = wrapLanguageModel({
     model,
     middleware: [
@@ -261,7 +287,10 @@ async function example2_BlockedKeywords() {
       model: blockingModel,
       prompt: 'Explain how to create a secure password',
     });
-    console.log('✅ SUCCESS: Safe content generated response -', result.text.slice(0, 50) + '...');
+    console.log(
+      '✅ SUCCESS: Safe content generated response -',
+      result.text.slice(0, 50) + '...',
+    );
   } catch (error) {
     console.error('❌ Unexpected error:', error);
   }
@@ -274,7 +303,10 @@ async function example2_BlockedKeywords() {
       model: blockingModel,
       prompt: 'How to hack into a system', // Contains "hack" - blocked keyword
     });
-    console.log('🔥 ERROR: This should never appear! Blocking failed:', result.text);
+    console.log(
+      '🔥 ERROR: This should never appear! Blocking failed:',
+      result.text,
+    );
   } catch (error) {
     console.log('✅ SUCCESS: Blocked keyword request was BLOCKED as expected');
   }
@@ -282,7 +314,7 @@ async function example2_BlockedKeywords() {
   // DEMO 2: WARNING MODE (throwOnBlocked: false)
   console.log('\n⚠️  DEMO 2: WARNING MODE (throwOnBlocked: false)');
   console.log('=========================================');
-  
+
   const warningModel = wrapLanguageModel({
     model,
     middleware: [
@@ -290,7 +322,10 @@ async function example2_BlockedKeywords() {
         inputGuardrails: [blockedKeywordsGuardrail],
         throwOnBlocked: false, // WARNS but allows requests through
         onInputBlocked: (results) => {
-          console.log('⚠️  WARNED: Problematic content detected but continuing -', results[0]?.message);
+          console.log(
+            '⚠️  WARNED: Problematic content detected but continuing -',
+            results[0]?.message,
+          );
         },
       }),
     ],
@@ -304,27 +339,42 @@ async function example2_BlockedKeywords() {
       model: warningModel,
       prompt: 'Explain how to create a secure password',
     });
-    console.log('✅ SUCCESS: Safe content generated response normally -', result.text.slice(0, 50) + '...');
+    console.log(
+      '✅ SUCCESS: Safe content generated response normally -',
+      result.text.slice(0, 50) + '...',
+    );
   } catch (error) {
     console.error('❌ Unexpected error:', error);
   }
 
   // Test 2B: Blocked keyword (should warn but still generate response)
   console.log('\n⚠️  Testing BLOCKED keyword in WARNING mode...');
-  console.log('Expected: Should WARN about keyword but still generate response');
+  console.log(
+    'Expected: Should WARN about keyword but still generate response',
+  );
   try {
     const result = await generateText({
       model: warningModel,
       prompt: 'How to hack into a system', // Contains "hack" - blocked keyword
     });
-    console.log('✅ SUCCESS: Warning logged but response still generated -', result.text.slice(0, 50) + '...');
+    console.log(
+      '✅ SUCCESS: Warning logged but response still generated -',
+      result.text.slice(0, 50) + '...',
+    );
   } catch (error) {
-    console.log('❌ Unexpected: Warning mode should not throw -', (error as Error).message);
+    console.log(
+      '❌ Unexpected: Warning mode should not throw -',
+      (error as Error).message,
+    );
   }
 
   console.log('\n📋 SUMMARY:');
-  console.log('• BLOCKING mode = Blocked keywords prevent any response generation');
-  console.log('• WARNING mode = Blocked keywords trigger warnings but responses are still generated');
+  console.log(
+    '• BLOCKING mode = Blocked keywords prevent any response generation',
+  );
+  console.log(
+    '• WARNING mode = Blocked keywords trigger warnings but responses are still generated',
+  );
 }
 
 // Example 3: Custom Input Guardrail (Math Homework)
@@ -390,7 +440,7 @@ async function example4_OutputLengthLimit() {
   // DEMO 1: BLOCKING MODE (throwOnBlocked: true)
   console.log('\n🚫 DEMO 1: BLOCKING MODE (throwOnBlocked: true)');
   console.log('===========================================');
-  
+
   const blockingModel = wrapLanguageModel({
     model,
     middleware: [
@@ -405,31 +455,47 @@ async function example4_OutputLengthLimit() {
   });
 
   // Test 1A: Request likely to produce short output (should work)
-  console.log('\n✅ Testing prompt likely to produce SHORT output in BLOCKING mode...');
+  console.log(
+    '\n✅ Testing prompt likely to produce SHORT output in BLOCKING mode...',
+  );
   console.log('Expected: Should generate normal response under 100 chars');
   try {
     const result = await generateText({
       model: blockingModel,
       prompt: 'What is AI in one sentence?',
     });
-    console.log(`✅ SUCCESS: Short output generated (${result.text.length} chars) -`, result.text);
+    console.log(
+      `✅ SUCCESS: Short output generated (${result.text.length} chars) -`,
+      result.text,
+    );
   } catch (error) {
-    console.log('❌ Unexpected blocking for short output:', (error as Error).message);
+    console.log(
+      '❌ Unexpected blocking for short output:',
+      (error as Error).message,
+    );
   }
 
   // Test 1B: Request likely to produce long output (should be blocked)
-  console.log('\n🚫 Testing prompt likely to produce LONG output in BLOCKING mode...');
+  console.log(
+    '\n🚫 Testing prompt likely to produce LONG output in BLOCKING mode...',
+  );
   console.log('Expected: Should be BLOCKED if output exceeds 100 chars');
   try {
     const result = await generateText({
       model: blockingModel,
-      prompt: 'Write a detailed explanation of machine learning with examples and benefits',
+      prompt:
+        'Write a detailed explanation of machine learning with examples and benefits',
     });
     if (result.text && result.text.length > 100) {
-      console.log('🔥 ERROR: Long output should have been blocked! Length:', result.text.length);
+      console.log(
+        '🔥 ERROR: Long output should have been blocked! Length:',
+        result.text.length,
+      );
       console.log('Content:', result.text.slice(0, 100) + '...');
     } else {
-      console.log(`✅ SUCCESS: Output within limits (${result.text.length} chars)`);
+      console.log(
+        `✅ SUCCESS: Output within limits (${result.text.length} chars)`,
+      );
     }
   } catch (error) {
     console.log('✅ SUCCESS: Long output was BLOCKED as expected');
@@ -438,7 +504,7 @@ async function example4_OutputLengthLimit() {
   // DEMO 2: WARNING MODE (throwOnBlocked: false)
   console.log('\n⚠️  DEMO 2: WARNING MODE (throwOnBlocked: false)');
   console.log('=========================================');
-  
+
   const warningModel = wrapLanguageModel({
     model,
     middleware: [
@@ -446,42 +512,62 @@ async function example4_OutputLengthLimit() {
         outputGuardrails: [outputLengthGuardrail], // 100 char limit
         throwOnBlocked: false, // WARNS but allows long output
         onOutputBlocked: (results) => {
-          console.log('⚠️  WARNED: Output length issue detected but continuing -', results[0]?.message);
+          console.log(
+            '⚠️  WARNED: Output length issue detected but continuing -',
+            results[0]?.message,
+          );
         },
       }),
     ],
   });
 
   // Test 2A: Request likely to produce short output (should work normally)
-  console.log('\n✅ Testing prompt likely to produce SHORT output in WARNING mode...');
+  console.log(
+    '\n✅ Testing prompt likely to produce SHORT output in WARNING mode...',
+  );
   console.log('Expected: Should generate normal response, no warnings');
   try {
     const result = await generateText({
       model: warningModel,
       prompt: 'What is AI in one sentence?',
     });
-    console.log(`✅ SUCCESS: Short output generated normally (${result.text.length} chars) -`, result.text);
+    console.log(
+      `✅ SUCCESS: Short output generated normally (${result.text.length} chars) -`,
+      result.text,
+    );
   } catch (error) {
     console.error('❌ Unexpected error:', error);
   }
 
   // Test 2B: Request likely to produce long output (should warn but return response)
-  console.log('\n⚠️  Testing prompt likely to produce LONG output in WARNING mode...');
-  console.log('Expected: Should WARN about length but still return the full response');
+  console.log(
+    '\n⚠️  Testing prompt likely to produce LONG output in WARNING mode...',
+  );
+  console.log(
+    'Expected: Should WARN about length but still return the full response',
+  );
   try {
     const result = await generateText({
       model: warningModel,
-      prompt: 'Write a detailed explanation of machine learning with examples and benefits',
+      prompt:
+        'Write a detailed explanation of machine learning with examples and benefits',
     });
-    console.log(`✅ SUCCESS: Full output returned despite length (${result.text.length} chars)`);
+    console.log(
+      `✅ SUCCESS: Full output returned despite length (${result.text.length} chars)`,
+    );
     console.log('Preview:', result.text.slice(0, 100) + '...');
   } catch (error) {
-    console.log('❌ Unexpected: Warning mode should not throw -', (error as Error).message);
+    console.log(
+      '❌ Unexpected: Warning mode should not throw -',
+      (error as Error).message,
+    );
   }
 
   console.log('\n📋 SUMMARY:');
   console.log('• BLOCKING mode = Long outputs are completely blocked/rejected');
-  console.log('• WARNING mode = Long outputs trigger warnings but are still returned to user');
+  console.log(
+    '• WARNING mode = Long outputs trigger warnings but are still returned to user',
+  );
 }
 
 // Example 5: Custom Output Guardrail (Positivity Filter)
@@ -702,13 +788,22 @@ async function example8_CombinedTelemetry() {
 
 // Example registry
 const EXAMPLES = [
-  { name: 'Input Length Limit (Blocking vs Warning Demo)', fn: example1_InputLengthLimit },
-  { name: 'Blocked Keywords (Blocking vs Warning Demo)', fn: example2_BlockedKeywords },
+  {
+    name: 'Input Length Limit (Blocking vs Warning Demo)',
+    fn: example1_InputLengthLimit,
+  },
+  {
+    name: 'Blocked Keywords (Blocking vs Warning Demo)',
+    fn: example2_BlockedKeywords,
+  },
   {
     name: 'Custom Input Guardrail (Math Homework)',
     fn: example3_CustomInputGuardrail,
   },
-  { name: 'Output Length Limit (Blocking vs Warning Demo)', fn: example4_OutputLengthLimit },
+  {
+    name: 'Output Length Limit (Blocking vs Warning Demo)',
+    fn: example4_OutputLengthLimit,
+  },
   {
     name: 'Custom Output Guardrail (Positivity Filter)',
     fn: example5_CustomOutputGuardrail,

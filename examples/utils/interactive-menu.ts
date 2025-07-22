@@ -19,8 +19,8 @@ export async function safePrompt<T = any>(questions: any): Promise<T | null> {
     // Ensure clean terminal state before prompting
     process.stdout.write('\u001b[?25h'); // Show cursor
     process.stderr.write(''); // Flush stderr
-    
-    return await inquirer.prompt(questions) as T;
+
+    return (await inquirer.prompt(questions)) as T;
   } catch (error: any) {
     if (error.name === 'ExitPromptError' || error.isTTYError) {
       console.log('\n\n👋 Goodbye! Exiting gracefully...\n');

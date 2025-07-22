@@ -171,11 +171,13 @@ async function example2_FactualityIncorrect() {
     ],
   });
 
-  console.log('🧪 Testing with unrelated question (expecting to be blocked)...');
+  console.log(
+    '🧪 Testing with unrelated question (expecting to be blocked)...',
+  );
   console.log('📝 Question: "Why do Italians not like pineapple on pizza?"');
   console.log('📝 Expected answer: "China" (intentional mismatch)');
   console.log('');
-  
+
   try {
     const result = await generateText({
       model: protectedModel,
@@ -196,7 +198,10 @@ async function example2_FactualityIncorrect() {
     console.log('✅ Response correctly blocked by guardrail!');
     console.log('🛡️ Block reason:', error.message);
     if (error.details?.metadata) {
-      console.log('📊 Factuality score:', error.details.metadata.factualityScore);
+      console.log(
+        '📊 Factuality score:',
+        error.details.metadata.factualityScore,
+      );
       console.log('💭 Rationale:', error.details.metadata.rationale);
     }
   }
@@ -204,9 +209,7 @@ async function example2_FactualityIncorrect() {
 
 // Example 3: Factuality Check with Non-Blocking (Logs Only)
 async function example3_FactualityNonBlocking() {
-  console.log(
-    '\n=== Example 3: Factuality Check Non-Blocking (Logs Only) ===',
-  );
+  console.log('\n=== Example 3: Factuality Check Non-Blocking (Logs Only) ===');
 
   const factualityGuardrail = createFactualityGuardrail({
     expected: 'China',
@@ -235,7 +238,7 @@ async function example3_FactualityNonBlocking() {
   console.log('📝 Expected answer: "China" (intentional mismatch)');
   console.log('📝 Mode: Non-blocking (logs warnings but allows response)');
   console.log('');
-  
+
   try {
     const result = await generateText({
       model: protectedModel,
@@ -464,7 +467,10 @@ const EXAMPLES = [
     name: 'Factuality Check with Blocking (Throws Error)',
     fn: example2_FactualityIncorrect,
   },
-  { name: 'Factuality Check Non-Blocking (Logs Only)', fn: example3_FactualityNonBlocking },
+  {
+    name: 'Factuality Check Non-Blocking (Logs Only)',
+    fn: example3_FactualityNonBlocking,
+  },
   { name: 'Multiple Factuality Guardrails', fn: example4_MultipleFactuality },
   { name: 'Custom Evaluation Logic', fn: example5_CustomEvaluation },
 ];
@@ -479,13 +485,13 @@ async function showInteractiveMenu() {
   while (true) {
     // Clear terminal and wait for it to settle
     console.clear();
-    await new Promise(resolve => setTimeout(resolve, 50));
-    
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
     console.log('🤖  Autoevals + Guardrails Examples');
     console.log('==================================');
     console.log('AI quality evaluation as guardrails using v5 middleware');
     console.log(); // Single empty line before menu
-    
+
     const choices = [
       ...EXAMPLES.map((example, index) => ({
         name: `${index + 1}. ${example.name}`,
@@ -504,7 +510,7 @@ async function showInteractiveMenu() {
         value: 'exit',
       },
     ];
-    
+
     const result = await safePrompt<{ action: string | number }>({
       type: 'list',
       name: 'action',
@@ -513,7 +519,7 @@ async function showInteractiveMenu() {
       pageSize: 8,
       loop: false,
     });
-    
+
     if (!result) return;
     const { action } = result;
 
@@ -565,7 +571,7 @@ async function runMultipleExamples() {
       return true;
     },
   });
-  
+
   if (!result) return;
   const { selectedExamples } = result;
 
@@ -603,7 +609,9 @@ async function runAllExamples() {
     console.log('\n✅ All autoevals examples completed!');
     console.log('\n📚 Key Learnings:');
     console.log('  • throwOnBlocked: true  → Throws error, stops execution');
-    console.log('  • throwOnBlocked: false → Logs warning, allows response through');
+    console.log(
+      '  • throwOnBlocked: false → Logs warning, allows response through',
+    );
     console.log('  • Autoevals provides AI-powered factuality scoring');
     console.log('  • Custom evaluation logic can be implemented');
     console.log('  • Multiple guardrails can be chained together');
@@ -615,7 +623,7 @@ async function runAllExamples() {
 // Main execution
 async function main() {
   setupGracefulShutdown();
-  
+
   const args = process.argv.slice(2);
 
   // Check for specific example number argument

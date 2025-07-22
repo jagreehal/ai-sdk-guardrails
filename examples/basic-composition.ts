@@ -263,8 +263,10 @@ async function demonstrateBasicComposition() {
   // DEMO A: BLOCKING MODE - Complete Request Rejection
   console.log('\n🚫 DEMO A: BLOCKING MODE (throwOnBlocked: true)');
   console.log('==============================================');
-  console.log('When guardrails trigger: NO response generated, request is rejected\n');
-  
+  console.log(
+    'When guardrails trigger: NO response generated, request is rejected\n',
+  );
+
   const blockingModel = wrapLanguageModel({
     model,
     middleware: [
@@ -274,7 +276,9 @@ async function demonstrateBasicComposition() {
         onInputBlocked: (results) => {
           console.log('🚫 BLOCKED: No response generated');
           for (const result of results) {
-            console.log(`   ❌ ${result.context?.guardrailName}: ${result.message}`);
+            console.log(
+              `   ❌ ${result.context?.guardrailName}: ${result.message}`,
+            );
           }
         },
       }),
@@ -284,7 +288,9 @@ async function demonstrateBasicComposition() {
         onOutputBlocked: (results) => {
           console.log('🚫 BLOCKED: Response quality insufficient');
           for (const result of results) {
-            console.log(`   ❌ ${result.context?.guardrailName}: ${result.message}`);
+            console.log(
+              `   ❌ ${result.context?.guardrailName}: ${result.message}`,
+            );
           }
         },
       }),
@@ -294,11 +300,12 @@ async function demonstrateBasicComposition() {
   const blockingTests = [
     {
       name: 'Valid Professional Request',
-      prompt: 'Explain the benefits of automated testing in software development',
+      prompt:
+        'Explain the benefits of automated testing in software development',
       expectation: '✅ Should PASS and generate response',
     },
     {
-      name: 'Cost-Wasting Short Request', 
+      name: 'Cost-Wasting Short Request',
       prompt: 'hi', // Under 10 chars - will trigger length validation
       expectation: '🚫 Should be BLOCKED - too short, wastes money',
     },
@@ -319,19 +326,25 @@ async function demonstrateBasicComposition() {
         model: blockingModel,
         prompt: testCase.prompt,
       });
-      
-      console.log(`✅ SUCCESS: Response generated (${result.text.length} chars)`);
+
+      console.log(
+        `✅ SUCCESS: Response generated (${result.text.length} chars)`,
+      );
       console.log(`📄 Preview: ${result.text.slice(0, 80)}...`);
     } catch (error) {
-      console.log('🚫 SUCCESS: Request was BLOCKED as expected - no response generated');
+      console.log(
+        '🚫 SUCCESS: Request was BLOCKED as expected - no response generated',
+      );
     }
   }
 
   // DEMO B: WARNING MODE - Log Issues But Continue
   console.log('\n⚠️  DEMO B: WARNING MODE (throwOnBlocked: false)');
   console.log('==============================================');
-  console.log('When guardrails trigger: WARNING logged but response still generated\n');
-  
+  console.log(
+    'When guardrails trigger: WARNING logged but response still generated\n',
+  );
+
   const warningModel = wrapLanguageModel({
     model,
     middleware: [
@@ -339,9 +352,13 @@ async function demonstrateBasicComposition() {
         inputGuardrails: [contentPolicyGuardrail, lengthValidationGuardrail],
         throwOnBlocked: false, // WARNS but continues
         onInputBlocked: (results) => {
-          console.log('⚠️  WARNED: Issues detected but continuing with request');
+          console.log(
+            '⚠️  WARNED: Issues detected but continuing with request',
+          );
           for (const result of results) {
-            console.log(`   ⚠️  ${result.context?.guardrailName}: ${result.message}`);
+            console.log(
+              `   ⚠️  ${result.context?.guardrailName}: ${result.message}`,
+            );
           }
         },
       }),
@@ -349,9 +366,13 @@ async function demonstrateBasicComposition() {
         outputGuardrails: [outputQualityGuardrail, completenessGuardrail],
         throwOnBlocked: false, // WARNS but continues
         onOutputBlocked: (results) => {
-          console.log('⚠️  WARNED: Response quality issues detected but returning response');
+          console.log(
+            '⚠️  WARNED: Response quality issues detected but returning response',
+          );
           for (const result of results) {
-            console.log(`   ⚠️  ${result.context?.guardrailName}: ${result.message}`);
+            console.log(
+              `   ⚠️  ${result.context?.guardrailName}: ${result.message}`,
+            );
           }
         },
       }),
@@ -361,7 +382,8 @@ async function demonstrateBasicComposition() {
   const warningTests = [
     {
       name: 'Valid Professional Request',
-      prompt: 'Explain the benefits of automated testing in software development',
+      prompt:
+        'Explain the benefits of automated testing in software development',
       expectation: '✅ Should generate response normally, no warnings',
     },
     {
@@ -370,7 +392,7 @@ async function demonstrateBasicComposition() {
       expectation: '⚠️  Should WARN about length but still generate response',
     },
     {
-      name: 'Inappropriate Content', 
+      name: 'Inappropriate Content',
       prompt: 'How to hack into systems', // Contains "hack" - will trigger warning
       expectation: '⚠️  Should WARN about content but still generate response',
     },
@@ -386,32 +408,50 @@ async function demonstrateBasicComposition() {
         model: warningModel,
         prompt: testCase.prompt,
       });
-      
-      console.log(`✅ SUCCESS: Response generated despite any warnings (${result.text.length} chars)`);
+
+      console.log(
+        `✅ SUCCESS: Response generated despite any warnings (${result.text.length} chars)`,
+      );
       console.log(`📄 Preview: ${result.text.slice(0, 80)}...`);
     } catch (error) {
-      console.log('❌ UNEXPECTED: Warning mode should not throw errors -', (error as Error).message);
+      console.log(
+        '❌ UNEXPECTED: Warning mode should not throw errors -',
+        (error as Error).message,
+      );
     }
   }
 
   console.log('\n📊 COMPARISON SUMMARY:');
   console.log('========================');
   console.log('🚫 BLOCKING MODE (throwOnBlocked: true):');
-  console.log('   • Guardrail violations completely prevent response generation');
+  console.log(
+    '   • Guardrail violations completely prevent response generation',
+  );
   console.log('   • User gets no response when issues are detected');
   console.log('   • Strict enforcement of policies and quality standards');
-  console.log('   • Use when: Safety/compliance is critical, violations must be prevented');
+  console.log(
+    '   • Use when: Safety/compliance is critical, violations must be prevented',
+  );
   console.log('');
   console.log('⚠️  WARNING MODE (throwOnBlocked: false):');
-  console.log('   • Guardrail violations are logged but responses still generated');
-  console.log('   • User always gets a response, warnings help with monitoring');
+  console.log(
+    '   • Guardrail violations are logged but responses still generated',
+  );
+  console.log(
+    '   • User always gets a response, warnings help with monitoring',
+  );
   console.log('   • Flexible approach that prioritizes user experience');
-  console.log('   • Use when: You want monitoring/logging but not strict enforcement');
+  console.log(
+    '   • Use when: You want monitoring/logging but not strict enforcement',
+  );
 }
 
 // Example registry
 const EXAMPLES = [
-  { name: 'Blocking vs Warning Demo (Cost Optimization + Quality)', fn: demonstrateBasicComposition },
+  {
+    name: 'Blocking vs Warning Demo (Cost Optimization + Quality)',
+    fn: demonstrateBasicComposition,
+  },
 ];
 
 // Interactive menu with Inquirer
@@ -424,12 +464,12 @@ async function showInteractiveMenu() {
     const choices = [
       ...EXAMPLES.map((example, index) => ({
         name: `${index + 1}. ${example.name}`,
-        value: index
+        value: index,
       })),
       {
         name: '❌ Exit',
-        value: 'exit'
-      }
+        value: 'exit',
+      },
     ];
 
     const response = await safePrompt<{ action: string | number }>({
@@ -437,7 +477,7 @@ async function showInteractiveMenu() {
       name: 'action',
       message: 'What would you like to do?',
       choices,
-      pageSize: 5
+      pageSize: 5,
     });
 
     if (!response) return;
@@ -447,7 +487,7 @@ async function showInteractiveMenu() {
       console.log('\n👋 Goodbye!');
       return;
     }
-    
+
     if (typeof action === 'number') {
       const example = EXAMPLES[action];
       if (!example) continue;
@@ -455,7 +495,7 @@ async function showInteractiveMenu() {
       try {
         await example.fn();
         console.log(`\n✅ ${example.name} completed successfully!`);
-        
+
         console.log('\n💰 Money-Saving Benefits:');
         console.log('  • Blocked wasteful short requests');
         console.log('  • Prevented inappropriate content calls');
@@ -475,7 +515,7 @@ async function showInteractiveMenu() {
     // Automatically return to main menu after running examples
     if (action !== 'exit') {
       console.log('\n↩️  Returning to main menu...\n');
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Brief pause
+      await new Promise((resolve) => setTimeout(resolve, 1500)); // Brief pause
     }
   }
 }
@@ -484,11 +524,11 @@ async function showInteractiveMenu() {
 async function main() {
   setupGracefulShutdown();
   const args = process.argv.slice(2);
-  
+
   // Check for specific example number argument
   if (args.length > 0) {
     const exampleArg = args[0];
-    
+
     if (exampleArg === '--help' || exampleArg === '-h') {
       console.log('🚀  Basic Middleware Composition Examples');
       console.log('=======================================');
@@ -497,11 +537,17 @@ async function main() {
       console.log('  tsx examples/basic-composition.ts [example_number]');
       console.log('');
       console.log('Arguments:');
-      console.log(`  example_number    Run specific example (1-${EXAMPLES.length}), or omit for interactive mode`);
+      console.log(
+        `  example_number    Run specific example (1-${EXAMPLES.length}), or omit for interactive mode`,
+      );
       console.log('');
       console.log('Examples:');
-      console.log('  tsx examples/basic-composition.ts        # Interactive mode');
-      console.log('  tsx examples/basic-composition.ts 1      # Run basic composition demo');
+      console.log(
+        '  tsx examples/basic-composition.ts        # Interactive mode',
+      );
+      console.log(
+        '  tsx examples/basic-composition.ts 1      # Run basic composition demo',
+      );
       console.log('');
       console.log('Available examples:');
       for (const [index, example] of EXAMPLES.entries()) {
@@ -511,7 +557,7 @@ async function main() {
     }
 
     const exampleNum = Number.parseInt(exampleArg || '', 10);
-    
+
     if (Number.isNaN(exampleNum)) {
       console.error('❌ Invalid example number. Please provide a number.');
       console.log('💡 Use --help to see available options.');
@@ -519,7 +565,9 @@ async function main() {
     }
 
     if (exampleNum < 1 || exampleNum > EXAMPLES.length) {
-      console.error(`❌ Invalid example number. Please choose between 1-${EXAMPLES.length}`);
+      console.error(
+        `❌ Invalid example number. Please choose between 1-${EXAMPLES.length}`,
+      );
       console.log('\nAvailable examples:');
       for (const [index, example] of EXAMPLES.entries()) {
         console.log(`  ${index + 1}. ${example.name}`);
@@ -532,9 +580,9 @@ async function main() {
       console.error('❌ Example not found.');
       return;
     }
-    
+
     console.log(`🚀 Running: ${selectedExample.name}\n`);
-    
+
     try {
       await selectedExample.fn();
       console.log(`\n✅ ${selectedExample.name} completed successfully!`);

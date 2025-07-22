@@ -138,32 +138,38 @@ Evaluate this response:`,
 
 // Example 1: LLM-as-Judge Quality Thresholds - Blocking vs Warning Demo
 async function example1_QualityThresholds() {
-  console.log('\n=== LLM-as-Judge Quality Thresholds - Blocking vs Warning ===');
+  console.log(
+    '\n=== LLM-as-Judge Quality Thresholds - Blocking vs Warning ===',
+  );
 
   const testPrompts = [
     {
       prompt: 'What is the capital of France?',
-      expectation: 'Simple factual question - should pass quality checks'
+      expectation: 'Simple factual question - should pass quality checks',
     },
     {
       prompt: 'How do I fix my broken code?', // Vague question
-      expectation: 'Vague question - may trigger quality issues'
+      expectation: 'Vague question - may trigger quality issues',
     },
     {
       prompt: 'Explain quantum computing in simple terms',
-      expectation: 'Complex but well-defined question - should pass'
+      expectation: 'Complex but well-defined question - should pass',
     },
   ];
 
   // DEMO 1: BLOCKING MODE - Strict Quality Enforcement
   console.log('\n🚫 DEMO 1: BLOCKING MODE (throwOnBlocked: true)');
   console.log('===============================================');
-  console.log('Low-quality responses are rejected - no response returned to user\n');
+  console.log(
+    'Low-quality responses are rejected - no response returned to user\n',
+  );
 
   for (const testCase of testPrompts) {
     console.log(`\n📋 BLOCKING TEST: ${testCase.expectation}`);
     console.log(`💬 Question: "${testCase.prompt}"`);
-    console.log('Expected: High-quality response passes, low-quality is BLOCKED\n');
+    console.log(
+      'Expected: High-quality response passes, low-quality is BLOCKED\n',
+    );
 
     // Strict threshold (8/10) with blocking
     const strictBlockingJudge = createLlmJudgeGuardrail({
@@ -178,7 +184,10 @@ async function example1_QualityThresholds() {
           outputGuardrails: [strictBlockingJudge],
           throwOnBlocked: true, // BLOCKS low-quality responses
           onOutputBlocked: (results) => {
-            console.log('🚫 BLOCKED: Low-quality response rejected -', results[0]?.message);
+            console.log(
+              '🚫 BLOCKED: Low-quality response rejected -',
+              results[0]?.message,
+            );
             if (results[0]?.suggestion) {
               console.log('💡 Improvement needed:', results[0].suggestion);
             }
@@ -193,7 +202,9 @@ async function example1_QualityThresholds() {
         prompt: testCase.prompt,
       });
 
-      console.log('✅ SUCCESS: Response passed strict quality check and was returned');
+      console.log(
+        '✅ SUCCESS: Response passed strict quality check and was returned',
+      );
       console.log(`📄 High-quality response: ${result.text.slice(0, 100)}...`);
     } catch (error) {
       console.log('🚫 SUCCESS: Low-quality response was BLOCKED as expected');
@@ -203,12 +214,16 @@ async function example1_QualityThresholds() {
   // DEMO 2: WARNING MODE - Quality Monitoring
   console.log('\n⚠️  DEMO 2: WARNING MODE (throwOnBlocked: false)');
   console.log('===========================================');
-  console.log('Quality issues are logged but responses are still returned to user\n');
+  console.log(
+    'Quality issues are logged but responses are still returned to user\n',
+  );
 
   for (const testCase of testPrompts) {
     console.log(`\n📋 WARNING TEST: ${testCase.expectation}`);
     console.log(`💬 Question: "${testCase.prompt}"`);
-    console.log('Expected: All responses returned, quality warnings logged for issues\n');
+    console.log(
+      'Expected: All responses returned, quality warnings logged for issues\n',
+    );
 
     // Same strict threshold (8/10) but with warnings
     const strictWarningJudge = createLlmJudgeGuardrail({
@@ -223,7 +238,10 @@ async function example1_QualityThresholds() {
           outputGuardrails: [strictWarningJudge],
           throwOnBlocked: false, // WARNS but returns response
           onOutputBlocked: (results) => {
-            console.log('⚠️  WARNED: Quality concern detected but returning response -', results[0]?.message);
+            console.log(
+              '⚠️  WARNED: Quality concern detected but returning response -',
+              results[0]?.message,
+            );
             if (results[0]?.suggestion) {
               console.log('💡 Consider improvement:', results[0].suggestion);
             }
@@ -238,18 +256,29 @@ async function example1_QualityThresholds() {
         prompt: testCase.prompt,
       });
 
-      console.log('✅ SUCCESS: Response returned regardless of quality assessment');
+      console.log(
+        '✅ SUCCESS: Response returned regardless of quality assessment',
+      );
       console.log(`📄 Response provided: ${result.text.slice(0, 100)}...`);
     } catch (error) {
-      console.log('❌ UNEXPECTED: Warning mode should not throw -', (error as Error).message);
+      console.log(
+        '❌ UNEXPECTED: Warning mode should not throw -',
+        (error as Error).message,
+      );
     }
   }
 
   console.log('\n📋 LLM-AS-JUDGE SUMMARY:');
   console.log('=========================');
-  console.log('🚫 BLOCKING mode = Only high-quality responses reach users, low-quality is rejected');
-  console.log('⚠️  WARNING mode = All responses reach users, quality monitoring provides insights');
-  console.log('🎯 Best practice: Use BLOCKING for critical applications, WARNING for optimization');
+  console.log(
+    '🚫 BLOCKING mode = Only high-quality responses reach users, low-quality is rejected',
+  );
+  console.log(
+    '⚠️  WARNING mode = All responses reach users, quality monitoring provides insights',
+  );
+  console.log(
+    '🎯 Best practice: Use BLOCKING for critical applications, WARNING for optimization',
+  );
 }
 
 // Example 2: Business Quality Evaluation
@@ -373,7 +402,10 @@ async function example3_CombinedDemo() {
 
 // Example registry
 const EXAMPLES = [
-  { name: 'LLM-as-Judge Quality Thresholds (Blocking vs Warning Demo)', fn: example1_QualityThresholds },
+  {
+    name: 'LLM-as-Judge Quality Thresholds (Blocking vs Warning Demo)',
+    fn: example1_QualityThresholds,
+  },
   { name: 'Business Quality Evaluation', fn: example2_BusinessQuality },
   { name: 'Combined LLM Judge Demo', fn: example3_CombinedDemo },
 ];
