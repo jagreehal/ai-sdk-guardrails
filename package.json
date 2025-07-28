@@ -62,7 +62,7 @@
   },
   "dependencies": {
     "@ai-sdk/provider": "2.0.0-beta.1",
-    "ai": "5.0.0-beta.5",
+    "ai": "5.0.0-canary.24",
     "zod": "^4.0.5"
   },
   "devDependencies": {
