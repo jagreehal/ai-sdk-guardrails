@@ -8,13 +8,12 @@
  * - Prevent embarrassing responses that don't meet business standards
  */
 
-import { generateText, wrapLanguageModel } from 'ai';
+import { generateText } from 'ai';
 import { model } from './model';
 import {
-  createInputGuardrailsMiddleware,
-  createOutputGuardrailsMiddleware,
   defineInputGuardrail,
   defineOutputGuardrail,
+  wrapWithGuardrails,
 } from '../src/guardrails';
 import type {
   InputGuardrailContext,
@@ -22,7 +21,6 @@ import type {
 } from '../src/types';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
-import inquirer from 'inquirer';
 import { setupGracefulShutdown, safePrompt } from './utils/interactive-menu';
 
 // ============================================================================
@@ -306,37 +304,29 @@ const technicalAccuracyGuardrail = defineOutputGuardrail({
 // BUSINESS MODEL CONFIGURATION
 // ============================================================================
 
-const businessStandardsModel = wrapLanguageModel({
-  model,
-  middleware: [
-    createInputGuardrailsMiddleware({
-      inputGuardrails: [
-        businessHoursGuardrail,
-        codeQualityStandardsGuardrail,
-        workFocusGuardrail,
-      ],
-      throwOnBlocked: false,
-      onInputBlocked: (results) => {
-        console.log('\n📋 Business Policy Violations:');
-        for (const result of results) {
-          console.log(`❌ ${result.context?.guardrailName}: ${result.message}`);
-          if (result.suggestion) {
-            console.log(`💡 ${result.suggestion}`);
-          }
-        }
-      },
-    }),
-    createOutputGuardrailsMiddleware({
-      outputGuardrails: [professionalToneGuardrail, technicalAccuracyGuardrail],
-      throwOnBlocked: false,
-      onOutputBlocked: (results) => {
-        console.log('\n🎯 Quality Standards Violations:');
-        for (const result of results) {
-          console.log(`❌ ${result.context?.guardrailName}: ${result.message}`);
-        }
-      },
-    }),
+const businessStandardsModel = wrapWithGuardrails(model, {
+  inputGuardrails: [
+    businessHoursGuardrail,
+    codeQualityStandardsGuardrail,
+    workFocusGuardrail,
   ],
+  outputGuardrails: [professionalToneGuardrail, technicalAccuracyGuardrail],
+  throwOnBlocked: false,
+  onInputBlocked: (results) => {
+    console.log('\n📋 Business Policy Violations:');
+    for (const result of results) {
+      console.log(`❌ ${result.context?.guardrailName}: ${result.message}`);
+      if (result.suggestion) {
+        console.log(`💡 ${result.suggestion}`);
+      }
+    }
+  },
+  onOutputBlocked: (results) => {
+    console.log('\n🎯 Quality Standards Violations:');
+    for (const result of results) {
+      console.log(`❌ ${result.context?.guardrailName}: ${result.message}`);
+    }
+  },
 });
 
 // ============================================================================
@@ -354,46 +344,35 @@ async function testBusinessPolicies() {
     'Violations completely block requests - no responses generated\n',
   );
 
-  const blockingBusinessModel = wrapLanguageModel({
-    model,
-    middleware: [
-      createInputGuardrailsMiddleware({
-        inputGuardrails: [
-          businessHoursGuardrail,
-          codeQualityStandardsGuardrail,
-          workFocusGuardrail,
-        ],
-        throwOnBlocked: true, // STRICT enforcement
-        onInputBlocked: (results) => {
-          console.log(
-            '🚫 BLOCKED: Business policy violation - no response generated',
-          );
-          for (const result of results) {
-            console.log(
-              `   ❌ ${result.context?.guardrailName}: ${result.message}`,
-            );
-            if (result.suggestion) {
-              console.log(`   💡 ${result.suggestion}`);
-            }
-          }
-        },
-      }),
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [
-          professionalToneGuardrail,
-          technicalAccuracyGuardrail,
-        ],
-        throwOnBlocked: true, // STRICT output standards
-        onOutputBlocked: (results) => {
-          console.log('🚫 BLOCKED: Output quality standards violation');
-          for (const result of results) {
-            console.log(
-              `   ❌ ${result.context?.guardrailName}: ${result.message}`,
-            );
-          }
-        },
-      }),
+  const blockingBusinessModel = wrapWithGuardrails(model, {
+    inputGuardrails: [
+      businessHoursGuardrail,
+      codeQualityStandardsGuardrail,
+      workFocusGuardrail,
     ],
+    outputGuardrails: [professionalToneGuardrail, technicalAccuracyGuardrail],
+    throwOnBlocked: true, // STRICT enforcement
+    onInputBlocked: (results) => {
+      console.log(
+        '🚫 BLOCKED: Business policy violation - no response generated',
+      );
+      for (const result of results) {
+        console.log(
+          `   ❌ ${result.context?.guardrailName}: ${result.message}`,
+        );
+        if (result.suggestion) {
+          console.log(`   💡 ${result.suggestion}`);
+        }
+      }
+    },
+    onOutputBlocked: (results) => {
+      console.log('🚫 BLOCKED: Output quality standards violation');
+      for (const result of results) {
+        console.log(
+          `   ❌ ${result.context?.guardrailName}: ${result.message}`,
+        );
+      }
+    },
   });
 
   const blockingTests = [
@@ -429,7 +408,7 @@ async function testBusinessPolicies() {
         `✅ SUCCESS: Business policy compliance - response generated (${result.text.length} chars)`,
       );
       console.log(`📄 Preview: ${result.text.slice(0, 80)}...`);
-    } catch (error) {
+    } catch {
       console.log(
         '🚫 SUCCESS: Business policy violation BLOCKED as expected - no response',
       );
@@ -441,48 +420,35 @@ async function testBusinessPolicies() {
   console.log('=============================================');
   console.log('Policy violations logged but responses still generated\n');
 
-  const warningBusinessModel = wrapLanguageModel({
-    model,
-    middleware: [
-      createInputGuardrailsMiddleware({
-        inputGuardrails: [
-          businessHoursGuardrail,
-          codeQualityStandardsGuardrail,
-          workFocusGuardrail,
-        ],
-        throwOnBlocked: false, // WARN but continue
-        onInputBlocked: (results) => {
-          console.log(
-            '⚠️  WARNED: Business policy concerns detected but continuing',
-          );
-          for (const result of results) {
-            console.log(
-              `   ⚠️  ${result.context?.guardrailName}: ${result.message}`,
-            );
-            if (result.suggestion) {
-              console.log(`   💡 ${result.suggestion}`);
-            }
-          }
-        },
-      }),
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [
-          professionalToneGuardrail,
-          technicalAccuracyGuardrail,
-        ],
-        throwOnBlocked: false, // WARN about quality but return response
-        onOutputBlocked: (results) => {
-          console.log(
-            '⚠️  WARNED: Output quality concerns but returning response',
-          );
-          for (const result of results) {
-            console.log(
-              `   ⚠️  ${result.context?.guardrailName}: ${result.message}`,
-            );
-          }
-        },
-      }),
+  const warningBusinessModel = wrapWithGuardrails(model, {
+    inputGuardrails: [
+      businessHoursGuardrail,
+      codeQualityStandardsGuardrail,
+      workFocusGuardrail,
     ],
+    outputGuardrails: [professionalToneGuardrail, technicalAccuracyGuardrail],
+    throwOnBlocked: false, // WARN but continue
+    onInputBlocked: (results) => {
+      console.log(
+        '⚠️  WARNED: Business policy concerns detected but continuing',
+      );
+      for (const result of results) {
+        console.log(
+          `   ⚠️  ${result.context?.guardrailName}: ${result.message}`,
+        );
+        if (result.suggestion) {
+          console.log(`   💡 ${result.suggestion}`);
+        }
+      }
+    },
+    onOutputBlocked: (results) => {
+      console.log('⚠️  WARNED: Output quality concerns but returning response');
+      for (const result of results) {
+        console.log(
+          `   ⚠️  ${result.context?.guardrailName}: ${result.message}`,
+        );
+      }
+    },
   });
 
   const warningTests = [

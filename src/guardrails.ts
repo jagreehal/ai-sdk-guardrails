@@ -1,3 +1,4 @@
+import { wrapLanguageModel } from 'ai';
 import type {
   InputGuardrail,
   OutputGuardrail,
@@ -12,6 +13,10 @@ import type {
   InputGuardrailsMiddlewareConfig,
   OutputGuardrailsMiddlewareConfig,
 } from './types';
+
+// ============================================================================
+// CORE GUARDRAIL FUNCTIONS
+// ============================================================================
 
 /**
  * Creates a well-structured input guardrail with enhanced metadata
@@ -395,6 +400,10 @@ export async function executeOutputGuardrails(
   return results;
 }
 
+// ============================================================================
+// AI SDK 5 HELPER FUNCTIONS (RECOMMENDED API)
+// ============================================================================
+
 type MessageContent = Array<{ type: string; text?: string }>;
 
 function extractTextFromContent(content: MessageContent): string {
@@ -405,7 +414,164 @@ function extractTextFromContent(content: MessageContent): string {
 }
 
 /**
+ * Wraps a language model with input guardrails using AI SDK 5 patterns
+ * @param model - The language model to wrap
+ * @param guardrails - Array of input guardrails to apply
+ * @param options - Optional configuration for guardrail execution
+ * @returns Wrapped language model with input guardrails
+ *
+ * @example
+ * ```typescript
+ * import { openai } from '@ai-sdk/openai';
+ * import { wrapWithInputGuardrails } from 'ai-sdk-guardrails';
+ *
+ * const guardedModel = wrapWithInputGuardrails(
+ *   openai('gpt-4o'),
+ *   [myInputGuardrail],
+ *   { throwOnBlocked: true }
+ * );
+ * ```
+ */
+export function wrapWithInputGuardrails(
+  model: LanguageModelV2,
+  guardrails: InputGuardrail[],
+  options?: Omit<InputGuardrailsMiddlewareConfig, 'inputGuardrails'>,
+): LanguageModelV2 {
+  const middleware = createInputGuardrailsMiddleware({
+    inputGuardrails: guardrails,
+    ...options,
+  });
+
+  return wrapLanguageModel({
+    model,
+    middleware,
+  });
+}
+
+/**
+ * Wraps a language model with output guardrails using AI SDK 5 patterns
+ * @param model - The language model to wrap
+ * @param guardrails - Array of output guardrails to apply
+ * @param options - Optional configuration for guardrail execution
+ * @returns Wrapped language model with output guardrails
+ *
+ * @example
+ * ```typescript
+ * import { openai } from '@ai-sdk/openai';
+ * import { wrapWithOutputGuardrails } from 'ai-sdk-guardrails';
+ *
+ * const guardedModel = wrapWithOutputGuardrails(
+ *   openai('gpt-4o'),
+ *   [myOutputGuardrail],
+ *   { throwOnBlocked: true }
+ * );
+ * ```
+ */
+export function wrapWithOutputGuardrails(
+  model: LanguageModelV2,
+  guardrails: OutputGuardrail[],
+  options?: Omit<OutputGuardrailsMiddlewareConfig, 'outputGuardrails'>,
+): LanguageModelV2 {
+  const middleware = createOutputGuardrailsMiddleware({
+    outputGuardrails: guardrails,
+    ...options,
+  });
+
+  return wrapLanguageModel({
+    model,
+    middleware,
+  });
+}
+
+/**
+ * Wraps a language model with both input and output guardrails using AI SDK 5 patterns
+ * @param model - The language model to wrap
+ * @param config - Configuration for both input and output guardrails
+ * @returns Wrapped language model with both input and output guardrails
+ *
+ * @example
+ * ```typescript
+ * import { openai } from '@ai-sdk/openai';
+ * import { wrapWithGuardrails } from 'ai-sdk-guardrails';
+ *
+ * const guardedModel = wrapWithGuardrails(openai('gpt-4o'), {
+ *   inputGuardrails: [myInputGuardrail],
+ *   outputGuardrails: [myOutputGuardrail],
+ *   throwOnBlocked: true
+ * });
+ * ```
+ */
+export function wrapWithGuardrails(
+  model: LanguageModelV2,
+  config: {
+    inputGuardrails?: InputGuardrail[];
+    outputGuardrails?: OutputGuardrail[];
+    throwOnBlocked?: boolean;
+    executionOptions?: {
+      parallel?: boolean;
+      timeout?: number;
+      continueOnFailure?: boolean;
+      logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
+    };
+    onInputBlocked?: InputGuardrailsMiddlewareConfig['onInputBlocked'];
+    onOutputBlocked?: OutputGuardrailsMiddlewareConfig['onOutputBlocked'];
+  },
+): LanguageModelV2 {
+  const {
+    inputGuardrails = [],
+    outputGuardrails = [],
+    throwOnBlocked,
+    executionOptions,
+    onInputBlocked,
+    onOutputBlocked,
+  } = config;
+
+  const middlewares: LanguageModelV2Middleware[] = [];
+
+  // Add input guardrails middleware if provided
+  if (inputGuardrails.length > 0) {
+    middlewares.push(
+      createInputGuardrailsMiddleware({
+        inputGuardrails,
+        throwOnBlocked,
+        executionOptions,
+        onInputBlocked,
+      }),
+    );
+  }
+
+  // Add output guardrails middleware if provided
+  if (outputGuardrails.length > 0) {
+    middlewares.push(
+      createOutputGuardrailsMiddleware({
+        outputGuardrails,
+        throwOnBlocked,
+        executionOptions,
+        onOutputBlocked,
+      }),
+    );
+  }
+
+  // If no guardrails provided, return the original model
+  if (middlewares.length === 0) {
+    return model;
+  }
+
+  return wrapLanguageModel({
+    model,
+    middleware: middlewares,
+  });
+}
+
+// ============================================================================
+// ADVANCED MIDDLEWARE FUNCTIONS (FOR FINE-GRAINED CONTROL)
+// ============================================================================
+
+/**
  * Creates an input guardrails middleware that executes before AI calls
+ * Follows AI SDK 5 middleware patterns
+ *
+ * @internal Advanced API - Use wrapWithInputGuardrails() or wrapWithGuardrails() for simpler usage
  * @param config - Input guardrails configuration
  * @returns AI SDK middleware that executes input guardrails
  */
@@ -420,7 +586,6 @@ export function createInputGuardrailsMiddleware(
   } = config;
 
   return {
-    middlewareVersion: 'v2',
     transformParams: async ({
       params,
     }: {
@@ -568,6 +733,9 @@ export function createInputGuardrailsMiddleware(
 
 /**
  * Creates an output guardrails middleware that executes after AI calls
+ * Follows AI SDK 5 middleware patterns
+ *
+ * @internal Advanced API - Use wrapWithOutputGuardrails() or wrapWithGuardrails() for simpler usage
  * @param config - Output guardrails configuration
  * @returns AI SDK middleware that executes output guardrails
  */
@@ -582,7 +750,6 @@ export function createOutputGuardrailsMiddleware(
   } = config;
 
   return {
-    middlewareVersion: 'v2',
     wrapGenerate: async ({
       doGenerate,
       params,
