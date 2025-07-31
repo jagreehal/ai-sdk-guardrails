@@ -11,17 +11,20 @@
  * preventing low-quality responses from reaching users.
  */
 
-import { generateText, generateObject, wrapLanguageModel } from 'ai';
+import { generateText, generateObject } from 'ai';
 import { z } from 'zod';
 import { model } from './model';
 import {
-  createOutputGuardrailsMiddleware,
   defineOutputGuardrail,
+  wrapWithOutputGuardrails,
 } from '../src/guardrails';
-import type { LanguageModelV2, OutputGuardrailContext } from '../src/types';
+import type {
+  LanguageModelV2,
+  OutputGuardrailContext,
+  GuardrailResult,
+} from '../src/types';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
-import inquirer from 'inquirer';
 import { setupGracefulShutdown, safePrompt } from './utils/interactive-menu';
 
 // Quality evaluation schema for the judge LLM
@@ -177,24 +180,22 @@ async function example1_QualityThresholds() {
       includeImprovements: true,
     });
 
-    const blockingModel = wrapLanguageModel({
+    const blockingModel = wrapWithOutputGuardrails(
       model,
-      middleware: [
-        createOutputGuardrailsMiddleware({
-          outputGuardrails: [strictBlockingJudge],
-          throwOnBlocked: true, // BLOCKS low-quality responses
-          onOutputBlocked: (results) => {
-            console.log(
-              '🚫 BLOCKED: Low-quality response rejected -',
-              results[0]?.message,
-            );
-            if (results[0]?.suggestion) {
-              console.log('💡 Improvement needed:', results[0].suggestion);
-            }
-          },
-        }),
-      ],
-    });
+      [strictBlockingJudge],
+      {
+        throwOnBlocked: true, // BLOCKS low-quality responses
+        onOutputBlocked: (results: GuardrailResult[]) => {
+          console.log(
+            '🚫 BLOCKED: Low-quality response rejected -',
+            results[0]?.message,
+          );
+          if (results[0]?.suggestion) {
+            console.log('�� Improvement needed:', results[0].suggestion);
+          }
+        },
+      },
+    );
 
     try {
       const result = await generateText({
@@ -206,7 +207,7 @@ async function example1_QualityThresholds() {
         '✅ SUCCESS: Response passed strict quality check and was returned',
       );
       console.log(`📄 High-quality response: ${result.text.slice(0, 100)}...`);
-    } catch (error) {
+    } catch {
       console.log('🚫 SUCCESS: Low-quality response was BLOCKED as expected');
     }
   }
@@ -231,23 +232,17 @@ async function example1_QualityThresholds() {
       includeImprovements: true,
     });
 
-    const warningModel = wrapLanguageModel({
-      model,
-      middleware: [
-        createOutputGuardrailsMiddleware({
-          outputGuardrails: [strictWarningJudge],
-          throwOnBlocked: false, // WARNS but returns response
-          onOutputBlocked: (results) => {
-            console.log(
-              '⚠️  WARNED: Quality concern detected but returning response -',
-              results[0]?.message,
-            );
-            if (results[0]?.suggestion) {
-              console.log('💡 Consider improvement:', results[0].suggestion);
-            }
-          },
-        }),
-      ],
+    const warningModel = wrapWithOutputGuardrails(model, [strictWarningJudge], {
+      throwOnBlocked: false, // WARNS but returns response
+      onOutputBlocked: (results: GuardrailResult[]) => {
+        console.log(
+          '⚠️  WARNED: Quality concern detected but returning response -',
+          results[0]?.message,
+        );
+        if (results[0]?.suggestion) {
+          console.log('💡 Consider improvement:', results[0].suggestion);
+        }
+      },
     });
 
     try {
@@ -339,17 +334,11 @@ async function example2_BusinessQuality() {
     },
   });
 
-  const businessModel = wrapLanguageModel({
-    model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [businessJudge],
-        throwOnBlocked: false,
-        onOutputBlocked: (results) => {
-          console.log('📋 Business Quality Check:', results[0]?.message);
-        },
-      }),
-    ],
+  const businessModel = wrapWithOutputGuardrails(model, [businessJudge], {
+    throwOnBlocked: false,
+    onOutputBlocked: (results: GuardrailResult[]) => {
+      console.log('📋 Business Quality Check:', results[0]?.message);
+    },
   });
 
   const businessPrompts = [
