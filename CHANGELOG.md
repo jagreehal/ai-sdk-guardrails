@@ -1,5 +1,11 @@
 # ai-sdk-guardrails
 
+## 3.0.0
+
+### Major Changes
+
+- 1b5b452: Update for v5 AI SDK release
+
 ## 2.0.0
 
 ### Major Changes
