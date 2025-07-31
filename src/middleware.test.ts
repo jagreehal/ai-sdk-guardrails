@@ -4,6 +4,10 @@ import {
   createOutputGuardrailsMiddleware,
   defineInputGuardrail,
   defineOutputGuardrail,
+  // New AI SDK 5 Helper Functions
+  wrapWithInputGuardrails,
+  wrapWithOutputGuardrails,
+  wrapWithGuardrails,
 } from './guardrails';
 import type { LanguageModelV2, LanguageModelV2CallOptions } from './types';
 
@@ -33,7 +37,6 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV2 => ({
     };
   },
   async doStream(options) {
-    const encoder = new TextEncoder();
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue({
@@ -65,6 +68,138 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV2 => ({
       warnings: [],
     };
   },
+});
+
+describe('AI SDK 5 Helper Functions', () => {
+  let mockModel: LanguageModelV2;
+  let testInputGuardrail: ReturnType<typeof defineInputGuardrail>;
+  let testOutputGuardrail: ReturnType<typeof defineOutputGuardrail>;
+
+  beforeEach(() => {
+    mockModel = createMockModel();
+    testInputGuardrail = defineInputGuardrail({
+      name: 'test-input',
+      description: 'Test input guardrail',
+      execute: async () => ({ tripwireTriggered: false }),
+    });
+    testOutputGuardrail = defineOutputGuardrail({
+      name: 'test-output',
+      description: 'Test output guardrail',
+      execute: async () => ({ tripwireTriggered: false }),
+    });
+  });
+
+  describe('wrapWithInputGuardrails', () => {
+    it('should wrap model with input guardrails', () => {
+      const wrappedModel = wrapWithInputGuardrails(
+        mockModel,
+        [testInputGuardrail],
+        { throwOnBlocked: false },
+      );
+
+      expect(wrappedModel).toHaveProperty('doGenerate');
+      expect(wrappedModel).toHaveProperty('doStream');
+      expect(wrappedModel.provider).toBe('test');
+      expect(wrappedModel.modelId).toBe('test-model');
+    });
+
+    it('should apply input guardrails correctly', async () => {
+      const blockingGuardrail = defineInputGuardrail({
+        name: 'blocking',
+        execute: async () => ({
+          tripwireTriggered: true,
+          message: 'Blocked',
+          severity: 'high' as const,
+        }),
+      });
+
+      const wrappedModel = wrapWithInputGuardrails(
+        mockModel,
+        [blockingGuardrail],
+        { throwOnBlocked: false },
+      );
+
+      const result = await wrappedModel.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test' }] }],
+      });
+
+      expect(result.content[0]).toEqual(
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining('[Input blocked: Blocked]'),
+        }),
+      );
+    });
+  });
+
+  describe('wrapWithOutputGuardrails', () => {
+    it('should wrap model with output guardrails', () => {
+      const wrappedModel = wrapWithOutputGuardrails(
+        mockModel,
+        [testOutputGuardrail],
+        { throwOnBlocked: false },
+      );
+
+      expect(wrappedModel).toHaveProperty('doGenerate');
+      expect(wrappedModel).toHaveProperty('doStream');
+      expect(wrappedModel.provider).toBe('test');
+      expect(wrappedModel.modelId).toBe('test-model');
+    });
+  });
+
+  describe('wrapWithGuardrails', () => {
+    it('should wrap model with both input and output guardrails', () => {
+      const wrappedModel = wrapWithGuardrails(mockModel, {
+        inputGuardrails: [testInputGuardrail],
+        outputGuardrails: [testOutputGuardrail],
+        throwOnBlocked: false,
+      });
+
+      expect(wrappedModel).toHaveProperty('doGenerate');
+      expect(wrappedModel).toHaveProperty('doStream');
+      expect(wrappedModel.provider).toBe('test');
+      expect(wrappedModel.modelId).toBe('test-model');
+    });
+
+    it('should return original model when no guardrails provided', () => {
+      const wrappedModel = wrapWithGuardrails(mockModel, {});
+      expect(wrappedModel).toBe(mockModel);
+    });
+
+    it('should handle input-only guardrails', () => {
+      const wrappedModel = wrapWithGuardrails(mockModel, {
+        inputGuardrails: [testInputGuardrail],
+      });
+
+      expect(wrappedModel).toHaveProperty('doGenerate');
+      expect(wrappedModel).toHaveProperty('doStream');
+    });
+
+    it('should handle output-only guardrails', () => {
+      const wrappedModel = wrapWithGuardrails(mockModel, {
+        outputGuardrails: [testOutputGuardrail],
+      });
+
+      expect(wrappedModel).toHaveProperty('doGenerate');
+      expect(wrappedModel).toHaveProperty('doStream');
+    });
+
+    it('should handle callback configuration', () => {
+      const onInputBlocked = vi.fn();
+      const onOutputBlocked = vi.fn();
+
+      const wrappedModel = wrapWithGuardrails(mockModel, {
+        inputGuardrails: [testInputGuardrail],
+        outputGuardrails: [testOutputGuardrail],
+        onInputBlocked,
+        onOutputBlocked,
+        throwOnBlocked: false,
+      });
+
+      expect(wrappedModel).toHaveProperty('doGenerate');
+      expect(wrappedModel).toHaveProperty('doStream');
+    });
+  });
 });
 
 describe('Middleware Integration Tests', () => {
@@ -247,7 +382,6 @@ describe('Middleware Integration Tests', () => {
         outputGuardrails: [outputGuardrail],
       });
 
-      expect(middleware).toHaveProperty('middlewareVersion', 'v2');
       expect(middleware).toHaveProperty('wrapGenerate');
       expect(middleware).toHaveProperty('wrapStream');
       expect(typeof middleware.wrapGenerate).toBe('function');

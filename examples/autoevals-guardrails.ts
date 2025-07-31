@@ -1,15 +1,14 @@
-import { generateText, wrapLanguageModel } from 'ai';
+import { generateText } from 'ai';
 import { model, MODEL_NAME } from './model';
 import {
-  createOutputGuardrailsMiddleware,
   defineOutputGuardrail,
+  wrapWithOutputGuardrails,
 } from '../src/guardrails';
-import type { OutputGuardrailContext } from '../src/types';
+import type { OutputGuardrailContext, GuardrailResult } from '../src/types';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
 import { Factuality, init } from 'autoevals';
 import OpenAI from 'openai';
-import inquirer from 'inquirer';
 import { setupGracefulShutdown, safePrompt } from './utils/interactive-menu';
 
 const client = new OpenAI({
@@ -105,25 +104,20 @@ async function example1_FactualityCorrect() {
     minScore: 0.4,
   });
 
-  const protectedModel = wrapLanguageModel({
+  const protectedModel = wrapWithOutputGuardrails(
     model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [factualityGuardrail],
-        throwOnBlocked: false,
-        onOutputBlocked: (results) => {
-          console.log(
-            '❌ Response blocked for factuality:',
-            results[0]?.message,
-          );
-          console.log(
-            '📊 Factuality score:',
-            results[0]?.metadata?.factualityScore,
-          );
-        },
-      }),
-    ],
-  });
+    [factualityGuardrail],
+    {
+      throwOnBlocked: false,
+      onOutputBlocked: (results: GuardrailResult[]) => {
+        console.log('❌ Response blocked for factuality:', results[0]?.message);
+        console.log(
+          '📊 Factuality score:',
+          results[0]?.metadata?.factualityScore,
+        );
+      },
+    },
+  );
 
   console.log('🧪 Testing with correct answer...');
   try {
@@ -161,15 +155,13 @@ async function example2_FactualityIncorrect() {
     minScore: 0.4,
   });
 
-  const protectedModel = wrapLanguageModel({
+  const protectedModel = wrapWithOutputGuardrails(
     model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [factualityGuardrail],
-        throwOnBlocked: true, // Will throw error when factuality check fails
-      }),
-    ],
-  });
+    [factualityGuardrail],
+    {
+      throwOnBlocked: true, // Will throw error when factuality check fails
+    },
+  );
 
   console.log(
     '🧪 Testing with unrelated question (expecting to be blocked)...',
@@ -216,22 +208,20 @@ async function example3_FactualityNonBlocking() {
     minScore: 0.4,
   });
 
-  const protectedModel = wrapLanguageModel({
+  const protectedModel = wrapWithOutputGuardrails(
     model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [factualityGuardrail],
-        throwOnBlocked: false, // Only logs, doesn't block
-        onOutputBlocked: (results) => {
-          console.log('\n⚠️  GUARDRAIL TRIGGERED (Non-blocking mode):');
-          console.log('   - Message:', results[0]?.message);
-          console.log('   - Score:', results[0]?.metadata?.factualityScore);
-          console.log('   - Rationale:', results[0]?.metadata?.rationale);
-          console.log('   - Action: Response allowed through (non-blocking)\n');
-        },
-      }),
-    ],
-  });
+    [factualityGuardrail],
+    {
+      throwOnBlocked: false, // Only logs, doesn't block
+      onOutputBlocked: (results: GuardrailResult[]) => {
+        console.log('\n⚠️  GUARDRAIL TRIGGERED (Non-blocking mode):');
+        console.log('   - Message:', results[0]?.message);
+        console.log('   - Score:', results[0]?.metadata?.factualityScore);
+        console.log('   - Rationale:', results[0]?.metadata?.rationale);
+        console.log('   - Action: Response allowed through (non-blocking)\n');
+      },
+    },
+  );
 
   console.log('🧪 Testing non-blocking mode...');
   console.log('📝 Question: "What is the capital of France?"');
@@ -303,23 +293,21 @@ async function example4_MultipleFactuality() {
     },
   });
 
-  const protectedModel = wrapLanguageModel({
+  const protectedModel = wrapWithOutputGuardrails(
     model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [populationGuardrail, capitalGuardrail],
-        throwOnBlocked: false,
-        onOutputBlocked: (results) => {
-          for (const result of results) {
-            console.log(
-              `❌ Blocked by ${result.context?.guardrailName}:`,
-              result.message,
-            );
-          }
-        },
-      }),
-    ],
-  });
+    [populationGuardrail, capitalGuardrail],
+    {
+      throwOnBlocked: false,
+      onOutputBlocked: (results: GuardrailResult[]) => {
+        for (const result of results) {
+          console.log(
+            `❌ Blocked by ${result.context?.guardrailName}:`,
+            result.message,
+          );
+        }
+      },
+    },
+  );
 
   // Test population question
   console.log('🧪 Testing population question...');
@@ -419,21 +407,19 @@ async function example5_CustomEvaluation() {
     },
   });
 
-  const protectedModel = wrapLanguageModel({
+  const protectedModel = wrapWithOutputGuardrails(
     model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [responseQualityGuardrail],
-        throwOnBlocked: false,
-        onOutputBlocked: (results) => {
-          const result = results[0];
-          console.log('❌ Quality check failed:', result?.message);
-          console.log('📊 Quality score:', result?.metadata?.qualityScore);
-          console.log('💡 Suggestion:', result?.suggestion);
-        },
-      }),
-    ],
-  });
+    [responseQualityGuardrail],
+    {
+      throwOnBlocked: false,
+      onOutputBlocked: (results: GuardrailResult[]) => {
+        const result = results[0];
+        console.log('❌ Quality check failed:', result?.message);
+        console.log('📊 Quality score:', result?.metadata?.qualityScore);
+        console.log('💡 Suggestion:', result?.suggestion);
+      },
+    },
+  );
 
   console.log('🧪 Testing response quality evaluation...');
   try {

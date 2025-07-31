@@ -16,15 +16,14 @@
  * - Accepts potential false positives/negatives
  */
 
-import { generateText, wrapLanguageModel, streamText } from 'ai';
+import { generateText, streamText } from 'ai';
 import { model } from './model';
 import {
-  createOutputGuardrailsMiddleware,
   defineOutputGuardrail,
+  wrapWithOutputGuardrails,
 } from '../src/guardrails';
 import type { OutputGuardrailContext } from '../src/types';
 import { outputLengthLimit, extractContent } from '../src/guardrails/output';
-import inquirer from 'inquirer';
 import { setupGracefulShutdown, safePrompt } from './utils/interactive-menu';
 
 // Example 1: Streaming Length Limits - Blocking vs Warning Demo
@@ -40,20 +39,16 @@ async function example1_BasicStreamingLimit() {
     'If length exceeds limit: Stream completes but final result is BLOCKED\n',
   );
 
-  const blockingModel = wrapLanguageModel({
+  const blockingModel = wrapWithOutputGuardrails({
     model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [outputLengthLimit(100)], // Short limit for demo
-        throwOnBlocked: true, // BLOCKS the final result
-        onOutputBlocked: (results) => {
-          console.log(
-            '\n🚫 BLOCKED: Stream result rejected -',
-            results[0]?.message,
-          );
-        },
-      }),
-    ],
+    outputGuardrails: [outputLengthLimit(100)], // Short limit for demo
+    throwOnBlocked: true, // BLOCKS the final result
+    onOutputBlocked: (results) => {
+      console.log(
+        '\n🚫 BLOCKED: Stream result rejected -',
+        results[0]?.message,
+      );
+    },
   });
 
   console.log(
@@ -78,7 +73,7 @@ async function example1_BasicStreamingLimit() {
     console.log(
       `\n✅ SUCCESS: Stream completed normally (${fullText.length} chars)`,
     );
-  } catch (error) {
+  } catch {
     console.log('\n🚫 BLOCKED: Stream result was rejected due to length limit');
   }
 
@@ -105,7 +100,7 @@ async function example1_BasicStreamingLimit() {
     console.log(
       `\n✅ Stream completed, length: ${fullText.length} chars - awaiting guardrail check...`,
     );
-  } catch (error) {
+  } catch {
     console.log(
       '\n🚫 SUCCESS: Stream result was BLOCKED due to excessive length',
     );
@@ -118,20 +113,16 @@ async function example1_BasicStreamingLimit() {
     'If length exceeds limit: Stream completes and warning is logged but result is PRESERVED\n',
   );
 
-  const warningModel = wrapLanguageModel({
+  const warningModel = wrapWithOutputGuardrails({
     model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [outputLengthLimit(100)], // Same short limit
-        throwOnBlocked: false, // WARNS but preserves result
-        onOutputBlocked: (results) => {
-          console.log(
-            '\n⚠️  WARNED: Length issue detected but preserving stream result -',
-            results[0]?.message,
-          );
-        },
-      }),
-    ],
+    outputGuardrails: [outputLengthLimit(100)], // Same short limit
+    throwOnBlocked: false, // WARNS but preserves result
+    onOutputBlocked: (results) => {
+      console.log(
+        '\n⚠️  WARNED: Length issue detected but preserving stream result -',
+        results[0]?.message,
+      );
+    },
   });
 
   console.log('✅ Testing SHORT story request in WARNING mode...');
@@ -232,17 +223,13 @@ async function example2_ContentFilteringStream() {
     },
   });
 
-  const protectedModel = wrapLanguageModel({
+  const protectedModel = wrapWithOutputGuardrails({
     model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [contentFilterGuardrail],
-        throwOnBlocked: false,
-        onOutputBlocked: (results) => {
-          console.log('\n🚫 Content blocked:', results[0]?.message);
-        },
-      }),
-    ],
+    outputGuardrails: [contentFilterGuardrail],
+    throwOnBlocked: false,
+    onOutputBlocked: (results) => {
+      console.log('\n🚫 Content blocked:', results[0]?.message);
+    },
   });
 
   console.log('Generating text with content filtering...');
@@ -337,17 +324,13 @@ async function example3_QualityControlStream() {
     },
   });
 
-  const protectedModel = wrapLanguageModel({
+  const protectedModel = wrapWithOutputGuardrails({
     model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [qualityGuardrail],
-        throwOnBlocked: false,
-        onOutputBlocked: (results) => {
-          console.log('\n🚫 Quality issue detected:', results[0]?.message);
-        },
-      }),
-    ],
+    outputGuardrails: [qualityGuardrail],
+    throwOnBlocked: false,
+    onOutputBlocked: (results) => {
+      console.log('\n🚫 Quality issue detected:', results[0]?.message);
+    },
   });
 
   console.log('Generating text with quality control...');
@@ -433,21 +416,17 @@ async function example4_MultipleStreamingGuardrails() {
     },
   });
 
-  const protectedModel = wrapLanguageModel({
+  const protectedModel = wrapWithOutputGuardrails({
     model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [lengthGuardrail, profanityGuardrail],
-        throwOnBlocked: false,
-        onOutputBlocked: (results) => {
-          for (const result of results) {
-            console.log(
-              `\n🚫 Blocked by ${result.context?.guardrailName}: ${result.message}`,
-            );
-          }
-        },
-      }),
-    ],
+    outputGuardrails: [lengthGuardrail, profanityGuardrail],
+    throwOnBlocked: false,
+    onOutputBlocked: (results) => {
+      for (const result of results) {
+        console.log(
+          `\n🚫 Blocked by ${result.context?.guardrailName}: ${result.message}`,
+        );
+      }
+    },
   });
 
   console.log('Generating text with multiple guardrails...');

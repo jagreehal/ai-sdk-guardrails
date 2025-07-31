@@ -1,20 +1,19 @@
 import { z } from 'zod';
-import { generateObject, wrapLanguageModel } from 'ai';
+import { generateObject } from 'ai';
 import { model } from './model';
 import {
-  createInputGuardrailsMiddleware,
-  createOutputGuardrailsMiddleware,
   defineInputGuardrail,
   defineOutputGuardrail,
+  wrapWithGuardrails,
 } from '../src/guardrails';
 import type {
   InputGuardrailContext,
   OutputGuardrailContext,
+  GuardrailResult,
 } from '../src/types';
 import { extractContent } from '../src/guardrails/output';
 import { extractTextContent } from '../src/guardrails/input';
-import inquirer from 'inquirer';
-import { setupGracefulShutdown, safePrompt } from './utils/interactive-menu';
+import { safePrompt } from './utils/interactive-menu';
 
 // Example 1: Schema Validation - Blocking vs Warning Demo
 async function example1_SchemaValidation() {
@@ -58,20 +57,12 @@ async function example1_SchemaValidation() {
   console.log('===============================================');
   console.log('Invalid objects are rejected - no object returned\n');
 
-  const blockingModel = wrapLanguageModel({
-    model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [schemaValidator],
-        throwOnBlocked: true, // BLOCKS invalid objects
-        onOutputBlocked: (results) => {
-          console.log(
-            '🚫 BLOCKED: Invalid object rejected -',
-            results[0]?.message,
-          );
-        },
-      }),
-    ],
+  const blockingModel = wrapWithGuardrails(model, {
+    outputGuardrails: [schemaValidator],
+    throwOnBlocked: true, // BLOCKS invalid objects
+    onOutputBlocked: (results: GuardrailResult[]) => {
+      console.log('🚫 BLOCKED: Invalid object rejected -', results[0]?.message);
+    },
   });
 
   // Test 1A: Valid object request
@@ -106,7 +97,7 @@ async function example1_SchemaValidation() {
       '✅ Object validated successfully -',
       JSON.stringify(result.object),
     );
-  } catch (error) {
+  } catch {
     console.log('🚫 SUCCESS: Invalid object was BLOCKED as expected');
   }
 
@@ -115,20 +106,15 @@ async function example1_SchemaValidation() {
   console.log('===========================================');
   console.log('Invalid objects trigger warnings but are still returned\n');
 
-  const warningModel = wrapLanguageModel({
-    model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [schemaValidator],
-        throwOnBlocked: false, // WARNS but returns object
-        onOutputBlocked: (results) => {
-          console.log(
-            '⚠️  WARNED: Object validation issue detected but returning object -',
-            results[0]?.message,
-          );
-        },
-      }),
-    ],
+  const warningModel = wrapWithGuardrails(model, {
+    outputGuardrails: [schemaValidator],
+    throwOnBlocked: false, // WARNS but returns object
+    onOutputBlocked: (results: GuardrailResult[]) => {
+      console.log(
+        '⚠️  WARNED: Object validation issue detected but returning object -',
+        results[0]?.message,
+      );
+    },
   });
 
   // Test 2A: Valid object request
@@ -165,7 +151,7 @@ async function example1_SchemaValidation() {
       '✅ SUCCESS: Object returned despite validation issues -',
       JSON.stringify(result.object),
     );
-  } catch (error) {
+  } catch {
     console.log(
       '⚠️  Note: Object generation failed due to technical issues, not guardrail blocking',
     );
@@ -237,17 +223,12 @@ async function example2_CustomObjectValidation() {
     },
   });
 
-  const protectedModel = wrapLanguageModel({
-    model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [recipeValidationGuardrail],
-        throwOnBlocked: false,
-        onOutputBlocked: (results) => {
-          console.log('❌ Recipe blocked:', results[0]?.message);
-        },
-      }),
-    ],
+  const protectedModel = wrapWithGuardrails(model, {
+    outputGuardrails: [recipeValidationGuardrail],
+    throwOnBlocked: false,
+    onOutputBlocked: (results: GuardrailResult[]) => {
+      console.log('❌ Recipe blocked:', results[0]?.message);
+    },
   });
 
   console.log('Testing recipe validation...');
@@ -328,20 +309,16 @@ async function example3_ObjectContentFiltering() {
   console.log('===============================================');
   console.log('Messages with blocked content are rejected\n');
 
-  const blockingModel = wrapLanguageModel({
+  const blockingModel = wrapWithGuardrails({
     model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [contentFilterGuardrail],
-        throwOnBlocked: true, // BLOCKS inappropriate content
-        onOutputBlocked: (results) => {
-          console.log(
-            '🚫 BLOCKED: Message contains inappropriate content -',
-            results[0]?.message,
-          );
-        },
-      }),
-    ],
+    outputGuardrails: [contentFilterGuardrail],
+    throwOnBlocked: true, // BLOCKS inappropriate content
+    onOutputBlocked: (results) => {
+      console.log(
+        '🚫 BLOCKED: Message contains inappropriate content -',
+        results[0]?.message,
+      );
+    },
   });
 
   // Test 1A: Clean message
@@ -371,7 +348,7 @@ async function example3_ObjectContentFiltering() {
     });
     console.log('✅ Message passed content filter:');
     console.log(JSON.stringify(result.object, null, 2));
-  } catch (error) {
+  } catch {
     console.log('🚫 SUCCESS: Inappropriate message was BLOCKED as expected');
   }
 
@@ -382,20 +359,16 @@ async function example3_ObjectContentFiltering() {
     'Content issues trigger warnings but messages are still returned\n',
   );
 
-  const warningModel = wrapLanguageModel({
+  const warningModel = wrapWithGuardrails({
     model,
-    middleware: [
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [contentFilterGuardrail],
-        throwOnBlocked: false, // WARNS but returns message
-        onOutputBlocked: (results) => {
-          console.log(
-            '⚠️  WARNED: Content issue detected but returning message -',
-            results[0]?.message,
-          );
-        },
-      }),
-    ],
+    outputGuardrails: [contentFilterGuardrail],
+    throwOnBlocked: false, // WARNS but returns message
+    onOutputBlocked: (results) => {
+      console.log(
+        '⚠️  WARNED: Content issue detected but returning message -',
+        results[0]?.message,
+      );
+    },
   });
 
   // Test 2A: Clean message
@@ -480,17 +453,13 @@ async function example4_InputValidationForObjects() {
     },
   });
 
-  const protectedModel = wrapLanguageModel({
+  const protectedModel = wrapWithGuardrails({
     model,
-    middleware: [
-      createInputGuardrailsMiddleware({
-        inputGuardrails: [businessContentGuardrail],
-        throwOnBlocked: false,
-        onInputBlocked: (results) => {
-          console.log('❌ Input blocked:', results[0]?.message);
-        },
-      }),
-    ],
+    inputGuardrails: [businessContentGuardrail],
+    throwOnBlocked: false,
+    onInputBlocked: (results) => {
+      console.log('❌ Input blocked:', results[0]?.message);
+    },
   });
 
   // Test with appropriate product

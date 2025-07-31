@@ -1,12 +1,11 @@
-import { generateText, wrapLanguageModel } from 'ai';
+import { generateText } from 'ai';
 import { model } from './model';
 import {
-  createInputGuardrailsMiddleware,
   defineInputGuardrail,
+  wrapWithInputGuardrails,
 } from '../src/guardrails';
-import type { InputGuardrailContext } from '../src/types';
+import type { InputGuardrailContext, GuardrailResult } from '../src/types';
 import { extractTextContent } from '../src/guardrails/input';
-import inquirer from 'inquirer';
 import { setupGracefulShutdown, safePrompt } from './utils/interactive-menu';
 
 // ============================================================================
@@ -248,23 +247,18 @@ async function example1_BasicUserRateLimit() {
   // 3 requests per 10 seconds per user
   const rateLimitGuardrail = createUserRateLimitGuardrail(3, 10_000);
 
-  const blockingRateLimitedModel = wrapLanguageModel({
+  const blockingRateLimitedModel = wrapWithInputGuardrails(
     model,
-    middleware: [
-      createInputGuardrailsMiddleware({
-        inputGuardrails: [rateLimitGuardrail],
-        throwOnBlocked: true, // BLOCKS excess requests
-        onInputBlocked: (results) => {
-          const result = results[0];
-          console.log(`🚫 BLOCKED: Request rejected - ${result?.message}`);
-          console.log(
-            `📊 Rate limit status:`,
-            result?.metadata?.rateLimitStatus,
-          );
-        },
-      }),
-    ],
-  });
+    [rateLimitGuardrail],
+    {
+      throwOnBlocked: true, // BLOCKS excess requests
+      onInputBlocked: (results: GuardrailResult[]) => {
+        const result = results[0];
+        console.log(`🚫 BLOCKED: Request rejected - ${result?.message}`);
+        console.log(`📊 Rate limit status:`, result?.metadata?.rateLimitStatus);
+      },
+    },
+  );
 
   console.log(
     '🔥 Making 5 rapid requests in BLOCKING mode (limit: 3 per 10 seconds)...',
@@ -284,7 +278,7 @@ async function example1_BasicUserRateLimit() {
       console.log(
         `✅ SUCCESS: Request ${i} completed - ${result.text.slice(0, 50)}...`,
       );
-    } catch (error) {
+    } catch {
       console.log(`🚫 SUCCESS: Request ${i} was BLOCKED by rate limiter`);
     }
 
@@ -299,24 +293,17 @@ async function example1_BasicUserRateLimit() {
     'Rate limit violations logged as warnings but requests still processed\n',
   );
 
-  const warningRateLimitedModel = wrapLanguageModel({
+  const warningRateLimitedModel = wrapWithInputGuardrails({
     model,
-    middleware: [
-      createInputGuardrailsMiddleware({
-        inputGuardrails: [createUserRateLimitGuardrail(3, 10_000)], // Fresh rate limiter
-        throwOnBlocked: false, // WARNS but continues
-        onInputBlocked: (results) => {
-          const result = results[0];
-          console.log(
-            `⚠️  WARNED: Rate limit concern but continuing - ${result?.message}`,
-          );
-          console.log(
-            `📊 Rate limit status:`,
-            result?.metadata?.rateLimitStatus,
-          );
-        },
-      }),
-    ],
+    inputGuardrails: [createUserRateLimitGuardrail(3, 10_000)], // Fresh rate limiter
+    throwOnBlocked: false, // WARNS but continues
+    onInputBlocked: (results) => {
+      const result = results[0];
+      console.log(
+        `⚠️  WARNED: Rate limit concern but continuing - ${result?.message}`,
+      );
+      console.log(`📊 Rate limit status:`, result?.metadata?.rateLimitStatus);
+    },
   });
 
   console.log(
@@ -366,18 +353,14 @@ async function example2_GlobalRateLimit() {
   // 2 requests per 5 seconds globally
   const globalRateLimit = createGlobalRateLimitGuardrail(2, 5000);
 
-  const globallyLimitedModel = wrapLanguageModel({
+  const globallyLimitedModel = wrapWithInputGuardrails({
     model,
-    middleware: [
-      createInputGuardrailsMiddleware({
-        inputGuardrails: [globalRateLimit],
-        throwOnBlocked: false,
-        onInputBlocked: (results) => {
-          const result = results[0];
-          console.log(`❌ Global request blocked: ${result?.message}`);
-        },
-      }),
-    ],
+    inputGuardrails: [globalRateLimit],
+    throwOnBlocked: false,
+    onInputBlocked: (results) => {
+      const result = results[0];
+      console.log(`❌ Global request blocked: ${result?.message}`);
+    },
   });
 
   console.log('Testing global rate limit...');
@@ -397,7 +380,7 @@ async function example2_GlobalRateLimit() {
       } else {
         console.log(`✅ Global request ${i} processed by rate limiter`);
       }
-    } catch (error) {
+    } catch {
       console.log(`✅ Global request ${i} handled by rate limiting`);
     }
   }
@@ -409,19 +392,15 @@ async function example3_TokenBucketRateLimit() {
   // 5 token capacity, 1 token per second refill, 1 token per request
   const tokenBucketGuardrail = createTokenBucketGuardrail(5, 1, 1);
 
-  const tokenBucketModel = wrapLanguageModel({
+  const tokenBucketModel = wrapWithInputGuardrails({
     model,
-    middleware: [
-      createInputGuardrailsMiddleware({
-        inputGuardrails: [tokenBucketGuardrail],
-        throwOnBlocked: false,
-        onInputBlocked: (results) => {
-          const result = results[0];
-          console.log(`❌ Burst request blocked: ${result?.message}`);
-          console.log(`🪣 Bucket status:`, result?.metadata?.bucketStatus);
-        },
-      }),
-    ],
+    inputGuardrails: [tokenBucketGuardrail],
+    throwOnBlocked: false,
+    onInputBlocked: (results) => {
+      const result = results[0];
+      console.log(`❌ Burst request blocked: ${result?.message}`);
+      console.log(`🪣 Bucket status:`, result?.metadata?.bucketStatus);
+    },
   });
 
   console.log('Making burst requests (should consume tokens then refill)...');
@@ -447,7 +426,7 @@ async function example3_TokenBucketRateLimit() {
       } else {
         console.log(`✅ Burst request ${i} processed by token bucket`);
       }
-    } catch (error) {
+    } catch {
       console.log(`✅ Burst request ${i} handled by token bucket`);
     }
   }
@@ -475,7 +454,7 @@ async function example3_TokenBucketRateLimit() {
     } else {
       console.log('✅ After refill request processed');
     }
-  } catch (error) {
+  } catch {
     console.log('✅ After refill request handled by rate limiting');
   }
 }
@@ -487,21 +466,17 @@ async function example4_CombinedRateLimits() {
   const globalRateLimit = createGlobalRateLimitGuardrail(50, 60_000); // 50 per minute globally
   const tokenBucket = createTokenBucketGuardrail(3, 0.5, 1); // 3 capacity, 0.5 tokens/sec
 
-  const combinedModel = wrapLanguageModel({
+  const combinedModel = wrapWithInputGuardrails({
     model,
-    middleware: [
-      createInputGuardrailsMiddleware({
-        inputGuardrails: [userRateLimit, globalRateLimit, tokenBucket],
-        throwOnBlocked: false,
-        onInputBlocked: (results) => {
-          results.forEach((result) => {
-            console.log(
-              `❌ Combined test blocked by ${result.context?.guardrailName}: ${result.message}`,
-            );
-          });
-        },
-      }),
-    ],
+    inputGuardrails: [userRateLimit, globalRateLimit, tokenBucket],
+    throwOnBlocked: false,
+    onInputBlocked: (results) => {
+      for (const result of results) {
+        console.log(
+          `❌ Combined test blocked by ${result.context?.guardrailName}: ${result.message}`,
+        );
+      }
+    },
   });
 
   console.log('Testing multiple rate limits together...');
@@ -533,7 +508,7 @@ async function example4_CombinedRateLimits() {
       } else {
         console.log(`✅ Combined test ${i} processed by rate limiters`);
       }
-    } catch (error) {
+    } catch {
       console.log(`✅ Combined test ${i} handled by rate limiting`);
     }
   }
@@ -550,7 +525,7 @@ async function example5_SmartRateLimit() {
 
       // Different limits based on content type
       let limit = 5; // default
-      let window = 60000; // 1 minute
+      const window = 60_000; // 1 minute
 
       if (typeof prompt === 'string') {
         if (
@@ -591,19 +566,15 @@ async function example5_SmartRateLimit() {
     },
   });
 
-  const smartModel = wrapLanguageModel({
+  const smartModel = wrapWithInputGuardrails({
     model,
-    middleware: [
-      createInputGuardrailsMiddleware({
-        inputGuardrails: [smartRateLimitGuardrail],
-        throwOnBlocked: false,
-        onInputBlocked: (results) => {
-          const result = results[0];
-          console.log(`❌ Smart rate limit: ${result?.message}`);
-          console.log(`🧠 Context:`, result?.metadata);
-        },
-      }),
-    ],
+    inputGuardrails: [smartRateLimitGuardrail],
+    throwOnBlocked: false,
+    onInputBlocked: (results) => {
+      const result = results[0];
+      console.log(`❌ Smart rate limit: ${result?.message}`);
+      console.log(`🧠 Context:`, result?.metadata);
+    },
   });
 
   const testPrompts = [
@@ -613,12 +584,12 @@ async function example5_SmartRateLimit() {
     'Quick question about weather',
   ];
 
-  for (let i = 0; i < testPrompts.length; i++) {
+  for (const [i, testPrompt] of testPrompts.entries()) {
     console.log(`\nTesting smart rate limit with prompt type ${i + 1}...`);
     try {
       const result = await generateText({
         model: smartModel,
-        prompt: testPrompts[i],
+        prompt: testPrompt,
         experimental_telemetry: {
           isEnabled: true,
           functionId: 'smart-rate-limit',
@@ -634,7 +605,7 @@ async function example5_SmartRateLimit() {
       } else {
         console.log(`✅ Smart test ${i + 1} processed by smart rate limiter`);
       }
-    } catch (error) {
+    } catch {
       console.log(`✅ Smart test ${i + 1} handled by smart rate limiting`);
     }
   }

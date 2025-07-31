@@ -9,21 +9,20 @@
  * Perfect starting point for understanding how guardrails save costs and improve quality.
  */
 
-import { generateText, wrapLanguageModel } from 'ai';
+import { generateText } from 'ai';
 import { model } from './model';
 import {
-  createInputGuardrailsMiddleware,
-  createOutputGuardrailsMiddleware,
   defineInputGuardrail,
   defineOutputGuardrail,
+  wrapWithGuardrails,
 } from '../src/guardrails';
 import type {
   InputGuardrailContext,
   OutputGuardrailContext,
+  GuardrailResult,
 } from '../src/types';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
-import inquirer from 'inquirer';
 import { setupGracefulShutdown, safePrompt } from './utils/interactive-menu';
 
 // ============================================================================
@@ -212,43 +211,32 @@ const completenessGuardrail = defineOutputGuardrail({
  * This is the recommended starting configuration for most applications
  */
 const createBasicProtectedModel = () => {
-  return wrapLanguageModel({
-    model,
-    middleware: [
-      // STEP 1: Save money by blocking wasteful input
-      createInputGuardrailsMiddleware({
-        inputGuardrails: [contentPolicyGuardrail, lengthValidationGuardrail],
-        throwOnBlocked: false, // Log issues but don't crash
-        onInputBlocked: (results) => {
-          console.log('\n💰 INPUT BLOCKED - Money Saved:');
-          for (const result of results) {
-            console.log(
-              `   ❌ ${result.context?.guardrailName}: ${result.message}`,
-            );
-            if (result.suggestion) {
-              console.log(`   💡 ${result.suggestion}`);
-            }
-          }
-        },
-      }),
-
-      // STEP 2: Ensure quality by validating output
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [outputQualityGuardrail, completenessGuardrail],
-        throwOnBlocked: false, // Log issues but don't crash
-        onOutputBlocked: (results) => {
-          console.log('\n🎯 OUTPUT FILTERED - Quality Maintained:');
-          for (const result of results) {
-            console.log(
-              `   ❌ ${result.context?.guardrailName}: ${result.message}`,
-            );
-            if (result.suggestion) {
-              console.log(`   💡 ${result.suggestion}`);
-            }
-          }
-        },
-      }),
-    ],
+  return wrapWithGuardrails(model, {
+    inputGuardrails: [contentPolicyGuardrail, lengthValidationGuardrail],
+    outputGuardrails: [outputQualityGuardrail, completenessGuardrail],
+    throwOnBlocked: false, // Log issues but don't crash
+    onInputBlocked: (results: GuardrailResult[]) => {
+      console.log('\n💰 INPUT BLOCKED - Money Saved:');
+      for (const result of results) {
+        console.log(
+          `   ❌ ${result.context?.guardrailName}: ${result.message}`,
+        );
+        if (result.suggestion) {
+          console.log(`   💡 ${result.suggestion}`);
+        }
+      }
+    },
+    onOutputBlocked: (results) => {
+      console.log('\n🎯 OUTPUT FILTERED - Quality Maintained:');
+      for (const result of results) {
+        console.log(
+          `   ❌ ${result.context?.guardrailName}: ${result.message}`,
+        );
+        if (result.suggestion) {
+          console.log(`   💡 ${result.suggestion}`);
+        }
+      }
+    },
   });
 };
 
@@ -267,34 +255,26 @@ async function demonstrateBasicComposition() {
     'When guardrails trigger: NO response generated, request is rejected\n',
   );
 
-  const blockingModel = wrapLanguageModel({
-    model,
-    middleware: [
-      createInputGuardrailsMiddleware({
-        inputGuardrails: [contentPolicyGuardrail, lengthValidationGuardrail],
-        throwOnBlocked: true, // BLOCKS completely
-        onInputBlocked: (results) => {
-          console.log('🚫 BLOCKED: No response generated');
-          for (const result of results) {
-            console.log(
-              `   ❌ ${result.context?.guardrailName}: ${result.message}`,
-            );
-          }
-        },
-      }),
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [outputQualityGuardrail, completenessGuardrail],
-        throwOnBlocked: true, // BLOCKS completely
-        onOutputBlocked: (results) => {
-          console.log('🚫 BLOCKED: Response quality insufficient');
-          for (const result of results) {
-            console.log(
-              `   ❌ ${result.context?.guardrailName}: ${result.message}`,
-            );
-          }
-        },
-      }),
-    ],
+  const blockingModel = wrapWithGuardrails(model, {
+    inputGuardrails: [contentPolicyGuardrail, lengthValidationGuardrail],
+    outputGuardrails: [outputQualityGuardrail, completenessGuardrail],
+    throwOnBlocked: true, // BLOCKS completely
+    onInputBlocked: (results) => {
+      console.log('🚫 BLOCKED: No response generated');
+      for (const result of results) {
+        console.log(
+          `   ❌ ${result.context?.guardrailName}: ${result.message}`,
+        );
+      }
+    },
+    onOutputBlocked: (results) => {
+      console.log('🚫 BLOCKED: Response quality insufficient');
+      for (const result of results) {
+        console.log(
+          `   ❌ ${result.context?.guardrailName}: ${result.message}`,
+        );
+      }
+    },
   });
 
   const blockingTests = [
@@ -331,7 +311,7 @@ async function demonstrateBasicComposition() {
         `✅ SUCCESS: Response generated (${result.text.length} chars)`,
       );
       console.log(`📄 Preview: ${result.text.slice(0, 80)}...`);
-    } catch (error) {
+    } catch {
       console.log(
         '🚫 SUCCESS: Request was BLOCKED as expected - no response generated',
       );
@@ -345,38 +325,28 @@ async function demonstrateBasicComposition() {
     'When guardrails trigger: WARNING logged but response still generated\n',
   );
 
-  const warningModel = wrapLanguageModel({
-    model,
-    middleware: [
-      createInputGuardrailsMiddleware({
-        inputGuardrails: [contentPolicyGuardrail, lengthValidationGuardrail],
-        throwOnBlocked: false, // WARNS but continues
-        onInputBlocked: (results) => {
-          console.log(
-            '⚠️  WARNED: Issues detected but continuing with request',
-          );
-          for (const result of results) {
-            console.log(
-              `   ⚠️  ${result.context?.guardrailName}: ${result.message}`,
-            );
-          }
-        },
-      }),
-      createOutputGuardrailsMiddleware({
-        outputGuardrails: [outputQualityGuardrail, completenessGuardrail],
-        throwOnBlocked: false, // WARNS but continues
-        onOutputBlocked: (results) => {
-          console.log(
-            '⚠️  WARNED: Response quality issues detected but returning response',
-          );
-          for (const result of results) {
-            console.log(
-              `   ⚠️  ${result.context?.guardrailName}: ${result.message}`,
-            );
-          }
-        },
-      }),
-    ],
+  const warningModel = wrapWithGuardrails(model, {
+    inputGuardrails: [contentPolicyGuardrail, lengthValidationGuardrail],
+    outputGuardrails: [outputQualityGuardrail, completenessGuardrail],
+    throwOnBlocked: false, // WARNS but continues
+    onInputBlocked: (results) => {
+      console.log('⚠️  WARNED: Issues detected but continuing with request');
+      for (const result of results) {
+        console.log(
+          `   ⚠️  ${result.context?.guardrailName}: ${result.message}`,
+        );
+      }
+    },
+    onOutputBlocked: (results) => {
+      console.log(
+        '⚠️  WARNED: Response quality issues detected but returning response',
+      );
+      for (const result of results) {
+        console.log(
+          `   ⚠️  ${result.context?.guardrailName}: ${result.message}`,
+        );
+      }
+    },
   });
 
   const warningTests = [
