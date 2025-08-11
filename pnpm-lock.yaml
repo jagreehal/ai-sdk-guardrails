@@ -65,7 +65,7 @@ importers:
         version: 60.0.0(eslint@9.31.0)
       inquirer:
         specifier: ^12.9.0
-        version: 12.9.0(@types/node@24.1.0)
+        version: 12.9.1(@types/node@24.1.0)
       mathjs:
         specifier: ^14.6.0
         version: 14.6.0
@@ -386,12 +386,16 @@ packages:
     resolution: {integrity: sha512-ENIdc4iLu0d93HeYirvKmrzshzofPw6VkZRKQGe9Nv46ZnWUzcF1xV01dcvEg/1wXUR61OmmlSfyeyO7EvjLxQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@eslint/config-helpers@0.3.0':
-    resolution: {integrity: sha512-ViuymvFmcJi04qdZeDc2whTHryouGcDlaxPqarTD0ZE10ISpxGUVZGZDx4w01upyIynL3iu6IXH2bS1NhclQMw==}
+  '@eslint/config-helpers@0.3.1':
+    resolution: {integrity: sha512-xR93k9WhrDYpXHORXpxVL5oHj3Era7wo6k/Wd8/IsQNnZUTzkGS29lyn3nAT05v6ltUuTFVCCYDEGfy2Or/sPA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@eslint/core@0.15.1':
     resolution: {integrity: sha512-bkOp+iumZCCbt1K1CmWf0R9pM5yKpDv+ZXtvSyQpudrI9kuFLp+bM2WOPXImuD/ceQuaa8f5pj93Y7zyECIGNA==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@eslint/core@0.15.2':
+    resolution: {integrity: sha512-78Md3/Rrxh83gCxoUc0EiciuOHsIITzLy53m3d9UyiW8y9Dj2D29FeETqyKA+BRK76tnTp6RXWb3pCay8Oyomg==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@eslint/eslintrc@3.3.1':
@@ -408,6 +412,10 @@ packages:
 
   '@eslint/plugin-kit@0.3.3':
     resolution: {integrity: sha512-1+WqvgNMhmlAambTvT3KPtCl/Ibr68VldY2XY40SL1CE0ZXiakFR/cbTspaF5HsnpDMvcYYoJHfl4980NBjGag==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@eslint/plugin-kit@0.3.5':
+    resolution: {integrity: sha512-Z5kJ+wU3oA7MMIqVR9tyZRtjYPr4OC004Q4Rw7pgOKUOKkJfZ3O24nz3WYfGRpMDNmcOi3TwQOmgm7B7Tpii0w==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@humanfs/core@0.19.1':
@@ -457,8 +465,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/editor@4.2.15':
-    resolution: {integrity: sha512-wst31XT8DnGOSS4nNJDIklGKnf+8shuauVrWzgKegWUe28zfCftcWZ2vktGdzJgcylWSS2SrDnYUb6alZcwnCQ==}
+  '@inquirer/editor@4.2.16':
+    resolution: {integrity: sha512-iSzLjT4C6YKp2DU0fr8T7a97FnRRxMO6CushJnW5ktxLNM2iNeuyUuUA5255eOLPORoGYCrVnuDOEBdGkHGkpw==}
     engines: {node: '>=18'}
     peerDependencies:
       '@types/node': '>=18'
@@ -474,6 +482,12 @@ packages:
     peerDependenciesMeta:
       '@types/node':
         optional: true
+
+  '@inquirer/external-editor@1.0.0':
+    resolution: {integrity: sha512-5v3YXc5ZMfL6OJqXPrX9csb4l7NlQA2doO1yynUjpUChT9hg4JcuBVP0RbsEJ/3SL/sxWEyFjT2W69ZhtoBWqg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
 
   '@inquirer/figures@1.0.13':
     resolution: {integrity: sha512-lGPVU3yO9ZNqA7vTYz26jny41lE7yoQansmqdMLBEfqaGsmdg7V3W9mK9Pvb5IL4EVZ9GnSDGMO/cJXud5dMaw==}
@@ -506,8 +520,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/prompts@7.8.0':
-    resolution: {integrity: sha512-JHwGbQ6wjf1dxxnalDYpZwZxUEosT+6CPGD9Zh4sm9WXdtUp9XODCQD3NjSTmu+0OAyxWXNOqf0spjIymJa2Tw==}
+  '@inquirer/prompts@7.8.1':
+    resolution: {integrity: sha512-LpBPeIpyCF1H3C7SK/QxJQG4iV1/SRmJdymfcul8PuwtVhD0JI1CSwqmd83VgRgt1QEsDojQYFSXJSgo81PVMw==}
     engines: {node: '>=18'}
     peerDependencies:
       '@types/node': '>=18'
@@ -984,6 +998,9 @@ packages:
   chardet@0.7.0:
     resolution: {integrity: sha512-mT8iDcrh03qDGRRmoA2hmBJnxpllMR+0/0qlzjqZES6NdiWDcZkCNAk4rPFZ9Q85r27unkiNNg8ZOiwZXBHwcA==}
 
+  chardet@2.1.0:
+    resolution: {integrity: sha512-bNFETTG/pM5ryzQ9Ad0lJOTa6HWD/YsScAR3EnCPZRPlQh77JocYktSHOUHelyhm8IARL+o4c4F1bP5KVOjiRA==}
+
   check-error@2.1.1:
     resolution: {integrity: sha512-OAlb+T7V4Op9OwdkjmguYRqncdlx5JiofwOAUkmTF+jNdHwzTaTs4sRAGpzLF3oOz5xAyDGrPgeIDFQmDOTiJw==}
     engines: {node: '>= 16'}
@@ -1430,6 +1447,10 @@ packages:
     resolution: {integrity: sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==}
     engines: {node: '>=0.10.0'}
 
+  iconv-lite@0.6.3:
+    resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
+    engines: {node: '>=0.10.0'}
+
   ignore@5.3.2:
     resolution: {integrity: sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g==}
     engines: {node: '>= 4'}
@@ -1450,8 +1471,8 @@ packages:
     resolution: {integrity: sha512-m6FAo/spmsW2Ab2fU35JTYwtOKa2yAwXSwgjSv1TJzh4Mh7mC3lzAOVLBprb72XsTrgkEIsl7YrFNAiDiRhIGg==}
     engines: {node: '>=12'}
 
-  inquirer@12.9.0:
-    resolution: {integrity: sha512-LlFVmvWVCun7uEgPB3vups9NzBrjJn48kRNtFGw3xU1H5UXExTEz/oF1JGLaB0fvlkUB+W6JfgLcSEaSdH7RPA==}
+  inquirer@12.9.1:
+    resolution: {integrity: sha512-G7uXAb9OiLcd+9jmA/7KKrItvFF00kKk/jb6CtG+Tm2zSPWfzzhyJwDhVCy+mBmE32o2zJnB5JnknIIv2Ft+AA==}
     engines: {node: '>=18'}
     peerDependencies:
       '@types/node': '>=18'
@@ -1957,8 +1978,8 @@ packages:
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
     hasBin: true
 
-  run-async@4.0.5:
-    resolution: {integrity: sha512-oN9GTgxUNDBumHTTDmQ8dep6VIJbgj9S3dPP+9XylVLIK4xB9XTXtKWROd5pnhdXR9k0EgO1JRcNh0T+Ny2FsA==}
+  run-async@4.0.6:
+    resolution: {integrity: sha512-IoDlSLTs3Yq593mb3ZoKWKXMNu3UpObxhgA/Xuid5p4bbfi2jdY1Hj0m1K+0/tEuQTxIGMhQDqGjKb7RuxGpAQ==}
     engines: {node: '>=0.12.0'}
 
   run-parallel@1.2.0:
@@ -2011,6 +2032,7 @@ packages:
   source-map@0.8.0-beta.0:
     resolution: {integrity: sha512-2ymg6oRBpebeZi9UUNsgQ89bhx01TcTkmNTGnNO88imTmbSgy4nfujrgVEFKWpMTEGA11EDkTt7mqObTPdigIA==}
     engines: {node: '>= 8'}
+    deprecated: The work that was done in this beta branch won't be included in future versions
 
   spawndamnit@3.0.1:
     resolution: {integrity: sha512-MmnduQUuHCoFckZoWnXsTg7JaiLBJrKFj9UI2MbRPGaJeVpsLcVBu6P/IGZovziM/YBsellCmsprgNA+w0CzVg==}
@@ -2677,9 +2699,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@eslint/config-helpers@0.3.0': {}
+  '@eslint/config-helpers@0.3.1': {}
 
   '@eslint/core@0.15.1':
+    dependencies:
+      '@types/json-schema': 7.0.15
+
+  '@eslint/core@0.15.2':
     dependencies:
       '@types/json-schema': 7.0.15
 
@@ -2704,6 +2730,11 @@ snapshots:
   '@eslint/plugin-kit@0.3.3':
     dependencies:
       '@eslint/core': 0.15.1
+      levn: 0.4.1
+
+  '@eslint/plugin-kit@0.3.5':
+    dependencies:
+      '@eslint/core': 0.15.2
       levn: 0.4.1
 
   '@humanfs/core@0.19.1': {}
@@ -2749,11 +2780,11 @@ snapshots:
     optionalDependencies:
       '@types/node': 24.1.0
 
-  '@inquirer/editor@4.2.15(@types/node@24.1.0)':
+  '@inquirer/editor@4.2.16(@types/node@24.1.0)':
     dependencies:
       '@inquirer/core': 10.1.15(@types/node@24.1.0)
+      '@inquirer/external-editor': 1.0.0(@types/node@24.1.0)
       '@inquirer/type': 3.0.8(@types/node@24.1.0)
-      external-editor: 3.1.0
     optionalDependencies:
       '@types/node': 24.1.0
 
@@ -2764,6 +2795,12 @@ snapshots:
       yoctocolors-cjs: 2.1.2
     optionalDependencies:
       '@types/node': 24.1.0
+
+  '@inquirer/external-editor@1.0.0(@types/node@24.1.0)':
+    dependencies:
+      '@types/node': 24.1.0
+      chardet: 2.1.0
+      iconv-lite: 0.6.3
 
   '@inquirer/figures@1.0.13': {}
 
@@ -2789,11 +2826,11 @@ snapshots:
     optionalDependencies:
       '@types/node': 24.1.0
 
-  '@inquirer/prompts@7.8.0(@types/node@24.1.0)':
+  '@inquirer/prompts@7.8.1(@types/node@24.1.0)':
     dependencies:
       '@inquirer/checkbox': 4.2.0(@types/node@24.1.0)
       '@inquirer/confirm': 5.1.14(@types/node@24.1.0)
-      '@inquirer/editor': 4.2.15(@types/node@24.1.0)
+      '@inquirer/editor': 4.2.16(@types/node@24.1.0)
       '@inquirer/expand': 4.0.17(@types/node@24.1.0)
       '@inquirer/input': 4.2.1(@types/node@24.1.0)
       '@inquirer/number': 3.0.17(@types/node@24.1.0)
@@ -3286,6 +3323,8 @@ snapshots:
 
   chardet@0.7.0: {}
 
+  chardet@2.1.0: {}
+
   check-error@2.1.1: {}
 
   cheminfo-types@1.8.1: {}
@@ -3513,11 +3552,11 @@ snapshots:
       '@eslint-community/eslint-utils': 4.7.0(eslint@9.31.0)
       '@eslint-community/regexpp': 4.12.1
       '@eslint/config-array': 0.21.0
-      '@eslint/config-helpers': 0.3.0
-      '@eslint/core': 0.15.1
+      '@eslint/config-helpers': 0.3.1
+      '@eslint/core': 0.15.2
       '@eslint/eslintrc': 3.3.1
       '@eslint/js': 9.31.0
-      '@eslint/plugin-kit': 0.3.3
+      '@eslint/plugin-kit': 0.3.5
       '@humanfs/node': 0.16.6
       '@humanwhocodes/module-importer': 1.0.1
       '@humanwhocodes/retry': 0.4.3
@@ -3766,6 +3805,10 @@ snapshots:
     dependencies:
       safer-buffer: 2.1.2
 
+  iconv-lite@0.6.3:
+    dependencies:
+      safer-buffer: 2.1.2
+
   ignore@5.3.2: {}
 
   ignore@7.0.5: {}
@@ -3779,14 +3822,14 @@ snapshots:
 
   indent-string@5.0.0: {}
 
-  inquirer@12.9.0(@types/node@24.1.0):
+  inquirer@12.9.1(@types/node@24.1.0):
     dependencies:
       '@inquirer/core': 10.1.15(@types/node@24.1.0)
-      '@inquirer/prompts': 7.8.0(@types/node@24.1.0)
+      '@inquirer/prompts': 7.8.1(@types/node@24.1.0)
       '@inquirer/type': 3.0.8(@types/node@24.1.0)
       ansi-escapes: 4.3.2
       mute-stream: 2.0.0
-      run-async: 4.0.5
+      run-async: 4.0.6
       rxjs: 7.8.2
     optionalDependencies:
       '@types/node': 24.1.0
@@ -4223,7 +4266,7 @@ snapshots:
       '@rollup/rollup-win32-x64-msvc': 4.45.0
       fsevents: 2.3.3
 
-  run-async@4.0.5: {}
+  run-async@4.0.6: {}
 
   run-parallel@1.2.0:
     dependencies:
