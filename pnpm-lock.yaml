@@ -12,8 +12,8 @@ importers:
         specifier: 2.0.0
         version: 2.0.0
       ai:
-        specifier: 5.0.9
-        version: 5.0.9(zod@4.0.17)
+        specifier: 5.0.15
+        version: 5.0.15(zod@4.0.17)
       zod:
         specifier: ^4.0.14
         version: 4.0.17
@@ -96,8 +96,8 @@ importers:
 
 packages:
 
-  '@ai-sdk/gateway@1.0.4':
-    resolution: {integrity: sha512-1roLdgMbFU3Nr4MC97/te7w6OqxsWBkDUkpbCcvxF3jz/ku91WVaJldn/PKU8feMKNyI5W9wnqhbjb1BqbExOQ==}
+  '@ai-sdk/gateway@1.0.7':
+    resolution: {integrity: sha512-Athrq7OARuNc0iHZJP6InhSQ53tImCc990vMWyR1UHaZgPZJbXjKhIMiOj54F0I0Nlemx48V4fHYUTfLkJotnQ==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4
@@ -958,8 +958,8 @@ packages:
     resolution: {integrity: sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ==}
     engines: {node: '>= 8.0.0'}
 
-  ai@5.0.9:
-    resolution: {integrity: sha512-l7YdzsCTId7CDNNQ+roC0m4uDMmVIO9NpDC3bI2RxNDss3XpGIvsbHq7bT+IZzMYIqGbHK17HI0eiOOvtwzN6Q==}
+  ai@5.0.15:
+    resolution: {integrity: sha512-EX5hF+NVFm6R11mvdZRbg6eJEjyMlniI4/xOnyTh4VtDQ457lhIgi3kDGrHW3/qw9ELon9m2e7AK3g5z5sLwsQ==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4
@@ -2486,10 +2486,10 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/gateway@1.0.4(zod@4.0.17)':
+  '@ai-sdk/gateway@1.0.7(zod@4.0.17)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.1(zod@4.0.17)
+      '@ai-sdk/provider-utils': 3.0.3(zod@4.0.17)
       zod: 4.0.17
 
   '@ai-sdk/mistral@2.0.5(zod@4.0.17)':
@@ -3422,11 +3422,11 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
 
-  ai@5.0.9(zod@4.0.17):
+  ai@5.0.15(zod@4.0.17):
     dependencies:
-      '@ai-sdk/gateway': 1.0.4(zod@4.0.17)
+      '@ai-sdk/gateway': 1.0.7(zod@4.0.17)
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.1(zod@4.0.17)
+      '@ai-sdk/provider-utils': 3.0.3(zod@4.0.17)
       '@opentelemetry/api': 1.9.0
       zod: 4.0.17
 
