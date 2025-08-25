@@ -77,7 +77,7 @@
     "@types/node": "^24.1.0",
     "@typescript-eslint/eslint-plugin": "^8.38.0",
     "@typescript-eslint/parser": "^8.38.0",
-    "autoevals": "^0.0.130",
+    "autoevals": "^0.0.131",
     "dotenv": "^17.2.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-unicorn": "^60.0.0",
