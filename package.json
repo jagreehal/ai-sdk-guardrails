@@ -66,7 +66,7 @@
     "zod": "^4.0.14"
   },
   "devDependencies": {
-    "@ai-sdk/mistral": "2.0.5",
+    "@ai-sdk/mistral": "2.0.9",
     "@ai-sdk/openai": "2.0.15",
     "@arethetypeswrong/cli": "^0.18.2",
     "@changesets/cli": "^2.29.5",
