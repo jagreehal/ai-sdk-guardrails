@@ -79,6 +79,7 @@
     "@types/node": "^24.3.0",
     "@typescript-eslint/eslint-plugin": "^8.41.0",
     "@typescript-eslint/parser": "^8.41.0",
+    "@eslint/js": "^9.34.0",
     "eslint": "^9.34.0",
     "ai-sdk-ollama": "^0.5.2",
     "autoevals": "^0.0.131",
