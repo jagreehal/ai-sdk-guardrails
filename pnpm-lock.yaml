@@ -19,8 +19,8 @@ importers:
         version: 4.1.1
     devDependencies:
       '@ai-sdk/mistral':
-        specifier: 2.0.5
-        version: 2.0.5(zod@4.1.1)
+        specifier: 2.0.10
+        version: 2.0.10(zod@4.1.1)
       '@ai-sdk/openai':
         specifier: 2.0.20
         version: 2.0.20(zod@4.1.1)
@@ -102,8 +102,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4
 
-  '@ai-sdk/mistral@2.0.5':
-    resolution: {integrity: sha512-s7GG+1ggkK2z01tRiK3f9cRFTWc2FgId/O8RxfpgQi5nOU9OYG1o6BKddMFpG0wijhZoto2flaNqQEl8JMseYw==}
+  '@ai-sdk/mistral@2.0.10':
+    resolution: {integrity: sha512-LIHwEK/SOfLLTyIIGU8SRsQyFwOBQw0QovawmHtIKv6fPjBJIApwx1Q5Mc/rsOLfyCnQ3MDHfHfDoMykQherNA==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4
@@ -119,12 +119,6 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.23.8
-
-  '@ai-sdk/provider-utils@3.0.3':
-    resolution: {integrity: sha512-kAxIw1nYmFW1g5TvE54ZB3eNtgZna0RnLjPUp1ltz1+t9xkXJIuDT4atrwfau9IbS0BOef38wqrI8CjFfQrxhw==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4
 
   '@ai-sdk/provider-utils@3.0.5':
     resolution: {integrity: sha512-HliwB/yzufw3iwczbFVE2Fiwf1XqROB/I6ng8EKUsPM5+2wnIa8f4VbljZcDx+grhFrPV+PnRZH7zBqi8WZM7Q==}
@@ -2447,10 +2441,10 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.5(zod@4.1.1)
       zod: 4.1.1
 
-  '@ai-sdk/mistral@2.0.5(zod@4.1.1)':
+  '@ai-sdk/mistral@2.0.10(zod@4.1.1)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.3(zod@4.1.1)
+      '@ai-sdk/provider-utils': 3.0.5(zod@4.1.1)
       zod: 4.1.1
 
   '@ai-sdk/openai@2.0.20(zod@4.1.1)':
@@ -2465,14 +2459,6 @@ snapshots:
       nanoid: 3.3.11
       secure-json-parse: 2.7.0
       zod: 4.1.1
-
-  '@ai-sdk/provider-utils@3.0.3(zod@4.1.1)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0
-      '@standard-schema/spec': 1.0.0
-      eventsource-parser: 3.0.5
-      zod: 4.1.1
-      zod-to-json-schema: 3.24.6(zod@4.1.1)
 
   '@ai-sdk/provider-utils@3.0.5(zod@4.1.1)':
     dependencies:
