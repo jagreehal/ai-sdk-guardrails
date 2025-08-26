@@ -107,6 +107,7 @@ export function extractContent(result: AIResult): {
   if ('object' in result && result.object != null) {
     // GenerateObjectResult - prioritize object over text
     const objectResult = result as ObjectResult;
+
     return {
       text: objectResult.text || '',
       object: objectResult.object,
@@ -198,6 +199,110 @@ export const lengthLimit = (maxLength: number): OutputGuardrail =>
               : undefined,
         },
       };
+    },
+  );
+
+export const minLengthRequirement = (minLength: number): OutputGuardrail =>
+  createOutputGuardrail(
+    'output-min-length',
+    (context: OutputGuardrailContext, accumulatedText?: string) => {
+      const { text, object } = extractContent(context.result);
+      const content =
+        accumulatedText || text || (object ? JSON.stringify(object) : '');
+
+      if (content.length < minLength) {
+        return {
+          tripwireTriggered: true,
+          message: `Output too short: ${content.length} characters (min: ${minLength})`,
+          severity: 'medium' as const,
+          metadata: {
+            currentLength: content.length,
+            minLength,
+            deficit: minLength - content.length,
+            hasObject: !!object,
+          },
+        };
+      }
+
+      return { tripwireTriggered: false };
+    },
+  );
+
+export const sensitiveDataFilter = (): OutputGuardrail =>
+  createOutputGuardrail(
+    'sensitive-data-filter',
+    (context: OutputGuardrailContext, accumulatedText?: string) => {
+      const { text, object } = extractContent(context.result);
+      const content =
+        accumulatedText || text || (object ? JSON.stringify(object) : '');
+
+      const sensitivePatterns = [
+        {
+          name: 'SSN',
+          regex: /\b\d{3}-\d{2}-\d{4}\b/,
+          severity: 'high' as const,
+        },
+        {
+          name: 'API Key',
+          regex:
+            /(?:api[_-]?key|apikey|api_token)[\s:=]*['"]*([a-zA-Z0-9]{32,})/i,
+          severity: 'critical' as const,
+        },
+        {
+          name: 'Credit Card',
+          regex: /\b(?:\d{4}[-\s]?){3}\d{4}\b/,
+          severity: 'high' as const,
+        },
+        {
+          name: 'Email',
+          regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/,
+          severity: 'medium' as const,
+        },
+        {
+          name: 'Phone',
+          regex: /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/,
+          severity: 'medium' as const,
+        },
+        {
+          name: 'AWS Access Key',
+          regex: /AKIA[0-9A-Z]{16}/,
+          severity: 'critical' as const,
+        },
+        {
+          name: 'Private Key',
+          regex: /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----/,
+          severity: 'critical' as const,
+        },
+      ];
+
+      const detected = sensitivePatterns.filter((p) => p.regex.test(content));
+      if (detected.length > 0) {
+        const severityOrder = { low: 1, medium: 2, high: 3, critical: 4 };
+        let highestSeverity = detected[0]?.severity || 'medium';
+        for (const pattern of detected) {
+          if (
+            severityOrder[pattern.severity] > severityOrder[highestSeverity]
+          ) {
+            highestSeverity = pattern.severity;
+          }
+        }
+
+        return {
+          tripwireTriggered: true,
+          message: `Sensitive data detected: ${detected.map((p) => p.name).join(', ')}`,
+          severity: highestSeverity,
+          metadata: {
+            detectedTypes: detected.map((p) => ({
+              type: p.name,
+              severity: p.severity,
+            })),
+            count: detected.length,
+            contentLength: content.length,
+          },
+        };
+      }
+
+      return { tripwireTriggered: false };
     },
   );
 

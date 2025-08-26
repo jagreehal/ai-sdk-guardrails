@@ -4,12 +4,15 @@ import {
   defineOutputGuardrail,
   wrapWithOutputGuardrails,
 } from '../src/guardrails';
-import type { OutputGuardrailContext, GuardrailResult } from '../src/types';
+import type {
+  OutputGuardrailContext,
+  GuardrailExecutionSummary,
+  OutputGuardrail,
+} from '../src/types';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
 import { Factuality, init } from 'autoevals';
 import OpenAI from 'openai';
-import { setupGracefulShutdown, safePrompt } from './utils/interactive-menu';
 
 const client = new OpenAI({
   baseURL: 'http://localhost:11434/v1',
@@ -109,11 +112,15 @@ async function example1_FactualityCorrect() {
     [factualityGuardrail],
     {
       throwOnBlocked: false,
-      onOutputBlocked: (results: GuardrailResult[]) => {
-        console.log('❌ Response blocked for factuality:', results[0]?.message);
+      onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {
+        const blockedResult = executionSummary.blockedResults[0];
+        console.log(
+          '❌ Response blocked for factuality:',
+          blockedResult?.message,
+        );
         console.log(
           '📊 Factuality score:',
-          results[0]?.metadata?.factualityScore,
+          blockedResult?.metadata?.factualityScore,
         );
       },
     },
@@ -124,14 +131,6 @@ async function example1_FactualityCorrect() {
     const result = await generateText({
       model: protectedModel,
       prompt: 'Which country has the highest population? Answer in one word.',
-      experimental_telemetry: {
-        isEnabled: true,
-        functionId: 'factuality-correct',
-        metadata: {
-          example: 'autoevals-factuality',
-          expectedAnswer: 'China',
-        },
-      },
     });
 
     if (result.text) {
@@ -174,28 +173,16 @@ async function example2_FactualityIncorrect() {
     const result = await generateText({
       model: protectedModel,
       prompt: 'Why do Italians not like pineapple on pizza?',
-      experimental_telemetry: {
-        isEnabled: true,
-        functionId: 'factuality-test-blocking',
-        metadata: {
-          example: 'autoevals-factuality-mismatch',
-          expectedAnswer: 'China',
-        },
-      },
     });
 
     // This should not be reached if factuality check fails
     console.log('❌ UNEXPECTED: Response was not blocked:', result.text);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.log('✅ Response correctly blocked by guardrail!');
-    console.log('🛡️ Block reason:', error.message);
-    if (error.details?.metadata) {
-      console.log(
-        '📊 Factuality score:',
-        error.details.metadata.factualityScore,
-      );
-      console.log('💭 Rationale:', error.details.metadata.rationale);
-    }
+    console.log(
+      '🛡️ Block reason:',
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }
 
@@ -213,11 +200,12 @@ async function example3_FactualityNonBlocking() {
     [factualityGuardrail],
     {
       throwOnBlocked: false, // Only logs, doesn't block
-      onOutputBlocked: (results: GuardrailResult[]) => {
+      onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {
+        const blockedResult = executionSummary.blockedResults[0];
         console.log('\n⚠️  GUARDRAIL TRIGGERED (Non-blocking mode):');
-        console.log('   - Message:', results[0]?.message);
-        console.log('   - Score:', results[0]?.metadata?.factualityScore);
-        console.log('   - Rationale:', results[0]?.metadata?.rationale);
+        console.log('   - Message:', blockedResult?.message);
+        console.log('   - Score:', blockedResult?.metadata?.factualityScore);
+        console.log('   - Rationale:', blockedResult?.metadata?.rationale);
         console.log('   - Action: Response allowed through (non-blocking)\n');
       },
     },
@@ -233,14 +221,6 @@ async function example3_FactualityNonBlocking() {
     const result = await generateText({
       model: protectedModel,
       prompt: 'What is the capital of France? Answer in one word.',
-      experimental_telemetry: {
-        isEnabled: true,
-        functionId: 'factuality-test-non-blocking',
-        metadata: {
-          example: 'autoevals-factuality-non-blocking',
-          expectedAnswer: 'China',
-        },
-      },
     });
 
     if (result.text) {
@@ -295,11 +275,13 @@ async function example4_MultipleFactuality() {
 
   const protectedModel = wrapWithOutputGuardrails(
     model,
-    [populationGuardrail, capitalGuardrail],
+    [populationGuardrail, capitalGuardrail] as OutputGuardrail<
+      Record<string, unknown>
+    >[],
     {
       throwOnBlocked: false,
-      onOutputBlocked: (results: GuardrailResult[]) => {
-        for (const result of results) {
+      onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {
+        for (const result of executionSummary.blockedResults) {
           console.log(
             `❌ Blocked by ${result.context?.guardrailName}:`,
             result.message,
@@ -315,14 +297,6 @@ async function example4_MultipleFactuality() {
     const result1 = await generateText({
       model: protectedModel,
       prompt: 'What country has the most people? One word answer.',
-      experimental_telemetry: {
-        isEnabled: true,
-        functionId: 'multiple-factuality',
-        metadata: {
-          example: 'multiple-guardrails',
-          guardrails: ['population-check', 'capital-check'],
-        },
-      },
     });
 
     if (result1.text) {
@@ -340,14 +314,6 @@ async function example4_MultipleFactuality() {
     const result2 = await generateText({
       model: protectedModel,
       prompt: 'What is the capital of France? One word answer.',
-      experimental_telemetry: {
-        isEnabled: true,
-        functionId: 'multiple-factuality',
-        metadata: {
-          example: 'multiple-guardrails',
-          guardrails: ['population-check', 'capital-check'],
-        },
-      },
     });
 
     if (result2.text) {
@@ -412,8 +378,8 @@ async function example5_CustomEvaluation() {
     [responseQualityGuardrail],
     {
       throwOnBlocked: false,
-      onOutputBlocked: (results: GuardrailResult[]) => {
-        const result = results[0];
+      onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {
+        const result = executionSummary.blockedResults[0];
         console.log('❌ Quality check failed:', result?.message);
         console.log('📊 Quality score:', result?.metadata?.qualityScore);
         console.log('💡 Suggestion:', result?.suggestion);
@@ -426,14 +392,6 @@ async function example5_CustomEvaluation() {
     const result = await generateText({
       model: protectedModel,
       prompt: 'Explain artificial intelligence in simple terms.',
-      experimental_telemetry: {
-        isEnabled: true,
-        functionId: 'quality-eval',
-        metadata: {
-          example: 'custom-evaluation',
-          evaluationType: 'response-quality',
-        },
-      },
     });
 
     if (result.text) {
@@ -446,244 +404,29 @@ async function example5_CustomEvaluation() {
   }
 }
 
-// Example registry
-const EXAMPLES = [
-  { name: 'Factuality Check (Correct Answer)', fn: example1_FactualityCorrect },
-  {
-    name: 'Factuality Check with Blocking (Throws Error)',
-    fn: example2_FactualityIncorrect,
-  },
-  {
-    name: 'Factuality Check Non-Blocking (Logs Only)',
-    fn: example3_FactualityNonBlocking,
-  },
-  { name: 'Multiple Factuality Guardrails', fn: example4_MultipleFactuality },
-  { name: 'Custom Evaluation Logic', fn: example5_CustomEvaluation },
-];
-
-// Interactive menu with Inquirer
-async function showInteractiveMenu() {
-  console.clear();
-  console.log('🤖  Autoevals + Guardrails Examples');
-  console.log('==================================');
-  console.log('AI quality evaluation as guardrails using v5 middleware');
-
-  while (true) {
-    // Clear terminal and wait for it to settle
-    console.clear();
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
-    console.log('🤖  Autoevals + Guardrails Examples');
-    console.log('==================================');
-    console.log('AI quality evaluation as guardrails using v5 middleware');
-    console.log(); // Single empty line before menu
-
-    const choices = [
-      ...EXAMPLES.map((example, index) => ({
-        name: `${index + 1}. ${example.name}`,
-        value: index,
-      })),
-      {
-        name: `${EXAMPLES.length + 1}. Run all examples`,
-        value: 'all',
-      },
-      {
-        name: '🔧 Select multiple examples to run',
-        value: 'multiple',
-      },
-      {
-        name: '❌ Exit',
-        value: 'exit',
-      },
-    ];
-
-    const result = await safePrompt<{ action: string | number }>({
-      type: 'list',
-      name: 'action',
-      message: 'What would you like to do?',
-      choices,
-      pageSize: 8,
-      loop: false,
-    });
-
-    if (!result) return;
-    const { action } = result;
-
-    if (action === 'exit') {
-      console.log('\n👋 Goodbye!');
-      return;
-    }
-
-    if (action === 'all') {
-      await runAllExamples();
-    } else if (action === 'multiple') {
-      await runMultipleExamples();
-    } else if (typeof action === 'number') {
-      const example = EXAMPLES[action];
-      if (!example) continue;
-      console.log(`\n🚀 Running: ${example.name}\n`);
-      try {
-        await example.fn();
-        console.log(`\n✅ ${example.name} completed successfully!`);
-      } catch (error) {
-        console.error(`❌ Error running ${example.name}:`, error);
-      }
-    }
-
-    // Automatically return to main menu after running examples
-    if (action !== 'exit') {
-      console.log('\n↩️  Returning to main menu...');
-      await new Promise((resolve) => setTimeout(resolve, 1500)); // Brief pause
-      console.clear(); // Clear screen before showing menu again
-    }
-  }
-}
-
-// Run multiple selected examples
-async function runMultipleExamples() {
-  const result = await safePrompt<{ selectedExamples: number[] }>({
-    type: 'checkbox',
-    name: 'selectedExamples',
-    message: 'Select autoevals examples to run (use space bar to select):',
-    choices: EXAMPLES.map((example, index) => ({
-      name: example.name,
-      value: index,
-      checked: false,
-    })),
-    validate: (input: number[]) => {
-      if (input.length === 0) {
-        return 'Please select at least one example';
-      }
-      return true;
-    },
-  });
-
-  if (!result) return;
-  const { selectedExamples } = result;
-
-  console.log(
-    `\n🚀 Running ${selectedExamples.length} selected autoevals examples...\n`,
-  );
-
-  for (const exampleIndex of selectedExamples) {
-    const example = EXAMPLES[exampleIndex];
-    if (!example) continue;
-    console.log(`\n--- Running: ${example.name} ---`);
-    try {
-      await example.fn();
-      console.log(`✅ ${example.name} completed successfully!`);
-    } catch (error) {
-      console.error(`❌ Error running ${example.name}:`, error);
-    }
-  }
-
-  console.log(
-    `\n🎉 All ${selectedExamples.length} selected autoevals examples completed!`,
-  );
-}
-
-// Run all examples
-async function runAllExamples() {
-  console.log('\n🚀 Running all autoevals examples...\n');
-
-  try {
-    for (const example of EXAMPLES) {
-      console.log(`\n--- Running: ${example.name} ---`);
-      await example.fn();
-    }
-
-    console.log('\n✅ All autoevals examples completed!');
-    console.log('\n📚 Key Learnings:');
-    console.log('  • throwOnBlocked: true  → Throws error, stops execution');
-    console.log(
-      '  • throwOnBlocked: false → Logs warning, allows response through',
-    );
-    console.log('  • Autoevals provides AI-powered factuality scoring');
-    console.log('  • Custom evaluation logic can be implemented');
-    console.log('  • Multiple guardrails can be chained together');
-  } catch (error) {
-    console.error('❌ Error running autoevals examples:', error);
-  }
-}
-
 // Main execution
 async function main() {
-  setupGracefulShutdown();
+  console.log('🤖 Autoevals + Guardrails Examples');
+  console.log('==================================');
+  console.log('AI quality evaluation as guardrails using autoevals');
+  console.log('');
 
-  const args = process.argv.slice(2);
+  // Run all examples
+  await example1_FactualityCorrect();
+  await example2_FactualityIncorrect();
+  await example3_FactualityNonBlocking();
+  await example4_MultipleFactuality();
+  await example5_CustomEvaluation();
 
-  // Check for specific example number argument
-  if (args.length > 0) {
-    const exampleArg = args[0];
-
-    if (exampleArg === '--help' || exampleArg === '-h') {
-      console.log('🤖  Autoevals + Guardrails Examples');
-      console.log('==================================');
-      console.log('');
-      console.log('Usage:');
-      console.log('  tsx examples/autoevals-guardrails.ts [example_number]');
-      console.log('');
-      console.log('Arguments:');
-      console.log(
-        `  example_number    Run specific example (1-${EXAMPLES.length}), or omit for interactive mode`,
-      );
-      console.log('');
-      console.log('Examples:');
-      console.log(
-        '  tsx examples/autoevals-guardrails.ts        # Interactive mode',
-      );
-      console.log(
-        '  tsx examples/autoevals-guardrails.ts 1      # Run factuality correct',
-      );
-      console.log(
-        '  tsx examples/autoevals-guardrails.ts 2      # Run factuality blocking',
-      );
-      console.log('');
-      console.log('Available examples:');
-      for (const [index, example] of EXAMPLES.entries()) {
-        console.log(`  ${index + 1}. ${example.name}`);
-      }
-      return;
-    }
-
-    const exampleNum = Number.parseInt(exampleArg || '', 10);
-
-    if (Number.isNaN(exampleNum)) {
-      console.error('❌ Invalid example number. Please provide a number.');
-      console.log('💡 Use --help to see available options.');
-      return;
-    }
-
-    if (exampleNum < 1 || exampleNum > EXAMPLES.length) {
-      console.error(
-        `❌ Invalid example number. Please choose between 1-${EXAMPLES.length}`,
-      );
-      console.log('\nAvailable examples:');
-      for (const [index, example] of EXAMPLES.entries()) {
-        console.log(`  ${index + 1}. ${example.name}`);
-      }
-      return;
-    }
-
-    const selectedExample = EXAMPLES[exampleNum - 1];
-    if (!selectedExample) {
-      console.error('❌ Example not found.');
-      return;
-    }
-
-    console.log(`🚀 Running: ${selectedExample.name}\n`);
-
-    try {
-      await selectedExample.fn();
-      console.log(`\n✅ ${selectedExample.name} completed successfully!`);
-    } catch (error) {
-      console.error(`❌ Error running ${selectedExample.name}:`, error);
-      throw error;
-    }
-  } else {
-    // No arguments, show interactive menu
-    await showInteractiveMenu();
-  }
+  console.log('\n✅ All examples completed!');
+  console.log('\n📚 Key Learnings:');
+  console.log('  • throwOnBlocked: true  → Throws error, stops execution');
+  console.log(
+    '  • throwOnBlocked: false → Logs warning, allows response through',
+  );
+  console.log('  • Autoevals provides AI-powered factuality scoring');
+  console.log('  • Custom evaluation logic can be implemented');
+  console.log('  • Multiple guardrails can be chained together');
 }
 
 // Export for testing
@@ -691,10 +434,5 @@ export { main };
 
 // Run if executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error) => {
-    if (error.name !== 'ExitPromptError') {
-      console.error(error);
-    }
-    process.exit(1);
-  });
+  main().catch(console.error);
 }
