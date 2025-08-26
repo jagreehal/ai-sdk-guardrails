@@ -18,6 +18,7 @@ export {
   defineOutputGuardrail,
   executeInputGuardrails,
   executeOutputGuardrails,
+  normalizeGuardrailContext,
   // AI SDK 5 Helper Functions (Recommended API)
   wrapWithInputGuardrails,
   wrapWithOutputGuardrails,
@@ -34,6 +35,7 @@ export type {
   GuardrailsParams,
   InputGuardrailsMiddlewareConfig,
   OutputGuardrailsMiddlewareConfig,
+  NormalizedGuardrailContext,
   // Re-export AI SDK types for convenience
   LanguageModelV2,
   LanguageModelV2Middleware,
