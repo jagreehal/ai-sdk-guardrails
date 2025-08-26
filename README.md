@@ -1,6 +1,6 @@
 # AI SDK Guardrails
 
-A powerful middleware for the Vercel AI SDK that adds safety, quality control, and cost management to your AI applications by intercepting prompts and responses.
+Middleware for the Vercel AI SDK that adds safety, quality control, and cost management to your AI applications by intercepting prompts and responses.
 
 Block harmful inputs, filter low-quality outputs, and gain observability, all in just a few lines of code.
 
@@ -94,6 +94,10 @@ yarn add ai-sdk-guardrails
 
 pnpm add ai-sdk-guardrails
 ```
+
+## 🔄 Migration Guide
+
+For breaking changes from v3 to v4 (including the new analytics-rich callbacks), see [v3-v4-MIGRATION.md](./v3-v4-MIGRATION.md).
 
 ## 🚀 Quick Start
 
@@ -193,8 +197,16 @@ const qualityGuard = defineOutputGuardrail({
 
 const qualityModel = wrapWithOutputGuardrails(openai('gpt-4'), {
   outputGuardrails: [qualityGuard],
-  onOutputBlocked: (results) => {
-    console.log('Prevented sensitive data leak:', results[0]?.message);
+  onOutputBlocked: (executionSummary) => {
+    console.log(
+      'Prevented sensitive data leak:',
+      executionSummary.blockedResults[0]?.message,
+    );
+
+    // Access comprehensive analytics (New in v4.0.0)
+    console.log(
+      `Blocked ${executionSummary.stats.blocked} of ${executionSummary.guardrailsExecuted} guardrails`,
+    );
   },
 });
 
@@ -230,17 +242,95 @@ const smartEducationModel = wrapWithInputGuardrails(openai('gpt-4'), {
 });
 ```
 
-**That's it!** Your AI application now optimizes resource usage, ensures quality, and prevents inappropriate responses automatically.
+### 4. Type-Safe Metadata (TypeScript)
+
+The library automatically infers metadata types from your guardrail definitions - no manual type annotations needed!
+
+```typescript
+// Define metadata interface for your guardrail
+interface PIIMetadata extends Record<string, unknown> {
+  detectedTypes: Array<{ type: string; description: string }>;
+  count: number;
+}
+
+// Create guardrail with typed metadata
+const piiDetectionGuardrail = defineInputGuardrail({
+  name: 'pii-detection',
+  execute: async (context) => {
+    const { prompt } = extractTextContent(context);
+
+    const patterns = [
+      {
+        name: 'SSN',
+        regex: /\b\d{3}-\d{2}-\d{4}\b/,
+        description: 'Social Security Number',
+      },
+      {
+        name: 'Email',
+        regex: /\b[\w\.-]+@[\w\.-]+\.\w+\b/,
+        description: 'Email address',
+      },
+    ];
+
+    const detected = patterns.filter((p) => p.regex.test(prompt));
+
+    if (detected.length > 0) {
+      // TypeScript knows this metadata matches PIIMetadata
+      const metadata: PIIMetadata = {
+        detectedTypes: detected.map((p) => ({
+          type: p.name,
+          description: p.description,
+        })),
+        count: detected.length,
+      };
+
+      return {
+        tripwireTriggered: true,
+        message: `PII detected: ${detected.map((p) => p.name).join(', ')}`,
+        severity: 'high',
+        metadata, // Type is automatically inferred!
+      };
+    }
+
+    return { tripwireTriggered: false };
+  },
+});
+
+// Use the guardrail - types flow through automatically!
+const protectedModel = wrapWithInputGuardrails(model, [piiDetectionGuardrail], {
+  onInputBlocked: (summary) => {
+    // TypeScript knows the metadata type - no casting needed!
+    const metadata = summary.blockedResults[0]?.metadata;
+    if (metadata?.detectedTypes) {
+      // Full type safety and autocomplete for metadata.detectedTypes
+      for (const type of metadata.detectedTypes) {
+        console.log(`Detected: ${type.type} - ${type.description}`);
+      }
+    }
+  },
+});
+```
+
+**That's it!** Your AI application now optimizes resource usage, ensures quality, prevents inappropriate responses, and provides full type safety automatically.
 
 ## ✨ Features
 
 - 🛡️ **Input & Output Guardrails**: Enforce custom safety, compliance, and quality policies on both prompts and LLM responses.
 - 💰 **Cost Control**: Block invalid or wasteful prompts before they are sent to your LLM provider, saving you money.
 - 🎯 **Quality Improvement**: Automatically filter, flag, or retry low-quality or irrelevant model outputs.
-- 🔄 **Streaming Support**: Works seamlessly with both streaming (streamText) and standard (generateText) API responses.
-- 📊 **Observability Hooks**: Built-in callbacks (onInputBlocked, onOutputBlocked, etc.) for logging and monitoring.
+- 🔒 **Security Protection**: Built-in defenses against prompt injection, jailbreak attempts, PII leakage, secret exposure, and tool call validation.
+- 🏛️ **Compliance & Governance**: Enforce regulatory guidelines and business rules for enterprise applications with jurisdiction-specific compliance.
+- 🔄 **Streaming Support**: Works seamlessly with both streaming (streamText) and standard (generateText) API responses with real-time content monitoring.
+- 📊 **Observability Hooks**: Built-in callbacks (onInputBlocked, onOutputBlocked, etc.) for logging and monitoring with comprehensive execution analytics.
 - ⚙️ **Configurable Execution**: Run guardrails in parallel or sequentially and set custom timeouts.
 - 🚀 **AI SDK Native**: Designed from the ground up to integrate cleanly with AI SDK middleware patterns.
+- 🧠 **AI-Powered Verification**: LLM-as-judge capabilities for hallucination detection and quality assessment.
+- 🌍 **Global Compliance**: Support for multiple jurisdictions (US, EU, UK, CA, AU, JP, CN, IN) with region-specific policies.
+- 📝 **Content Protection**: Copyright and IP protection with originality scoring and verbatim passage detection.
+- 🔐 **Data Integrity**: Comprehensive table validation, SQL code safety, and schema enforcement.
+- 🌐 **Network Security**: Domain allowlisting, URL sanitization, and external access controls.
+- 🔒 **Privacy & Memory**: PII redaction, memory minimization, and secure logging practices.
+- 🛡️ **Safety & Escalation**: Toxicity de-escalation, human review workflows, and streaming early termination.
 
 ## 📚 API Overview
 
@@ -251,13 +341,13 @@ const smartEducationModel = wrapWithInputGuardrails(openai('gpt-4'), {
 | `wrapWithGuardrails()`       | ⭐ **Recommended** - The easiest way to add both input and output guardrails. |
 | `wrapWithInputGuardrails()`  | Attaches input-only guardrails to a model.                                    |
 | `wrapWithOutputGuardrails()` | Attaches output-only guardrails to a model.                                   |
-| `InputBlockedError`, etc.    | Custom, structured error types for easy try/catch handling.                   |
+| `isGuardrailsError()`, etc.  | Error handling utilities and structured error types.                          |
 
 ## 🧠 Design Philosophy
 
 - ✅ **Helper-First**: Simple, chainable utility functions provide a great developer experience for fast adoption.
 - 🧩 **Composable**: Multiple guardrails can be chained together and will run in your specified order (or in parallel).
-- 🧾 **Type-Safe**: Full TypeScript support with contextual typing for guardrail inputs, outputs, and metadata.
+- 🧾 **Type-Safe**: Full TypeScript support with automatic type inference for guardrail metadata - no manual type annotations needed!
 - 🧪 **Sensible Defaults**: Get started quickly with zero-config default behaviors that can be easily overridden.
 
 ## Architecture Overview
@@ -495,7 +585,7 @@ const professionalQualityGuard = defineOutputGuardrail({
 
 ## 🔄 Streaming Support
 
-Guardrails work with streams out-of-the-box. Output guardrails will run after the complete response has been streamed and generated.
+Guardrails work with streams out-of-the-box. By default, output guardrails run after the complete response has been streamed (buffer mode).
 
 ```typescript
 import { streamText } from 'ai';
@@ -515,6 +605,50 @@ for await (const delta of textStream) {
 }
 
 // The qualityJudge guardrail will run after the stream is complete.
+```
+
+### Progressive Streaming (opt-in)
+
+For early blocking, enable progressive evaluation:
+
+```ts
+const guardedModel = wrapWithGuardrails(openai('gpt-4o'), {
+  outputGuardrails: [qualityJudge],
+  // Evaluate on the fly and stop early when blocked
+  streamMode: 'progressive',
+  // Replace blocked output with a placeholder (default: true)
+  replaceOnBlocked: true,
+});
+```
+
+In progressive mode, guardrails evaluate text as it arrives. If blocked:
+
+- with `throwOnBlocked: true`, the stream errors.
+- with `replaceOnBlocked: true`, a placeholder message is streamed and the stream ends.
+- otherwise, the original chunks continue (with a callback via `onOutputBlocked`).
+
+Note: Progressive mode runs guardrails more frequently and may increase overhead for long streams.
+
+### Configuration Highlights
+
+- `replaceOnBlocked` (output): defaults to `true` for safer behavior.
+- `executionOptions.logLevel`: defaults to `'warn'` (respects `'none' | 'error' | 'warn' | 'info' | 'debug'`).
+- `onInputBlocked` / `onOutputBlocked`: receive a `GuardrailExecutionSummary` with analytics.
+
+### Cancellation Support
+
+Guardrails can receive an `AbortSignal` and should abort work on timeout or caller-initiated cancel:
+
+```ts
+const guard = defineInputGuardrail({
+  name: 'long-check',
+  async execute(context, { signal }) {
+    await doWork({ signal }); // Pass signal to your async ops
+    return { tripwireTriggered: false };
+  },
+});
+
+// Timeouts are enforced by guardrail execution; if it times out, you'll get a GuardrailTimeoutError.
 ```
 
 ## 🛠️ Error Handling
@@ -579,11 +713,27 @@ const productionModel = wrapWithGuardrails(openai('gpt-4'), {
   inputGuardrails: [lengthGuard, spamGuard, rateLimitGuard],
   outputGuardrails: [qualityGuard, sensitiveInfoGuard],
   throwOnBlocked: false,
-  onInputBlocked: (results) => {
-    console.log('Input blocked:', results[0]?.message);
+  onInputBlocked: (executionSummary) => {
+    console.log('Input blocked:', executionSummary.blockedResults[0]?.message);
+
+    // Enhanced analytics available in v4.0.0
+    console.log(`Execution time: ${executionSummary.totalExecutionTime}ms`);
+    console.log(
+      `Guardrails: ${executionSummary.stats.blocked} blocked, ${executionSummary.stats.passed} passed`,
+    );
   },
-  onOutputBlocked: (results) => {
-    console.log('Output filtered:', results[0]?.message);
+  onOutputBlocked: (executionSummary) => {
+    console.log(
+      'Output filtered:',
+      executionSummary.blockedResults[0]?.message,
+    );
+
+    // Track comprehensive metrics
+    analytics.track('output_blocked', {
+      severity: executionSummary.blockedResults[0]?.severity,
+      totalGuardrails: executionSummary.guardrailsExecuted,
+      executionTime: executionSummary.totalExecutionTime,
+    });
   },
 });
 
@@ -607,21 +757,72 @@ const textStream = await streamText({
 
 ## Examples
 
-Explore focused examples that demonstrate practical performance optimization and quality assurance:
+Explore **30 comprehensive examples** that demonstrate practical performance optimization, security protection, quality assurance, and enterprise-grade safety patterns:
 
-### Core Examples
+### Core Foundation Examples
 
-- **[Basic Composition](examples/basic-composition.ts)** - Simple input/output validation for efficiency and quality
-- **[Basic Guardrails](examples/basic-guardrails.ts)** - Foundation patterns for input/output validation
-- **[Business Logic](examples/business-logic.ts)** - Custom business rules, work hours, and professional standards
-- **[LLM-as-Judge](examples/llm-as-judge.ts)** - AI-powered quality evaluation and scoring
+- **[Input Length Limits](examples/01-input-length-limit.ts)** - Foundation patterns for input validation
+- **[Blocked Keywords](examples/02-blocked-keywords.ts)** - Block prompts with specific keywords and content filtering
+- **[Output Length Check](examples/04-output-length-check.ts)** - Ensure minimum output length and quality control
+- **[Quality Assessment](examples/06-quality-assessment.ts)** - Assess response quality and content analysis
+- **[Combined Protection](examples/07-combined-protection.ts)** - Simple input/output validation for efficiency and quality
+- **[Simple Combined Protection](examples/07a-simple-combined-protection.ts)** - Simplified combined guardrails example
+- **[Blocking vs Warning](examples/08-blocking-vs-warning.ts)** - Compare blocking and warning modes with error handling
 
-### Additional Examples
+### Security & Protection Examples
 
-- **[Object Guardrails](examples/object-guardrails.ts)** - Schema validation and structured output quality
-- **[Streaming Guardrails](examples/streaming-guardrails.ts)** - Real-time quality monitoring
-- **[Rate Limiting](examples/rate-limit-guardrail.ts)** - Smart rate limiting that prevents resource overuse
-- **[Autoevals Integration](examples/autoevals-guardrails.ts)** - Advanced AI-powered evaluation
+- **[PII Detection](examples/03-pii-detection.ts)** - Detect and block personal information in inputs
+- **[Sensitive Output Filter](examples/05-sensitive-output-filter.ts)** - Filter sensitive data from responses
+- **[Prompt Injection Detection](examples/16-prompt-injection-detection.ts)** - Comprehensive prompt injection detection with pattern matching and heuristic scoring
+- **[Tool Call Validation](examples/17-tool-call-validation.ts)** - Tool call validation with security patterns and dangerous operation detection
+- **[Basic Tool Allowlist](examples/17a-basic-tool-allowlist.ts)** - Basic tool allowlisting for secure tool usage
+- **[Tool Parameter Validation](examples/17b-tool-parameter-validation.ts)** - Validate tool parameters for security
+- **[Secret Leakage Scan](examples/18-secret-leakage-scan.ts)** - Secret leakage scanning with automatic redaction and entropy calculation
+- **[Jailbreak Detection](examples/30-jailbreak-detection.ts)** - Jailbreak detection with safe response templates and pattern recognition
+
+### Content Quality & Validation Examples
+
+- **[Autoevals Guardrails](examples/31-autoevals-guardrails.ts)** - AI-powered quality evaluation using Autoevals library for factuality checking
+- **[Business Logic](examples/14-business-logic.ts)** - Custom business rules, work hours, and professional standards
+- **[LLM-as-Judge](examples/15-llm-as-judge.ts)** - AI-powered quality evaluation and scoring
+- **[Simple Quality Judge](examples/15a-simple-quality-judge.ts)** - Simplified quality assessment example
+- **[Hallucination Detection](examples/19-hallucination-detection.ts)** - Hallucination detection with LLM-as-judge verification and fact-checking
+- **[Response Consistency](examples/22-response-consistency.ts)** - Response consistency validation and coherence checking
+
+### Compliance & Regulation Examples
+
+- **[Regulated Advice Compliance](examples/21-regulated-advice-compliance.ts)** - Regulated advice compliance with jurisdiction-specific rules (US, EU, UK, CA, AU, JP, CN, IN)
+- **[Role Hierarchy Enforcement](examples/23-role-hierarchy-enforcement.ts)** - Role hierarchy enforcement with multi-layered violation detection
+
+### Data Integrity & Code Safety Examples
+
+- **[Schema Validation](examples/09-schema-validation.ts)** - Schema validation and structured output quality
+- **[Object Content Filter](examples/10-object-content-filter.ts)** - Filter inappropriate content in generated objects
+- **[SQL Code Safety](examples/24-sql-code-safety.ts)** - SQL code safety with dangerous operation blocking and injection detection
+
+### Network & External Access Examples
+
+- **[Domain Allowlisting](examples/25-browsing-domain-allowlist.ts)** - Domain allowlisting with URL sanitization and security validation
+
+### Privacy & Memory Management Examples
+
+- **[Memory Minimization](examples/26-memory-minimization.ts)** - Memory minimization with PII redaction and multiple redaction strategies
+- **[Logging Redaction](examples/27-logging-redaction.ts)** - Logging redaction with secure logging practices and compliance frameworks
+
+### Safety & Escalation Examples
+
+- **[Human Review Escalation](examples/20-human-review-escalation.ts)** - Human review escalation with content flagging, review routing, and quality control workflows
+- **[Toxicity & Harassment De-escalation](examples/29-toxicity-harassment-deescalation.ts)** - Toxicity and harassment de-escalation with safe response generation and user escalation tracking
+
+### Streaming Examples
+
+- **[Streaming Limits](examples/11-streaming-limits.ts)** - Apply guardrails to streaming responses with real-time validation
+- **[Streaming Quality](examples/12-streaming-quality.ts)** - Real-time quality monitoring for streams
+- **[Streaming Early Termination](examples/28-streaming-early-termination.ts)** - Streaming early termination with real-time content monitoring and session state management
+
+### Resource Management Examples
+
+- **[Rate Limiting](examples/13-rate-limiting.ts)** - Smart rate limiting that prevents resource overuse
 
 ### Running Examples
 
@@ -629,18 +830,61 @@ Explore focused examples that demonstrate practical performance optimization and
 # Install dependencies
 pnpm install
 
-# Interactive examples with better UX
-tsx examples/basic-composition.ts     # Start here - simplest example
-tsx examples/basic-guardrails.ts      # Core patterns with 8 examples
-tsx examples/business-logic.ts        # Business-specific rules
-tsx examples/llm-as-judge.ts          # AI-powered quality control
+# Run core foundation examples
+tsx examples/01-input-length-limit.ts      # Basic input validation
+tsx examples/02-blocked-keywords.ts        # Keyword blocking
+tsx examples/04-output-length-check.ts     # Output length validation
+tsx examples/06-quality-assessment.ts      # Quality assessment
+tsx examples/07-combined-protection.ts     # Combined input/output protection
+tsx examples/07a-simple-combined-protection.ts # Simplified combined protection
+tsx examples/08-blocking-vs-warning.ts     # Blocking vs warning modes
 
-# Or run specific examples directly
-tsx examples/basic-guardrails.ts 1    # Run first example only
-tsx examples/streaming-guardrails.ts 3 # Run third streaming example
+# Run security examples
+tsx examples/03-pii-detection.ts           # PII protection
+tsx examples/05-sensitive-output-filter.ts # Sensitive output filtering
+tsx examples/16-prompt-injection-detection.ts # Prompt injection protection
+tsx examples/17-tool-call-validation.ts    # Tool call validation
+tsx examples/17a-basic-tool-allowlist.ts   # Basic tool allowlisting
+tsx examples/17b-tool-parameter-validation.ts # Tool parameter validation
+tsx examples/18-secret-leakage-scan.ts     # Secret leakage prevention
+tsx examples/30-jailbreak-detection.ts     # Jailbreak detection
+
+# Run content quality examples
+tsx examples/31-autoevals-guardrails.ts    # AI-powered quality evaluation with Autoevals
+tsx examples/14-business-logic.ts          # Business-specific rules
+tsx examples/15-llm-as-judge.ts            # AI-powered quality control
+tsx examples/15a-simple-quality-judge.ts   # Simplified quality assessment
+tsx examples/19-hallucination-detection.ts # Hallucination detection
+tsx examples/22-response-consistency.ts    # Response consistency
+
+# Run compliance examples
+tsx examples/21-regulated-advice-compliance.ts # Regulatory compliance
+tsx examples/23-role-hierarchy-enforcement.ts # Role hierarchy enforcement
+
+# Run data integrity examples
+tsx examples/09-schema-validation.ts       # Schema validation
+tsx examples/10-object-content-filter.ts   # Object content filtering
+tsx examples/24-sql-code-safety.ts         # SQL code safety
+
+# Run network security examples
+tsx examples/25-browsing-domain-allowlist.ts # Domain allowlisting
+
+# Run privacy examples
+tsx examples/26-memory-minimization.ts     # Memory minimization
+tsx examples/27-logging-redaction.ts       # Logging redaction
+
+# Run safety examples
+tsx examples/20-human-review-escalation.ts # Human review escalation
+tsx examples/29-toxicity-harassment-deescalation.ts # Toxicity de-escalation
+
+# Run streaming examples
+tsx examples/11-streaming-limits.ts        # Streaming limits
+tsx examples/12-streaming-quality.ts       # Streaming quality monitoring
+tsx examples/28-streaming-early-termination.ts # Streaming early termination
+
+# Run resource management examples
+tsx examples/13-rate-limiting.ts           # Rate limiting
 ```
-
-All examples feature interactive menus with arrow key navigation, multi-selection with checkboxes, and automatic return to the main menu.
 
 ## 🤝 Contributing
 

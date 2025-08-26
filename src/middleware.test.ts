@@ -41,7 +41,8 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV2 => ({
       start(controller) {
         controller.enqueue({
           type: 'text-delta' as const,
-          textDelta: response,
+          id: '1',
+          delta: response,
         });
         controller.enqueue({
           type: 'finish' as const,
@@ -200,6 +201,75 @@ describe('AI SDK 5 Helper Functions', () => {
       expect(wrappedModel).toHaveProperty('doStream');
     });
   });
+
+  describe('replaceOnBlocked configuration', () => {
+    it('should replace blocked output when replaceOnBlocked is true (default)', async () => {
+      const blockingGuardrail = defineOutputGuardrail({
+        name: 'blocking-output',
+        description: 'Test blocking guardrail',
+        execute: async () => ({
+          tripwireTriggered: true,
+          message: 'Output blocked for test',
+        }),
+      });
+
+      const wrappedModel = wrapWithOutputGuardrails(
+        mockModel,
+        [blockingGuardrail],
+        {
+          throwOnBlocked: false,
+          // replaceOnBlocked defaults to true
+        },
+      );
+
+      const result = await wrappedModel.doGenerate({
+        prompt: [
+          { role: 'user', content: [{ type: 'text', text: 'test prompt' }] },
+        ],
+        temperature: 0.7,
+      });
+
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0]).toEqual({
+        type: 'text',
+        text: '[Output blocked: Output blocked for test]',
+      });
+    });
+
+    it('should not replace blocked output when replaceOnBlocked is false', async () => {
+      const blockingGuardrail = defineOutputGuardrail({
+        name: 'blocking-output',
+        description: 'Test blocking guardrail',
+        execute: async () => ({
+          tripwireTriggered: true,
+          message: 'Output blocked for test',
+        }),
+      });
+
+      const wrappedModel = wrapWithOutputGuardrails(
+        mockModel,
+        [blockingGuardrail],
+        {
+          throwOnBlocked: false,
+          replaceOnBlocked: false,
+        },
+      );
+
+      const result = await wrappedModel.doGenerate({
+        prompt: [
+          { role: 'user', content: [{ type: 'text', text: 'test prompt' }] },
+        ],
+        temperature: 0.7,
+      });
+
+      // Should return original content
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0]).toEqual({
+        type: 'text',
+        text: 'Mock AI response',
+      });
+    });
+  });
 });
 
 describe('Middleware Integration Tests', () => {
@@ -236,10 +306,12 @@ describe('Middleware Integration Tests', () => {
         model: mockModel,
       });
 
+      // Guardrail execute now may receive an optional options argument (e.g., AbortSignal)
       expect(executeSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           prompt: expect.any(String),
         }),
+        expect.anything(),
       );
       expect(transformedParams).toEqual(mockParams);
     });
@@ -294,13 +366,28 @@ describe('Middleware Integration Tests', () => {
       });
 
       expect(onInputBlockedSpy).toHaveBeenCalledWith(
-        [
-          expect.objectContaining({
-            tripwireTriggered: true,
-            message: 'Input blocked for callback test',
-            severity: 'medium',
+        expect.objectContaining({
+          allResults: expect.arrayContaining([
+            expect.objectContaining({
+              tripwireTriggered: true,
+              message: 'Input blocked for callback test',
+              severity: 'medium',
+            }),
+          ]),
+          blockedResults: expect.arrayContaining([
+            expect.objectContaining({
+              tripwireTriggered: true,
+              message: 'Input blocked for callback test',
+              severity: 'medium',
+            }),
+          ]),
+          guardrailsExecuted: 1,
+          stats: expect.objectContaining({
+            blocked: 1,
+            passed: 0,
+            failed: 0,
           }),
-        ],
+        }),
         expect.objectContaining({
           prompt: expect.any(String),
         }),
