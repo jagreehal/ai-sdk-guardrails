@@ -56,7 +56,7 @@ importers:
         version: 8.41.0(eslint@9.34.0)(typescript@5.9.2)
       ai-sdk-ollama:
         specifier: ^0.5.2
-        version: 0.5.2(zod@4.1.5)
+        version: 0.5.3(zod@4.1.5)
       autoevals:
         specifier: ^0.0.131
         version: 0.0.131
@@ -131,12 +131,6 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.23.8
-
-  '@ai-sdk/provider-utils@3.0.5':
-    resolution: {integrity: sha512-HliwB/yzufw3iwczbFVE2Fiwf1XqROB/I6ng8EKUsPM5+2wnIa8f4VbljZcDx+grhFrPV+PnRZH7zBqi8WZM7Q==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4
 
   '@ai-sdk/provider-utils@3.0.7':
     resolution: {integrity: sha512-o3BS5/t8KnBL3ubP8k3w77AByOypLm+pkIL/DCw0qKkhDbvhCy+L3hRTGPikpdb8WHcylAeKsjgwOxhj4cqTUA==}
@@ -888,8 +882,8 @@ packages:
     resolution: {integrity: sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ==}
     engines: {node: '>= 8.0.0'}
 
-  ai-sdk-ollama@0.5.2:
-    resolution: {integrity: sha512-weYp/gIpCKRR77j+McEj92CqcEBmBnYn9IV9t9zMfbUxlbVLsLIi+aBteKyKw+nTn92sAiL7W84+rnkbFh4ucA==}
+  ai-sdk-ollama@0.5.3:
+    resolution: {integrity: sha512-rjDUCB7BqlzEKxXaCQBZ/kcZE+eJjynrorFcLPTsl/m2A4lFtYDMAwgtbxLhZ5BpASK60OlVu8azU/zQtbgn7Q==}
     engines: {node: '>=22'}
 
   ai@5.0.29:
@@ -1287,10 +1281,6 @@ packages:
   event-target-shim@5.0.1:
     resolution: {integrity: sha512-i/2XbnSz/uxRCU6+NdVJgKWDTM427+MqYbkQzD321DuCQJUqOuJKIA0IM2+W2xtYHdKOmZ4dR6fExsd4SXL+WQ==}
     engines: {node: '>=6'}
-
-  eventsource-parser@3.0.5:
-    resolution: {integrity: sha512-bSRG85ZrMdmWtm7qkF9He9TNRzc/Bm99gEJMaQoHJ9E6Kv9QBbsldh2oMj7iXmYNEAVvNgvv5vPorG6W+XtBhQ==}
-    engines: {node: '>=20.0.0'}
 
   eventsource-parser@3.0.6:
     resolution: {integrity: sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==}
@@ -2445,14 +2435,6 @@ snapshots:
       secure-json-parse: 2.7.0
       zod: 4.1.5
 
-  '@ai-sdk/provider-utils@3.0.5(zod@4.1.5)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0
-      '@standard-schema/spec': 1.0.0
-      eventsource-parser: 3.0.5
-      zod: 4.1.5
-      zod-to-json-schema: 3.24.6(zod@4.1.5)
-
   '@ai-sdk/provider-utils@3.0.7(zod@4.1.5)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
@@ -3226,10 +3208,10 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
 
-  ai-sdk-ollama@0.5.2(zod@4.1.5):
+  ai-sdk-ollama@0.5.3(zod@4.1.5):
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.5(zod@4.1.5)
+      '@ai-sdk/provider-utils': 3.0.7(zod@4.1.5)
       ai: 5.0.29(zod@4.1.5)
       ollama: 0.5.17
     transitivePeerDependencies:
@@ -3662,8 +3644,6 @@ snapshots:
   esutils@2.0.3: {}
 
   event-target-shim@5.0.1: {}
-
-  eventsource-parser@3.0.5: {}
 
   eventsource-parser@3.0.6: {}
 
@@ -4690,10 +4670,6 @@ snapshots:
   zod-to-json-schema@3.24.6(zod@3.25.76):
     dependencies:
       zod: 3.25.76
-
-  zod-to-json-schema@3.24.6(zod@4.1.5):
-    dependencies:
-      zod: 4.1.5
 
   zod@3.25.76: {}
 
