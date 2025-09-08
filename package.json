@@ -69,7 +69,7 @@
   },
   "devDependencies": {
     "@ai-sdk/mistral": "2.0.13",
-    "@ai-sdk/openai": "2.0.24",
+    "@ai-sdk/openai": "2.0.25",
     "@arethetypeswrong/cli": "^0.18.2",
     "@changesets/cli": "^2.29.6",
     "@total-typescript/ts-reset": "^0.6.1",
