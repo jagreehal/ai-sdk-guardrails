@@ -5,6 +5,7 @@ export default defineConfig({
     'src/index.ts',
     'src/guardrails/input.ts',
     'src/guardrails/output.ts',
+    'src/guardrails/tools.ts',
   ],
   format: ['cjs', 'esm'],
   dts: true,

@@ -589,7 +589,14 @@ const protectedModel = wrapWithGuardrails(model, {
     const result = executionSummary.blockedResults[0];
     console.log('⚠️  Content flagged for review:', result?.message);
     if (result?.metadata) {
-      const metadata = result.metadata;
+      const metadata = result.metadata as {
+        reviewId?: string;
+        categories?: string[];
+        confidence?: number;
+        workflow?: string;
+        autoBlock?: boolean;
+        priority?: string;
+      };
       console.log('   Review ID:', metadata.reviewId);
       console.log('   Priority:', metadata.priority);
       console.log('   Categories:', metadata.categories?.join(', ') || 'None');
@@ -602,7 +609,14 @@ const protectedModel = wrapWithGuardrails(model, {
     const result = executionSummary.blockedResults[0];
     console.log('⚠️  Output flagged for review:', result?.message);
     if (result?.metadata) {
-      const metadata = result.metadata;
+      const metadata = result.metadata as {
+        reviewId?: string;
+        categories?: string[];
+        confidence?: number;
+        workflow?: string;
+        autoBlock?: boolean;
+        priority?: string;
+      };
       console.log('   Review ID:', metadata.reviewId);
       console.log('   Priority:', metadata.priority);
       console.log('   Categories:', metadata.categories?.join(', ') || 'None');

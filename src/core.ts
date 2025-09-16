@@ -441,7 +441,7 @@ export const retryHelpers = {
     }: RetryBuilderArgs<P, unknown>): P => {
       const basePrompt = Array.isArray(lastParams.prompt)
         ? lastParams.prompt
-        : [{ role: 'user', content: String(lastParams.prompt || '') }];
+        : [{ role: 'user', content: [{ type: 'text', text: String(lastParams.prompt || '') }] }];
 
       return {
         ...lastParams,
@@ -449,7 +449,12 @@ export const retryHelpers = {
           ...basePrompt,
           {
             role: 'user' as const,
-            content: `${summary.blockedResults[0]?.message ? `Note: ${summary.blockedResults[0].message}.` : ''} ${encouragement}`,
+            content: [
+              {
+                type: 'text',
+                text: `${summary.blockedResults[0]?.message ? `Note: ${summary.blockedResults[0].message}.` : ''} ${encouragement}`,
+              },
+            ],
           },
         ],
       } as P;
