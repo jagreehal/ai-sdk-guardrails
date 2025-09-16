@@ -80,7 +80,7 @@ importers:
         version: 14.7.0
       ollama:
         specifier: ^0.5.17
-        version: 0.5.17
+        version: 0.5.18
       ollama-ai-provider:
         specifier: ^1.2.0
         version: 1.2.0(zod@4.1.8)
@@ -1775,8 +1775,8 @@ packages:
       zod:
         optional: true
 
-  ollama@0.5.17:
-    resolution: {integrity: sha512-q5LmPtk6GLFouS+3aURIVl+qcAOPC4+Msmx7uBb3pd+fxI55WnGjmLZ0yijI/CYy79x0QPGx3BwC3u5zv9fBvQ==}
+  ollama@0.5.18:
+    resolution: {integrity: sha512-lTFqTf9bo7Cd3hpF6CviBe/DEhewjoZYd9N/uCe7O20qYTvGqrNOFOBDj3lbZgFWHUgDv5EeyusYxsZSLS8nvg==}
 
   openai@4.104.0:
     resolution: {integrity: sha512-p99EFNsA/yX6UhVO93f5kJsDRLAg+CTA2RBqdHK4RtK8u5IJw32Hyb2dTGKbnnFmnuoBv5r7Z2CURI9sGZpSuA==}
@@ -3214,7 +3214,7 @@ snapshots:
       '@ai-sdk/provider': 2.0.0
       '@ai-sdk/provider-utils': 3.0.8(zod@4.1.8)
       ai: 5.0.44(zod@4.1.8)
-      ollama: 0.5.17
+      ollama: 0.5.18
     transitivePeerDependencies:
       - zod
 
@@ -4106,7 +4106,7 @@ snapshots:
     optionalDependencies:
       zod: 4.1.8
 
-  ollama@0.5.17:
+  ollama@0.5.18:
     dependencies:
       whatwg-fetch: 3.6.20
 
