@@ -56,7 +56,7 @@ importers:
         version: 8.44.0(eslint@9.35.0)(typescript@5.9.2)
       ai-sdk-ollama:
         specifier: ^0.6.0
-        version: 0.6.0(zod@4.1.8)
+        version: 0.6.1(zod@4.1.8)
       autoevals:
         specifier: ^0.0.131
         version: 0.0.131
@@ -131,12 +131,6 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.23.8
-
-  '@ai-sdk/provider-utils@3.0.8':
-    resolution: {integrity: sha512-cDj1iigu7MW2tgAQeBzOiLhjHOUM9vENsgh4oAVitek0d//WdgfPCsKO3euP7m7LyO/j9a1vr/So+BGNdpFXYw==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4
 
   '@ai-sdk/provider-utils@3.0.9':
     resolution: {integrity: sha512-Pm571x5efqaI4hf9yW4KsVlDBDme8++UepZRnq+kqVBWWjgvGhQlzU8glaFq0YJEB9kkxZHbRRyVeHoV2sRYaQ==}
@@ -937,8 +931,8 @@ packages:
     resolution: {integrity: sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ==}
     engines: {node: '>= 8.0.0'}
 
-  ai-sdk-ollama@0.6.0:
-    resolution: {integrity: sha512-z8ojh9O+1GV1mPxWTuW42qdNngHZb7Y1PzGVFGOkhckoLZKNuqMS5LUtw4K1VNa5i/rQDaXpYoOFxsF/FP7s5Q==}
+  ai-sdk-ollama@0.6.1:
+    resolution: {integrity: sha512-daV+yTgMI1HLy7Meutgfp+akqJ7FC97niUHS618R7wwlBD+3+xhwV0jXn7NFeI42DhwMoG9P4lmO32FpZLhdrQ==}
     engines: {node: '>=22'}
 
   ai@5.0.44:
@@ -2494,13 +2488,6 @@ snapshots:
       secure-json-parse: 2.7.0
       zod: 4.1.8
 
-  '@ai-sdk/provider-utils@3.0.8(zod@4.1.8)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0
-      '@standard-schema/spec': 1.0.0
-      eventsource-parser: 3.0.6
-      zod: 4.1.8
-
   '@ai-sdk/provider-utils@3.0.9(zod@4.1.8)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
@@ -3351,10 +3338,10 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
 
-  ai-sdk-ollama@0.6.0(zod@4.1.8):
+  ai-sdk-ollama@0.6.1(zod@4.1.8):
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.8(zod@4.1.8)
+      '@ai-sdk/provider-utils': 3.0.9(zod@4.1.8)
       ai: 5.0.44(zod@4.1.8)
       ollama: 0.5.18
     transitivePeerDependencies:
