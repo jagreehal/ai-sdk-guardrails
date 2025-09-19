@@ -86,7 +86,7 @@ importers:
         version: 1.2.0(zod@4.1.9)
       openai:
         specifier: ^5.15.0
-        version: 5.20.3(zod@4.1.9)
+        version: 5.21.0(zod@4.1.9)
       prettier:
         specifier: ^3.6.2
         version: 3.6.2
@@ -1793,8 +1793,8 @@ packages:
       zod:
         optional: true
 
-  openai@5.20.3:
-    resolution: {integrity: sha512-8V0KgAcPFppDIP8uMBOkhRrhDBuxNQYQxb9IovP4NN4VyaYGISAzYexyYYuAwVul2HB75Wpib0xDboYJqRMNow==}
+  openai@5.21.0:
+    resolution: {integrity: sha512-E9LuV51vgvwbahPJaZu2x4V6SWMq9g3X6Bj2/wnFiNfV7lmAxYVxPxcQNZqCWbAVMaEoers9HzIxpOp6Vvgn8w==}
     hasBin: true
     peerDependencies:
       ws: ^8.18.0
@@ -4124,7 +4124,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  openai@5.20.3(zod@4.1.9):
+  openai@5.21.0(zod@4.1.9):
     optionalDependencies:
       zod: 4.1.9
 
