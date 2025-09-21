@@ -477,7 +477,7 @@ describe('Output Guardrails', () => {
       expect(mockValidator).toHaveBeenCalledWith({
         text: 'Test output',
         object: { test: true },
-        usage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
+        usage: { totalTokens: 10, promptTokens: 5, completionTokens: 5 },
         finishReason: 'stop',
         generationTimeMs: 1000,
       });
