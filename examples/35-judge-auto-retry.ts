@@ -42,7 +42,7 @@ const llmJudgeGuardrail = defineOutputGuardrail<JudgeMeta>({
         tripwireTriggered: true,
         severity: 'medium' as const,
         message: 'Forcing retry on first attempt to demonstrate functionality',
-        metadata: { 
+        metadata: {
           llmJudgment: {
             score: 3,
             quality: 'forced_retry',
@@ -105,20 +105,23 @@ const judgedModel = wrapWithOutputGuardrails(model, [llmJudgeGuardrail], {
       const first = summary.blockedResults[0];
       const meta = (first?.metadata as JudgeMeta | undefined)?.llmJudgment;
       const scoreInfo = meta ? `score ${meta.score}/10` : 'low quality';
-      const issues = meta?.issues?.length ? `Issues: ${meta.issues.join(', ')}` : '';
+      const issues = meta?.issues?.length
+        ? `Issues: ${meta.issues.join(', ')}`
+        : '';
       const reason = meta?.reasoning ? `Reason: ${meta.reasoning}` : '';
       feedback = `Previous answer was judged ${scoreInfo}. ${issues} ${reason}. Improve clarity, structure, and add concrete details and examples.`;
 
       return {
         ...lastParams,
-        maxOutputTokens: Math.max(800, (lastParams.maxOutputTokens ?? 400) + 200),
+        maxOutputTokens: Math.max(
+          800,
+          (lastParams.maxOutputTokens ?? 400) + 200,
+        ),
         prompt: [
           ...(Array.isArray(lastParams.prompt) ? lastParams.prompt : []),
           {
             role: 'user' as const,
-            content: [
-              { type: 'text' as const, text: feedback },
-            ],
+            content: [{ type: 'text' as const, text: feedback }],
           },
         ],
       };

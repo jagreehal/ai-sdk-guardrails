@@ -193,6 +193,135 @@ export interface RetryOptions<P, R> {
   onExhausted?: 'return-last' | 'throw';
 }
 
+// Helper types for internal retry logic
+interface AttemptHistory<R> {
+  attempt: number;
+  result: R;
+  blocked: boolean;
+  waitMs?: number;
+}
+
+interface ValidationResult {
+  blocked: boolean;
+  message?: string;
+  metadata?: unknown;
+}
+
+interface RetrySummary<R> {
+  blockedResults: Array<{ message?: string; metadata?: unknown }>;
+  totalAttempts?: number;
+  attempts?: Array<AttemptHistory<R>>;
+}
+
+// Extracted helper functions to reduce complexity
+function createGenerateWithErrorHandling<P, R>(
+  generate: RetryOptions<P, R>['generate'],
+  signal: AbortSignal | undefined,
+  onError: RetryOptions<P, R>['onError'],
+  retryOnError: RetryOptions<P, R>['retryOnError'],
+  maxRetries: number,
+) {
+  return async (params: P, attemptNum: number): Promise<R> => {
+    try {
+      return signal ? await generate(params, signal) : await generate(params);
+    } catch (error) {
+      onError?.(error, attemptNum);
+      if (retryOnError?.(error, attemptNum) && attemptNum <= maxRetries) {
+        throw error; // Will be caught by retry loop
+      }
+      throw error; // Re-throw if not retrying
+    }
+  };
+}
+
+function buildRetrySummary<R>(
+  attemptHistory: Array<AttemptHistory<R>>,
+  validationResult: ValidationResult,
+  isUsingEnhancedFeatures: boolean,
+  maxRetries: number,
+): RetrySummary<R> {
+  const blockedResults = attemptHistory
+    .filter((historyAttempt) => historyAttempt.blocked)
+    .map(() => ({
+      message: validationResult.message,
+      metadata: validationResult.metadata,
+    }));
+
+  const summary: RetrySummary<R> = { blockedResults };
+
+  if (isUsingEnhancedFeatures) {
+    summary.totalAttempts = maxRetries + 1;
+    summary.attempts = [...attemptHistory];
+  }
+
+  return summary;
+}
+
+async function performInitialAttempt<P, R>(
+  params: P,
+  generateFn: (params: P, attemptNum: number) => Promise<R>,
+  validate: RetryOptions<P, R>['validate'],
+  onAttempt: RetryOptions<P, R>['onAttempt'],
+  maxRetries: number,
+  retryOnError: RetryOptions<P, R>['retryOnError'],
+): Promise<{
+  result: R | undefined;
+  validationResult: ValidationResult;
+  attemptHistory: Array<AttemptHistory<R>>;
+}> {
+  const attemptHistory: Array<AttemptHistory<R>> = [];
+
+  onAttempt?.({
+    attempt: 0,
+    totalAttempts: maxRetries + 1,
+    isRetry: false,
+  });
+
+  try {
+    const result = await generateFn(params, 0);
+    const validationResult = await Promise.resolve(validate(result));
+    attemptHistory.push({
+      attempt: 0,
+      result,
+      blocked: validationResult.blocked,
+    });
+    return { result, validationResult, attemptHistory };
+  } catch (error) {
+    if (!retryOnError?.(error, 0)) {
+      throw error;
+    }
+    return {
+      result: undefined,
+      validationResult: {
+        blocked: true,
+        message: `Generation error: ${error}`,
+      },
+      attemptHistory,
+    };
+  }
+}
+
+async function performBackoffWait(
+  backoffMs: RetryOptions<unknown, unknown>['backoffMs'],
+  attempt: number,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  const wait =
+    typeof backoffMs === 'function' ? backoffMs(attempt) : (backoffMs ?? 0);
+
+  if (wait && wait > 0) {
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(resolve, wait);
+      signal?.addEventListener('abort', () => {
+        clearTimeout(timeout);
+        reject(new Error('Aborted during retry backoff'));
+      });
+    });
+  }
+
+  return Promise.resolve();
+}
+
 /**
  * Lightweight helper for DX-friendly retries with comprehensive error handling and cancellation support
  *
@@ -223,97 +352,55 @@ export async function retry<P, R>(options: RetryOptions<P, R>): Promise<R> {
     onError,
     onExhausted = 'return-last',
   } = options;
+
   // Check cancellation before starting
   signal?.throwIfAborted();
 
-  let attempt = 0;
-  let lastParams = params;
-  const attemptHistory: Array<{
-    attempt: number;
-    result: R;
-    blocked: boolean;
-    waitMs?: number;
-  }> = [];
-
-  // Helper to generate with error handling
-  const generateWithErrorHandling = async (
-    p: P,
-    attemptNum: number,
-  ): Promise<R> => {
-    try {
-      // Support both old and new generate function signatures
-      return signal ? await generate(p, signal) : await generate(p);
-    } catch (error) {
-      onError?.(error, attemptNum);
-      if (retryOnError?.(error, attemptNum) && attemptNum <= maxRetries) {
-        throw error; // Will be caught by retry loop
-      }
-      throw error; // Re-throw if not retrying
-    }
-  };
-
-  let result: R | undefined;
-  let v: { blocked: boolean; message?: string; metadata?: unknown };
+  const generateFn = createGenerateWithErrorHandling(
+    generate,
+    signal,
+    onError,
+    retryOnError,
+    maxRetries,
+  );
 
   // Initial attempt
-  try {
-    onAttempt?.({
-      attempt: 0,
-      totalAttempts: maxRetries + 1,
-      isRetry: false,
-    });
-    result = await generateWithErrorHandling(lastParams, 0);
-    v = await Promise.resolve(validate(result!));
-    attemptHistory.push({
-      attempt: 0,
-      result: result!,
-      blocked: v.blocked,
-    });
-  } catch (error) {
-    if (!retryOnError?.(error, 0)) {
-      throw error;
-    }
-    // Set up for retry on error
-    v = { blocked: true, message: `Generation error: ${error}` };
-    // result remains undefined until next attempt
-  }
+  const {
+    result: initialResult,
+    validationResult,
+    attemptHistory,
+  } = await performInitialAttempt(
+    params,
+    generateFn,
+    validate,
+    onAttempt,
+    maxRetries,
+    retryOnError,
+  );
+
+  let result = initialResult;
+  let v = validationResult;
+  let lastParams = params;
+  let attempt = 0;
 
   // Retry loop
   while (v.blocked && attempt < maxRetries) {
     attempt++;
     signal?.throwIfAborted();
 
-    // Create backward compatible summary - only include new fields if new features are used
-    const blockedResults = attemptHistory
-      .filter((historyAttempt) => historyAttempt.blocked)
-      .map(() => {
-        // For all blocked attempts, use current v.message/metadata
-        // This is a limitation - we don't store individual attempt messages
-        return { message: v.message, metadata: v.metadata };
-      });
-
-    const summary: {
-      blockedResults: Array<{ message?: string; metadata?: unknown }>;
-      totalAttempts?: number;
-      attempts?: Array<{
-        attempt: number;
-        result?: R;
-        blocked: boolean;
-        waitMs?: number;
-      }>;
-    } = { blockedResults };
-
-    // Only add enhanced fields if enhanced features are being used
-    const isUsingEnhancedFeatures =
+    const enhancedFeatures = !!(
       signal ||
       onAttempt ||
       retryOnError ||
       onError ||
-      onExhausted !== 'return-last';
-    if (isUsingEnhancedFeatures) {
-      summary.totalAttempts = maxRetries + 1;
-      summary.attempts = [...attemptHistory];
-    }
+      onExhausted !== 'return-last'
+    );
+    const summary = buildRetrySummary(
+      attemptHistory,
+      v,
+      enhancedFeatures,
+      maxRetries,
+    );
 
     const nextParams = buildRetryParams({
       summary,
@@ -333,24 +420,15 @@ export async function retry<P, R>(options: RetryOptions<P, R>): Promise<R> {
       isRetry: true,
     });
 
-    // Backoff with cancellation support
-    if (wait && wait > 0) {
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(resolve, wait);
-        signal?.addEventListener('abort', () => {
-          clearTimeout(timeout);
-          reject(new Error('Aborted during retry backoff'));
-        });
-      });
-    }
+    await performBackoffWait(backoffMs, attempt, signal);
 
     lastParams = nextParams;
     try {
-      result = await generateWithErrorHandling(lastParams, attempt);
-      v = await Promise.resolve(validate(result!));
+      result = await generateFn(lastParams, attempt);
+      v = await Promise.resolve(validate(result));
       attemptHistory.push({
         attempt,
-        result: result!,
+        result,
         blocked: v.blocked,
         waitMs: wait,
       });
@@ -441,7 +519,14 @@ export const retryHelpers = {
     }: RetryBuilderArgs<P, unknown>): P => {
       const basePrompt = Array.isArray(lastParams.prompt)
         ? lastParams.prompt
-        : [{ role: 'user', content: [{ type: 'text', text: String(lastParams.prompt || '') }] }];
+        : [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: String(lastParams.prompt || '') },
+              ],
+            },
+          ];
 
       return {
         ...lastParams,

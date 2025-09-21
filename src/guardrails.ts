@@ -1309,3 +1309,6 @@ export function createOutputGuardrailsMiddleware<
     },
   };
 }
+
+// Re-export agent wrapper
+export { wrapAgentWithGuardrails } from './guardrails/agent';

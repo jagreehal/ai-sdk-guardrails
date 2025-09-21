@@ -16,11 +16,13 @@ import { extractTextContent } from '../src/guardrails/input';
 // Simple rate limiter implementation
 class RateLimiter {
   private requests = new Map<string, { count: number; resetTime: number }>();
+  private readonly maxRequests: number;
+  private readonly windowMs: number;
 
-  constructor(
-    private maxRequests: number,
-    private windowMs: number,
-  ) {}
+  constructor(maxRequests: number, windowMs: number) {
+    this.maxRequests = maxRequests;
+    this.windowMs = windowMs;
+  }
 
   isAllowed(identifier: string): boolean {
     const now = Date.now();
@@ -273,11 +275,12 @@ console.log('===============================================\n');
 class TokenBucket {
   private tokens: number;
   private lastRefill: number;
+  private capacity: number;
+  private readonly refillRate: number; // tokens per second
 
-  constructor(
-    private capacity: number,
-    private refillRate: number, // tokens per second
-  ) {
+  constructor(capacity: number, refillRate: number) {
+    this.capacity = capacity;
+    this.refillRate = refillRate;
     this.tokens = capacity;
     this.lastRefill = Date.now();
   }

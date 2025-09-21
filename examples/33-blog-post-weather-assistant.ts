@@ -21,7 +21,7 @@ import {
   wrapWithInputGuardrails,
   wrapWithOutputGuardrails,
 } from '../src/guardrails';
-import { isGuardrailsError, GuardrailsError } from '../src';
+import { isGuardrailsError } from '../src';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
 

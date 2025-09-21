@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   lengthLimit,
@@ -585,7 +584,7 @@ describe('Output Guardrails', () => {
 
     it('should handle non-Error exceptions', async () => {
       mockSchema.parse.mockImplementation(() => {
-        throw 'String error';
+        throw new Error('String error');
       });
 
       const guardrail = schemaValidation(mockSchema);

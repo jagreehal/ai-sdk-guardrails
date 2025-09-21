@@ -81,6 +81,6 @@ npx tsx examples/01-input-length-limit.ts
 | Jailbreak detection         | [30-jailbreak-detection.ts](./30-jailbreak-detection.ts)                           | security                  |
 | Autoevals guardrails        | [31-autoevals-guardrails.ts](./31-autoevals-guardrails.ts)                         | testing, evals            |
 | Auto retry output           | [32-auto-retry-output.ts](./32-auto-retry-output.ts)                               | retry, output             |
-| LLM judge auto-retry        | [33-judge-auto-retry.ts](./33-judge-auto-retry.ts)                                 | retry, judge, quality     |
-| Expected tool use retry     | [34-expected-tool-use-retry.ts](./34-expected-tool-use-retry.ts)                   | retry, tools              |
 | Blog post weather assistant | [33-blog-post-weather-assistant.ts](./33-blog-post-weather-assistant.ts)           | input, output, retry      |
+| Expected tool use retry     | [34-expected-tool-use-retry.ts](./34-expected-tool-use-retry.ts)                   | retry, tools              |
+| LLM judge auto-retry        | [35-judge-auto-retry.ts](./33-judge-auto-retry.ts)                                 | retry, judge, quality     |

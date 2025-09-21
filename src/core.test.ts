@@ -50,14 +50,18 @@ describe('retry', () => {
       prompt: 'retry test with more details',
     });
     expect(mockValidate).toHaveBeenCalledTimes(2);
-    expect(mockBuildRetryParams).toHaveBeenCalledWith({
-      summary: {
-        blockedResults: [{ message: 'Too short', metadata: undefined }],
-      },
-      originalParams: { prompt: 'test' },
-      lastParams: { prompt: 'test' },
-      lastResult: { text: 'Bad response' },
-    });
+    expect(mockBuildRetryParams).toHaveBeenCalledTimes(1);
+    const actualCall = mockBuildRetryParams.mock.calls[0]?.[0];
+    expect(actualCall).toBeDefined();
+    expect(actualCall?.summary.blockedResults).toEqual([
+      { message: 'Too short', metadata: undefined },
+    ]);
+    expect(actualCall?.originalParams).toEqual({ prompt: 'test' });
+    expect(actualCall?.lastParams).toEqual({ prompt: 'test' });
+    expect(actualCall?.lastResult).toEqual({ text: 'Bad response' });
+    // The summary should NOT include enhanced fields for this basic test
+    expect(actualCall?.summary.totalAttempts).toBeUndefined();
+    expect(actualCall?.summary.attempts).toBeUndefined();
   });
 
   it('should return last result when max retries exhausted', async () => {
@@ -201,6 +205,112 @@ describe('retry', () => {
   });
 
   // Enhanced features tests
+  describe('complex scenarios', () => {
+    it('should handle generation error on initial attempt followed by successful retry', async () => {
+      const mockGenerate = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('Generation failed'))
+        .mockResolvedValueOnce({ text: 'Success on retry' });
+
+      const mockValidate = vi.fn().mockResolvedValue({ blocked: false });
+      const mockRetryOnError = vi.fn().mockReturnValue(true);
+      const mockOnError = vi.fn();
+
+      const result = await retry({
+        generate: mockGenerate,
+        params: { prompt: 'test' },
+        validate: mockValidate,
+        buildRetryParams: ({ lastParams }) => ({
+          ...lastParams,
+          temperature: 0.5,
+        }),
+        maxRetries: 1,
+        retryOnError: mockRetryOnError,
+        onError: mockOnError,
+      });
+
+      expect(result).toEqual({ text: 'Success on retry' });
+      expect(mockOnError).toHaveBeenCalledWith(
+        new Error('Generation failed'),
+        0,
+      );
+      expect(mockRetryOnError).toHaveBeenCalledWith(
+        new Error('Generation failed'),
+        0,
+      );
+      expect(mockGenerate).toHaveBeenCalledTimes(2);
+    });
+
+    it('should build enhanced summary when using enhanced features', async () => {
+      const mockGenerate = vi
+        .fn()
+        .mockResolvedValueOnce({ text: 'First attempt' })
+        .mockResolvedValueOnce({ text: 'Second attempt' });
+
+      const mockValidate = vi
+        .fn()
+        .mockResolvedValueOnce({ blocked: true, message: 'Too short' })
+        .mockResolvedValueOnce({ blocked: false });
+
+      const buildRetryParamsSpy = vi.fn().mockReturnValue({ prompt: 'retry' });
+
+      await retry({
+        generate: mockGenerate,
+        params: { prompt: 'test' },
+        validate: mockValidate,
+        buildRetryParams: buildRetryParamsSpy,
+        maxRetries: 1,
+        onAttempt: vi.fn(), // This triggers enhanced features
+      });
+
+      // Check that enhanced summary was built
+      expect(buildRetryParamsSpy).toHaveBeenCalledWith({
+        summary: {
+          blockedResults: [{ message: 'Too short', metadata: undefined }],
+          totalAttempts: 2,
+          attempts: [
+            {
+              attempt: 0,
+              result: { text: 'First attempt' },
+              blocked: true,
+            },
+          ],
+        },
+        originalParams: { prompt: 'test' },
+        lastParams: { prompt: 'test' },
+        lastResult: { text: 'First attempt' },
+      });
+    });
+
+    it('should handle backoff with cancellation support', async () => {
+      const controller = new AbortController();
+      const mockGenerate = vi
+        .fn()
+        .mockResolvedValueOnce({ text: 'First' })
+        .mockResolvedValueOnce({ text: 'Second' });
+
+      const mockValidate = vi
+        .fn()
+        .mockResolvedValueOnce({ blocked: true })
+        .mockResolvedValueOnce({ blocked: false });
+
+      // Cancel after 50ms
+      setTimeout(() => controller.abort(), 50);
+
+      await expect(
+        retry({
+          generate: mockGenerate,
+          params: { prompt: 'test' },
+          validate: mockValidate,
+          buildRetryParams: ({ lastParams }) => lastParams,
+          maxRetries: 1,
+          backoffMs: 100, // 100ms wait
+          signal: controller.signal,
+        }),
+      ).rejects.toThrow('Aborted during retry backoff');
+    });
+  });
+
   describe('enhanced features', () => {
     it('should support cancellation with AbortSignal', async () => {
       const controller = new AbortController();
