@@ -135,7 +135,9 @@ function calculateEntropy(str: string): number {
 
 // Check if a string has high entropy (likely a secret)
 function isHighEntropy(str: string, threshold: number = 4): boolean {
-  if (str.length < 16) return false; // Too short to be a meaningful secret
+  if (str.length < 16) {
+    return false;
+  } // Too short to be a meaningful secret
 
   const entropy = calculateEntropy(str);
   return entropy >= threshold;
@@ -254,10 +256,9 @@ const secretLeakageGuardrail = defineOutputGuardrail<SecretLeakageMetadata>({
       // Group secrets by type for better reporting
       const secretsByType: Record<string, typeof secrets> = {};
       for (const secret of secrets) {
-        if (!secretsByType[secret.type]) {
-          secretsByType[secret.type] = [];
-        }
-        secretsByType[secret.type]!.push(secret);
+        const bucket = secretsByType[secret.type] ?? [];
+        bucket.push(secret);
+        secretsByType[secret.type] = bucket;
       }
 
       // Calculate severity based on types and quantities

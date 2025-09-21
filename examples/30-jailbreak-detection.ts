@@ -34,7 +34,9 @@ const JAILBREAK_PATTERNS = {
 
   // Translation bypass attempts
   translationBypass: [
-    /translate.*this.*to.*(french|spanish|german|italian|portuguese|dutch|russian|chinese|japanese|korean|arabic|hindi)/i,
+    // Languages pattern for translation bypasses
+    /translate.*this.*to.*(french|spanish|german|italian|portuguese|dutch|russian|chinese|japanese|korean|arabic)/i,
+    /translate.*this.*to.*hindi/i,
     /convert.*this.*to.*(french|spanish|german|italian|portuguese|dutch|russian|chinese|japanese|korean|arabic|hindi)/i,
     /in.*(french|spanish|german|italian|portuguese|dutch|russian|chinese|japanese|korean|arabic|hindi).*say/i,
     /say.*in.*(french|spanish|german|italian|portuguese|dutch|russian|chinese|japanese|korean|arabic|hindi)/i,

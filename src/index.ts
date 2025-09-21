@@ -1,6 +1,8 @@
 export {
   createInputGuardrail,
   createOutputGuardrail,
+  retry,
+  retryHelpers,
   GuardrailsError,
   GuardrailValidationError,
   GuardrailExecutionError,
@@ -12,6 +14,8 @@ export {
   isGuardrailsError,
   extractErrorInfo,
 } from './core';
+
+export type { RetryOptions, RetryAttemptInfo } from './core';
 
 export {
   defineInputGuardrail,
@@ -42,3 +46,16 @@ export type {
   LanguageModelV2CallOptions,
   LanguageModelV2StreamPart,
 } from './types';
+
+// Backoff helpers for retry configurations
+export {
+  exponentialBackoff,
+  linearBackoff,
+  fixedBackoff,
+  noBackoff,
+  compositeBackoff,
+  jitteredExponentialBackoff,
+  presets as backoffPresets,
+} from './backoff';
+
+export type { BackoffOptions } from './backoff';

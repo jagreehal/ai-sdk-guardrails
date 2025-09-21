@@ -287,24 +287,29 @@ export const profanityFilter = (customWords: string[] = []): InputGuardrail => {
   );
 };
 
+type CustomValidationInput = {
+  prompt?: string;
+  messages?: unknown[];
+  system?: string;
+  model?: unknown;
+  temperature?: number;
+  maxOutputTokens?: number;
+};
+
+/* eslint-disable no-unused-vars */
+type CustomValidationFn = (payload: CustomValidationInput) => boolean;
+
 export const customValidation = (
   name: string,
   description: string,
-  validator: (input: {
-    prompt?: string;
-    messages?: unknown[];
-    system?: string;
-    model?: unknown;
-    temperature?: number;
-    maxOutputTokens?: number;
-  }) => boolean,
+  validator: CustomValidationFn,
   message: string,
-): InputGuardrail =>
-  createInputGuardrail(name, description, (context) => {
+): InputGuardrail => {
+  return createInputGuardrail(name, description, (context) => {
     const { prompt, messages, system } = extractTextContent(context);
     const { model, temperature, maxOutputTokens } = extractMetadata(context);
 
-    const input = {
+    const validatorInput: CustomValidationInput = {
       prompt,
       messages,
       system,
@@ -312,20 +317,21 @@ export const customValidation = (
       temperature,
       maxOutputTokens,
     };
-    const blocked = validator(input);
+    const blocked = validator(validatorInput);
     return {
       tripwireTriggered: blocked,
       message: blocked ? message : undefined,
       severity: 'medium' as const,
       metadata: {
         validatorName: name,
-        inputKeys: Object.keys(input),
+        inputKeys: Object.keys(validatorInput),
         model: model ? String(model) : undefined,
         temperature,
         maxOutputTokens,
       },
     };
   });
+};
 
 export const promptInjectionDetector = (): InputGuardrail =>
   createInputGuardrail(

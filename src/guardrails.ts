@@ -4,6 +4,8 @@ import {
   OutputBlockedError,
   InputBlockedError,
 } from './errors';
+// Enhanced retry integration temporarily disabled due to AI SDK type complexity
+import { extractContent } from './guardrails/output';
 import type {
   InputGuardrail,
   OutputGuardrail,
@@ -19,6 +21,7 @@ import type {
   OutputGuardrailsMiddlewareConfig,
   NormalizedGuardrailContext,
   GuardrailExecutionSummary,
+  Logger,
 } from './types';
 
 // ============================================================================
@@ -104,6 +107,8 @@ export async function executeInputGuardrails<
     continueOnFailure?: boolean;
     /** Logging level */
     logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
+    /** Custom logger instance */
+    logger?: Logger;
   } = {},
 ): Promise<GuardrailResult<M>[]> {
   const {
@@ -111,6 +116,7 @@ export async function executeInputGuardrails<
     timeout = 30_000, // 30 seconds
     continueOnFailure = true,
     logLevel = 'warn',
+    logger = console,
   } = options;
 
   // logging controlled by logLevel checks at call sites
@@ -159,7 +165,7 @@ export async function executeInputGuardrails<
         const result = await executeWithTimeout(guardrail);
 
         if (result.tripwireTriggered && logLevel !== 'none') {
-          console.warn(
+          logger.warn(
             `Input guardrail "${guardrail.name}" triggered: ${result.message}`,
           );
         }
@@ -167,7 +173,7 @@ export async function executeInputGuardrails<
         return result;
       } catch (error) {
         if (logLevel !== 'none') {
-          console.error(
+          logger.error(
             `Error executing input guardrail "${guardrail.name}":`,
             error,
           );
@@ -194,7 +200,7 @@ export async function executeInputGuardrails<
         results.push(result);
 
         if (result.tripwireTriggered && logLevel !== 'none') {
-          console.warn(
+          logger.warn(
             `Input guardrail "${guardrail.name}" triggered: ${result.message}`,
           );
 
@@ -204,7 +210,7 @@ export async function executeInputGuardrails<
         }
       } catch (error) {
         if (logLevel !== 'none') {
-          console.error(
+          logger.error(
             `Error executing input guardrail "${guardrail.name}":`,
             error,
           );
@@ -310,6 +316,8 @@ export async function executeOutputGuardrails<
     continueOnFailure?: boolean;
     /** Logging level */
     logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
+    /** Custom logger instance */
+    logger?: Logger;
   } = {},
 ): Promise<GuardrailResult<M>[]> {
   const {
@@ -317,6 +325,7 @@ export async function executeOutputGuardrails<
     timeout = 30_000, // 30 seconds
     continueOnFailure = true,
     logLevel = 'warn',
+    logger = console,
   } = options;
 
   // Filter enabled guardrails and sort by priority
@@ -360,7 +369,7 @@ export async function executeOutputGuardrails<
         const result = await executeWithTimeout(guardrail);
 
         if (result.tripwireTriggered && logLevel !== 'none') {
-          console.warn(
+          logger.warn(
             `Output guardrail "${guardrail.name}" triggered: ${result.message}`,
           );
         }
@@ -368,7 +377,7 @@ export async function executeOutputGuardrails<
         return result;
       } catch (error) {
         if (logLevel !== 'none') {
-          console.error(
+          logger.error(
             `Error executing output guardrail "${guardrail.name}":`,
             error,
           );
@@ -396,7 +405,7 @@ export async function executeOutputGuardrails<
 
         if (result.tripwireTriggered) {
           if (logLevel !== 'none') {
-            console.warn(
+            logger.warn(
               `Output guardrail "${guardrail.name}" triggered: ${result.message}`,
             );
           }
@@ -407,7 +416,7 @@ export async function executeOutputGuardrails<
         }
       } catch (error) {
         if (logLevel !== 'none') {
-          console.error(
+          logger.error(
             `Error executing output guardrail "${guardrail.name}":`,
             error,
           );
@@ -649,8 +658,8 @@ export function wrapWithOutputGuardrails<
 export function wrapWithGuardrails(
   model: LanguageModelV2,
   config: {
-    inputGuardrails?: InputGuardrail<any>[];
-    outputGuardrails?: OutputGuardrail<any>[];
+    inputGuardrails?: InputGuardrail<Record<string, unknown>>[];
+    outputGuardrails?: OutputGuardrail<Record<string, unknown>>[];
     throwOnBlocked?: boolean;
     replaceOnBlocked?: boolean;
     streamMode?: 'buffer' | 'progressive';
@@ -660,8 +669,8 @@ export function wrapWithGuardrails(
       continueOnFailure?: boolean;
       logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
     };
-    onInputBlocked?: (executionSummary: any) => void;
-    onOutputBlocked?: (executionSummary: any) => void;
+    onInputBlocked?: (executionSummary: GuardrailExecutionSummary) => void;
+    onOutputBlocked?: (executionSummary: GuardrailExecutionSummary) => void;
   },
 ): LanguageModelV2;
 
@@ -691,7 +700,37 @@ export function wrapWithGuardrails<
 // Implementation
 export function wrapWithGuardrails(
   model: LanguageModelV2,
-  config: any,
+  config:
+    | {
+        inputGuardrails?: InputGuardrail<Record<string, unknown>>[];
+        outputGuardrails?: OutputGuardrail<Record<string, unknown>>[];
+        throwOnBlocked?: boolean;
+        replaceOnBlocked?: boolean;
+        streamMode?: 'buffer' | 'progressive';
+        executionOptions?: {
+          parallel?: boolean;
+          timeout?: number;
+          continueOnFailure?: boolean;
+          logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
+        };
+        onInputBlocked?: (executionSummary: GuardrailExecutionSummary) => void;
+        onOutputBlocked?: (executionSummary: GuardrailExecutionSummary) => void;
+      }
+    | {
+        inputGuardrails?: InputGuardrail<Record<string, unknown>>[];
+        outputGuardrails?: OutputGuardrail<Record<string, unknown>>[];
+        throwOnBlocked?: boolean;
+        replaceOnBlocked?: boolean;
+        streamMode?: 'buffer' | 'progressive';
+        executionOptions?: {
+          parallel?: boolean;
+          timeout?: number;
+          continueOnFailure?: boolean;
+          logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
+        };
+        onInputBlocked?: InputGuardrailsMiddlewareConfig['onInputBlocked'];
+        onOutputBlocked?: OutputGuardrailsMiddlewareConfig['onOutputBlocked'];
+      },
 ): LanguageModelV2 {
   const {
     inputGuardrails = [],
@@ -773,14 +812,8 @@ export function createInputGuardrailsMiddleware<
       params: LanguageModelV2CallOptions;
       model: LanguageModelV2;
     }) => {
-      const enhancedParams = {
-        ...params,
-        guardrailsBlocked: undefined,
-      } as LanguageModelV2CallOptions & {
-        guardrailsBlocked?: GuardrailResult[];
-      };
-
-      const guardrailContext = normalizeGuardrailContext(enhancedParams);
+      // Start from original params; only add helper property if we actually block
+      const guardrailContext = normalizeGuardrailContext(params);
 
       const executionStartTime = Date.now();
       const inputResults = await executeInputGuardrails<M>(
@@ -809,11 +842,16 @@ export function createInputGuardrailsMiddleware<
           throw new InputBlockedError(blockedGuardrails);
         }
 
-        // Store blocked results for later use
+        // Store blocked results for later use by wrapGenerate/wrapStream
+        const enhancedParams = params as LanguageModelV2CallOptions & {
+          guardrailsBlocked?: GuardrailResult[];
+        };
         enhancedParams.guardrailsBlocked = blockedResults;
+        return enhancedParams;
       }
 
-      return enhancedParams;
+      // No blocks: return original params unchanged for strict equality expectations
+      return params;
     },
 
     wrapGenerate: async ({
@@ -840,6 +878,8 @@ export function createInputGuardrailsMiddleware<
           finishReason: 'other',
           usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
           warnings: [],
+          rawCall: { rawPrompt: params.prompt, rawSettings: {} },
+          response: { headers: {} },
         };
       }
 
@@ -905,12 +945,14 @@ export function createOutputGuardrailsMiddleware<
     throwOnBlocked = false,
     replaceOnBlocked = true,
     streamMode = 'buffer',
+    retry,
   } = config;
 
   return {
     wrapGenerate: async ({
       doGenerate,
       params,
+      model,
     }: {
       doGenerate: () => ReturnType<LanguageModelV2['doGenerate']>;
       doStream: () => ReturnType<LanguageModelV2['doStream']>;
@@ -923,7 +965,7 @@ export function createOutputGuardrailsMiddleware<
       const guardrailContext = normalizeGuardrailContext(params);
 
       // Create a proper AIResult that works for both generateText and generateObject
-      const aiResult: AIResult = result as AIResult;
+      const aiResult: AIResult = result as unknown as AIResult;
       // For middleware, we work with the raw model result
       // Note: generateObject scenarios should use executeOutputGuardrails() post-generation
 
@@ -944,13 +986,67 @@ export function createOutputGuardrailsMiddleware<
         startTime,
       );
       if (executionSummary.blockedResults.length > 0) {
+        // Auto-retry path - inline retry logic (middleware pattern limitation)
+        if (
+          retry &&
+          (retry.onlyWhen ? retry.onlyWhen(executionSummary) : true)
+        ) {
+          const maxRetries = retry.maxRetries ?? 1;
+          let lastParams = params;
+          let lastResult = result;
+
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            const wait =
+              typeof retry.backoffMs === 'function'
+                ? retry.backoffMs(attempt)
+                : (retry.backoffMs ?? 0);
+            if (wait && wait > 0) {
+              await new Promise((r) => setTimeout(r, wait));
+            }
+
+            const nextParams = retry.buildRetryParams({
+              summary: executionSummary,
+              originalParams: params,
+              lastParams,
+              lastResult: lastResult as any,
+            });
+
+            // Call model with new params
+            const retryRaw = await model.doGenerate(nextParams);
+            const retryResult = retryRaw;
+
+            const retryContext: OutputGuardrailContext = {
+              input: normalizeGuardrailContext(nextParams),
+              result: retryResult as any,
+            };
+            const retryStart = Date.now();
+            const retryResults = await executeOutputGuardrails<M>(
+              outputGuardrails,
+              retryContext,
+              executionOptions,
+            );
+            const retrySummary = createExecutionSummary<M>(
+              retryResults,
+              retryStart,
+            );
+
+            if (retrySummary.blockedResults.length === 0) {
+              return retryRaw;
+            }
+
+            // Prepare for potential next attempt
+            lastParams = nextParams;
+            lastResult = retryResult;
+          }
+        }
+
         if (onOutputBlocked) {
           onOutputBlocked(executionSummary, guardrailContext, result);
         }
 
         if (throwOnBlocked) {
           const blockedGuardrails = executionSummary.blockedResults.map(
-            (r) => ({
+            (r: GuardrailResult) => ({
               name: r.context?.guardrailName || 'unknown',
               message: r.message || 'Blocked',
               severity: r.severity || ('medium' as const),
@@ -964,12 +1060,13 @@ export function createOutputGuardrailsMiddleware<
           const blockedMessage = executionSummary.blockedResults
             .map((r) => r.message)
             .join(', ');
-          return {
-            ...result,
+          const replaced = {
+            ...(result as unknown as Record<string, unknown>),
             content: [
               { type: 'text', text: `[Output blocked: ${blockedMessage}]` },
             ],
-          };
+          } as typeof result;
+          return replaced;
         }
       }
 
@@ -979,6 +1076,7 @@ export function createOutputGuardrailsMiddleware<
     wrapStream: async ({
       doStream,
       params,
+      model,
     }: {
       doGenerate: () => ReturnType<LanguageModelV2['doGenerate']>;
       doStream: () => ReturnType<LanguageModelV2['doStream']>;
@@ -1011,7 +1109,7 @@ export function createOutputGuardrailsMiddleware<
             const guardrailContext = normalizeGuardrailContext(params);
             const outputContext: OutputGuardrailContext = {
               input: guardrailContext,
-              result: { text: accumulatedText } as AIResult,
+              result: { text: accumulatedText } as unknown as AIResult,
             };
             const startTime = Date.now();
             const outputResults = await executeOutputGuardrails<M>(
@@ -1025,6 +1123,78 @@ export function createOutputGuardrailsMiddleware<
             );
 
             if (executionSummary.blockedResults.length > 0) {
+              // Auto-retry (buffer mode only) - inline retry logic
+              if (
+                retry &&
+                (retry.onlyWhen ? retry.onlyWhen(executionSummary) : true)
+              ) {
+                const maxRetries = retry.maxRetries ?? 1;
+                let lastParams = params;
+                let lastResult: AIResult | { text: string } = {
+                  text: accumulatedText,
+                };
+
+                for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                  const wait =
+                    typeof retry.backoffMs === 'function'
+                      ? retry.backoffMs(attempt)
+                      : (retry.backoffMs ?? 0);
+                  if (wait && wait > 0) {
+                    await new Promise((r) => setTimeout(r, wait));
+                  }
+
+                  const nextParams = retry.buildRetryParams({
+                    summary: executionSummary,
+                    originalParams: params,
+                    lastParams,
+                    lastResult: lastResult as any,
+                  });
+
+                  const retryResult = (await model.doGenerate(
+                    nextParams,
+                  )) as AIResult;
+
+                  const retryContext: OutputGuardrailContext = {
+                    input: normalizeGuardrailContext(nextParams),
+                    result: retryResult,
+                  };
+                  const retryStart = Date.now();
+                  const retryResults = await executeOutputGuardrails<M>(
+                    outputGuardrails,
+                    retryContext,
+                    executionOptions,
+                  );
+                  const retrySummary = createExecutionSummary<M>(
+                    retryResults,
+                    retryStart,
+                  );
+
+                  if (retrySummary.blockedResults.length === 0) {
+                    // Emit the repaired text as a single delta and finish
+                    const { text: repairedText } = extractContent(
+                      retryResult as any,
+                    );
+                    controller.enqueue({
+                      type: 'text-delta',
+                      id: '1',
+                      delta: repairedText,
+                    });
+                    controller.enqueue({
+                      type: 'finish',
+                      finishReason: 'stop',
+                      usage: {
+                        inputTokens: 0,
+                        outputTokens: 0,
+                        totalTokens: 0,
+                      },
+                    });
+                    return;
+                  }
+                  lastParams = nextParams;
+                  lastResult = retryResult;
+                }
+              }
+
               if (onOutputBlocked) {
                 onOutputBlocked(executionSummary, guardrailContext, {
                   text: accumulatedText,
@@ -1139,3 +1309,6 @@ export function createOutputGuardrailsMiddleware<
     },
   };
 }
+
+// Re-export agent wrapper
+export { wrapAgentWithGuardrails } from './guardrails/agent';

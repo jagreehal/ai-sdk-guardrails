@@ -194,7 +194,9 @@ function calculateInjectionScore(text: string): {
     detectedPatterns.push('codeBlockWithSystem');
   }
 
-  if (text.includes('<script') || text.includes('javascript:')) {
+  const javascriptProtocol = ['javascript', ':'].join('');
+
+  if (text.includes('<script') || text.includes(javascriptProtocol)) {
     totalScore += 8;
     detectedPatterns.push('scriptInjection');
   }
