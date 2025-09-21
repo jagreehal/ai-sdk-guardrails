@@ -423,7 +423,48 @@ function validateURL(url: string): {
     };
   }
 
-  const parsed = urlValidation.parsed!;
+  const parsed = urlValidation.parsed;
+  if (!parsed) {
+    violations.push('URL parsing failed unexpectedly');
+    return {
+      isValid: false,
+      violations,
+      warnings,
+      riskLevel: 'critical',
+      metadata: {
+        parsed: null,
+        domainCheck: {
+          isAllowed: false,
+          isBlocked: false,
+          reason: 'URL parsing failed',
+          severity: 'critical',
+        },
+        schemeCheck: {
+          isAllowed: false,
+          isBlocked: false,
+          reason: 'URL parsing failed',
+          severity: 'critical',
+        },
+        sensitiveData: {
+          hasSensitiveData: false,
+          patterns: [],
+          severity: 'low',
+          sanitizedUrl: url,
+        },
+        dangerousExtensions: {
+          hasDangerousExtension: false,
+          extension: null,
+          severity: 'low',
+        },
+        portCheck: {
+          isAllowed: false,
+          reason: 'URL parsing failed',
+          severity: 'critical',
+        },
+        sanitizedUrl: url,
+      },
+    };
+  }
 
   // Check domain allowlist
   const domainCheck = checkDomainAllowlist(parsed.hostname);

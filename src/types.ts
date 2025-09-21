@@ -5,6 +5,7 @@ import {
   streamObject,
   embed,
 } from 'ai';
+import type { LanguageModelV2CallOptions as LMCallOptions } from '@ai-sdk/provider';
 
 // Type inference utilities for automatic metadata type extraction
 
@@ -158,6 +159,21 @@ export type {
   LanguageModelV2ResponseMetadata,
   LanguageModelV2Usage,
 } from '@ai-sdk/provider';
+
+/**
+ * Logger interface for configurable logging throughout the guardrails system
+ * Compatible with popular loggers like Winston, Pino, Bunyan, or console
+ */
+export interface Logger {
+  /** Log informational messages */
+  info(message: string, ...args: any[]): void;
+  /** Log warning messages */
+  warn(message: string, ...args: any[]): void;
+  /** Log error messages */
+  error(message: string, ...args: any[]): void;
+  /** Log debug messages */
+  debug(message: string, ...args: any[]): void;
+}
 
 // Normalized internal types for better type safety and maintainability
 export interface NormalizedGuardrailContext {
@@ -360,8 +376,7 @@ export interface GuardrailExecutionSummary<M = Record<string, unknown>> {
 }
 
 // Generic metadata type parameterized via usage sites
-// eslint-disable-next-line @typescript-eslint/no-empty-interface, @typescript-eslint/no-empty-object-type
-export interface InputGuardrailsMiddlewareConfig {}
+/* intentionally removed duplicate empty interface */
 
 export interface InputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
   /** Input guardrails to execute before AI calls */
@@ -379,7 +394,7 @@ export interface InputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
      * - **true**: All guardrails execute simultaneously (faster)
      * - **false**: Guardrails execute sequentially (more predictable)
      *
-     * @default false
+     * @default true
      */
     parallel?: boolean;
 
@@ -387,7 +402,7 @@ export interface InputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
      * Maximum execution time per guardrail in milliseconds.
      * Prevents hanging on slow/unresponsive guardrails.
      *
-     * @default 10000 (10 seconds)
+     * @default 30000 (30 seconds)
      */
     timeout?: number;
 
@@ -413,6 +428,26 @@ export interface InputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
      * @default 'warn'
      */
     logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
+
+    /**
+     * Custom logger instance to use instead of console.
+     * Compatible with popular loggers like Winston, Pino, Bunyan.
+     * Defaults to console if not provided.
+     *
+     * @example
+     * ```typescript
+     * import winston from 'winston';
+     *
+     * const logger = winston.createLogger({
+     *   level: 'info',
+     *   format: winston.format.json(),
+     *   transports: [new winston.transports.Console()]
+     * });
+     *
+     * const options = { logger, logLevel: 'info' };
+     * ```
+     */
+    logger?: Logger;
   };
   /**
    * Callback for when input is blocked - receives comprehensive execution analytics.
@@ -477,7 +512,7 @@ export interface OutputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
      * - **true**: All guardrails execute simultaneously (faster)
      * - **false**: Guardrails execute sequentially (more predictable)
      *
-     * @default false
+     * @default true
      */
     parallel?: boolean;
 
@@ -485,7 +520,7 @@ export interface OutputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
      * Maximum execution time per guardrail in milliseconds.
      * Prevents hanging on slow/unresponsive guardrails.
      *
-     * @default 10000 (10 seconds)
+     * @default 30000 (30 seconds)
      */
     timeout?: number;
 
@@ -511,6 +546,26 @@ export interface OutputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
      * @default 'warn'
      */
     logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
+
+    /**
+     * Custom logger instance to use instead of console.
+     * Compatible with popular loggers like Winston, Pino, Bunyan.
+     * Defaults to console if not provided.
+     *
+     * @example
+     * ```typescript
+     * import winston from 'winston';
+     *
+     * const logger = winston.createLogger({
+     *   level: 'info',
+     *   format: winston.format.json(),
+     *   transports: [new winston.transports.Console()]
+     * });
+     *
+     * const options = { logger, logLevel: 'info' };
+     * ```
+     */
+    logger?: Logger;
   };
   /**
    * Callback for when output is blocked - receives comprehensive execution analytics.
@@ -578,4 +633,28 @@ export interface OutputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
    * - 'progressive': evaluate progressively and stop early when blocked
    */
   streamMode?: 'buffer' | 'progressive';
+
+  /**
+   * Optional automatic retry when output guardrails block a result.
+   * Keeps DX simple by allowing users to provide only a small builder
+   * that amends params for the next attempt.
+   */
+  retry?: {
+    /** Maximum number of retry attempts. Default: 1 */
+    maxRetries?: number;
+    /** Backoff between attempts (ms) or function per attempt (1-based). Default: 0 */
+    backoffMs?: number | ((attempt: number) => number);
+    /** Optional predicate to enable retries only for certain violations */
+    onlyWhen?: (summary: GuardrailExecutionSummary<M>) => boolean;
+    /**
+     * Build next call params based on previous failure.
+     * Must return complete LanguageModelV2CallOptions for the next attempt.
+     */
+    buildRetryParams: (args: {
+      summary: GuardrailExecutionSummary<M>;
+      originalParams: LMCallOptions;
+      lastParams: LMCallOptions;
+      lastResult: AIResult;
+    }) => LMCallOptions;
+  };
 }

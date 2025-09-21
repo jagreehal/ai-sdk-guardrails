@@ -33,8 +33,9 @@ interface InputContextWithEnvironment {
   environment?: string;
 }
 
-// Helper function to safely extract content from different AI result types
-export function extractContent(result: AIResult): {
+type UsageRecord = Record<string, unknown> | undefined;
+
+interface ContentExtraction {
   text: string;
   object: unknown;
   usage?: {
@@ -45,131 +46,133 @@ export function extractContent(result: AIResult): {
   finishReason?: string;
   generationTimeMs?: number;
   reasoningText?: string;
-} {
-  // Handle newer AI SDK result format with content array
+}
+
+const EMPTY_CONTENT: ContentExtraction = {
+  text: '',
+  object: null,
+  usage: undefined,
+  finishReason: undefined,
+  generationTimeMs: undefined,
+  reasoningText: undefined,
+};
+
+function emptyContent(): ContentExtraction {
+  return { ...EMPTY_CONTENT };
+}
+
+function mapUsage(usage: UsageRecord) {
+  if (!usage) {
+    return undefined;
+  }
+
+  const pickNumber = (keys: string[]) => {
+    for (const key of keys) {
+      const value = usage[key];
+      if (typeof value === 'number') {
+        return value;
+      }
+    }
+    return undefined;
+  };
+
+  const totalTokens = pickNumber(['totalTokens']);
+  const promptTokens = pickNumber(['inputTokens', 'promptTokens']);
+  const completionTokens = pickNumber(['outputTokens', 'completionTokens']);
+
+  if (
+    promptTokens === undefined &&
+    completionTokens === undefined &&
+    totalTokens === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens,
+  };
+}
+
+function extractGenerationTime(result: BaseResult) {
+  return result.experimental_providerMetadata?.generationTimeMs;
+}
+
+function extractReasoningText(result: BaseResult) {
+  return (
+    result.reasoningText ||
+    result.experimental_providerMetadata?.reasoningText ||
+    undefined
+  );
+}
+
+function createContent(partial: Partial<ContentExtraction>): ContentExtraction {
+  return {
+    ...EMPTY_CONTENT,
+    ...partial,
+  };
+}
+
+// Helper function to safely extract content from different AI result types
+export function extractContent(result: AIResult): ContentExtraction {
   if (
     'content' in result &&
-    Array.isArray((result as { content: unknown }).content)
+    Array.isArray((result as { content?: unknown[] }).content)
   ) {
-    const content = (
-      result as { content: Array<{ type: string; text?: string }> }
-    ).content;
-    const textContent = content
+    const typedResult = result as BaseResult & {
+      content: Array<{ type: string; text?: string }>;
+      usage?: UsageRecord;
+    };
+    const textContent = typedResult.content
       .filter((item) => item.type === 'text' && item.text)
-      .map((item) => item.text)
+      .map((item) => item.text as string)
       .join('');
 
-    // Try to map usage fields from different formats
-    const usage = (result as { usage?: Record<string, unknown> }).usage || {};
-    const mappedUsage = {
-      promptTokens:
-        typeof usage.inputTokens === 'number'
-          ? usage.inputTokens
-          : typeof usage.promptTokens === 'number'
-            ? usage.promptTokens
-            : undefined,
-      completionTokens:
-        typeof usage.outputTokens === 'number'
-          ? usage.outputTokens
-          : typeof usage.completionTokens === 'number'
-            ? usage.completionTokens
-            : undefined,
-      totalTokens:
-        typeof usage.totalTokens === 'number' ? usage.totalTokens : undefined,
-    };
-
-    return {
+    return createContent({
       text: textContent || '',
       object: null,
-      usage: mappedUsage,
-      finishReason: (result as { finishReason?: string }).finishReason,
-      generationTimeMs: (
-        result as {
-          experimental_providerMetadata?: { generationTimeMs?: number };
-        }
-      ).experimental_providerMetadata?.generationTimeMs,
-      reasoningText:
-        (
-          result as {
-            reasoningText?: string;
-            experimental_providerMetadata?: { reasoningText?: string };
-          }
-        ).reasoningText ||
-        (
-          result as {
-            experimental_providerMetadata?: { reasoningText?: string };
-          }
-        ).experimental_providerMetadata?.reasoningText,
-    };
+      usage: mapUsage(typedResult.usage),
+      finishReason: typedResult.finishReason,
+      generationTimeMs: extractGenerationTime(typedResult),
+      reasoningText: extractReasoningText(typedResult),
+    });
   }
 
-  // Handle different result types
-  if ('object' in result && result.object != null) {
-    // GenerateObjectResult - prioritize object over text
+  if ('object' in result && result.object !== null) {
     const objectResult = result as ObjectResult;
-
-    return {
+    return createContent({
       text: objectResult.text || '',
       object: objectResult.object,
-      usage: objectResult.usage,
+      usage: mapUsage(objectResult.usage as UsageRecord),
       finishReason: objectResult.finishReason,
-      generationTimeMs:
-        objectResult.experimental_providerMetadata?.generationTimeMs,
-      reasoningText:
-        objectResult.reasoningText ||
-        objectResult.experimental_providerMetadata?.reasoningText,
-    };
-  } else if ('text' in result) {
-    // GenerateTextResult
-    const textResult = result as TextResult;
-    return {
-      text: textResult.text || '',
-      object: null,
-      usage: textResult.usage,
-      finishReason: textResult.finishReason,
-      generationTimeMs:
-        textResult.experimental_providerMetadata?.generationTimeMs,
-      reasoningText:
-        textResult.reasoningText ||
-        textResult.experimental_providerMetadata?.reasoningText,
-    };
-  } else if ('textStream' in result) {
-    // StreamTextResult
-    return {
-      text: '',
-      object: null,
-      usage: undefined,
-      finishReason: undefined,
-      generationTimeMs: undefined,
-    };
-  } else if ('objectStream' in result) {
-    // StreamObjectResult
-    return {
-      text: '',
-      object: null,
-      usage: undefined,
-      finishReason: undefined,
-      generationTimeMs: undefined,
-    };
-  } else if ('embeddings' in result || 'then' in result) {
-    // EmbedResult or Promise<EmbedResult>
-    return {
-      text: '',
-      object: null,
-      usage: undefined,
-      finishReason: undefined,
-      generationTimeMs: undefined,
-    };
+      generationTimeMs: extractGenerationTime(objectResult),
+      reasoningText: extractReasoningText(objectResult),
+    });
   }
 
-  // Default fallback
-  return {
-    text: '',
-    object: null,
-    usage: undefined,
-    finishReason: undefined,
-    generationTimeMs: undefined,
-  };
+  if ('text' in result && typeof result.text === 'string') {
+    const textResult = result as TextResult;
+    return createContent({
+      text: textResult.text || '',
+      object: null,
+      usage: mapUsage(textResult.usage as UsageRecord),
+      finishReason: textResult.finishReason,
+      generationTimeMs: extractGenerationTime(textResult),
+      reasoningText: extractReasoningText(textResult),
+    });
+  }
+
+  if (
+    'textStream' in result ||
+    'objectStream' in result ||
+    'embeddings' in result ||
+    'then' in result
+  ) {
+    return emptyContent();
+  }
+
+  return emptyContent();
 }
 
 export const lengthLimit = (maxLength: number): OutputGuardrail =>
@@ -390,7 +393,9 @@ export const jsonValidation = (): OutputGuardrail =>
     (context: OutputGuardrailContext) => {
       const { text, object } = extractContent(context.result);
 
-      if (object) return { tripwireTriggered: false }; // Object is already valid
+      if (object) {
+        return { tripwireTriggered: false };
+      } // Object is already valid
 
       try {
         JSON.parse(text);
@@ -483,25 +488,33 @@ export const toxicityFilter = (threshold: number = 0.7): OutputGuardrail =>
     },
   );
 
+type CustomOutputValidationInput = {
+  text?: string;
+  object?: unknown;
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
+  finishReason?: string;
+  generationTimeMs?: number;
+};
+
+/* eslint-disable no-unused-vars */
+type CustomOutputValidationFn = (
+  payload: CustomOutputValidationInput,
+) => boolean;
+/* eslint-enable no-unused-vars */
+
 export const customValidation = (
   name: string,
-  validator: (output: {
-    text?: string;
-    object?: unknown;
-    usage?: {
-      promptTokens?: number;
-      completionTokens?: number;
-      totalTokens?: number;
-    };
-    finishReason?: string;
-    generationTimeMs?: number;
-  }) => boolean,
+  validator: CustomOutputValidationFn,
   message: string,
-): OutputGuardrail =>
-  createOutputGuardrail(name, (context: OutputGuardrailContext) => {
+): OutputGuardrail => {
+  return createOutputGuardrail(name, (context: OutputGuardrailContext) => {
     const { text, object, usage, finishReason, generationTimeMs } =
       extractContent(context.result);
-    const validatorInput = {
+    const validatorInput: CustomOutputValidationInput = {
       text,
       object,
       usage,
@@ -523,9 +536,10 @@ export const customValidation = (
       },
     };
   });
+};
 
 export const schemaValidation = (schema: {
-  parse: (obj: unknown) => unknown;
+  parse: (obj: unknown) => unknown; // eslint-disable-line no-unused-vars
 }): OutputGuardrail =>
   createOutputGuardrail(
     'schema-validation',

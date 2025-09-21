@@ -650,4 +650,316 @@ describe('Middleware Integration Tests', () => {
       ).rejects.toThrow();
     }, 1000);
   });
+
+  describe('autoRetryOnBlocked integration', () => {
+    it('should retry when output is blocked and succeed on second attempt', async () => {
+      let callCount = 0;
+      const mockModel = {
+        ...createMockModel(),
+        doGenerate: vi.fn().mockImplementation(async (options) => {
+          callCount++;
+          // First call returns short response, second call returns long response
+          const text =
+            callCount === 1
+              ? 'Short'
+              : 'This is a much longer response that meets the requirements and should not be blocked by the length guardrail';
+
+          return {
+            content: [{ type: 'text', text }],
+            finishReason: 'stop',
+            usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 },
+            rawCall: { rawPrompt: options.prompt, rawSettings: {} },
+            response: { headers: {} },
+            warnings: [],
+          };
+        }),
+      } as LanguageModelV2;
+
+      // Guardrail that blocks short responses
+      const lengthGuardrail = defineOutputGuardrail({
+        name: 'min-length',
+        description: 'Requires minimum length',
+        execute: async ({ result }) => {
+          // Handle both middleware format (content array) and direct text format
+          const text =
+            (result as any).text || (result as any).content?.[0]?.text || '';
+          if (text.length < 50) {
+            return {
+              tripwireTriggered: true,
+              message: `Response too short: ${text.length} characters`,
+              severity: 'medium' as const,
+            };
+          }
+          return { tripwireTriggered: false };
+        },
+      });
+
+      const middleware = createOutputGuardrailsMiddleware({
+        outputGuardrails: [lengthGuardrail],
+        replaceOnBlocked: false, // Don't replace on blocked so we can see the retry result
+        retry: {
+          maxRetries: 1,
+          buildRetryParams: ({ originalParams }) => ({
+            ...originalParams,
+            prompt: [
+              ...(Array.isArray(originalParams.prompt)
+                ? originalParams.prompt
+                : []),
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: ' Please provide a more detailed response.',
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+      });
+
+      const mockParams = {
+        prompt: [
+          { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
+        ],
+      } as LanguageModelV2CallOptions;
+
+      const result = await middleware.wrapGenerate!({
+        doGenerate: () => mockModel.doGenerate(mockParams),
+        doStream: () => mockModel.doStream(mockParams),
+        params: mockParams,
+        model: mockModel,
+      });
+
+      expect(callCount).toBe(2);
+      expect((result as any).content[0].text).toContain('much longer response');
+    });
+
+    it('should return blocked message when retries exhausted', async () => {
+      let callCount = 0;
+      const mockModel = {
+        ...createMockModel(),
+        doGenerate: vi.fn().mockImplementation(async () => {
+          callCount++;
+          // Always return short response to trigger blocking
+          return {
+            content: [{ type: 'text', text: 'Short' }],
+            finishReason: 'stop',
+            usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 },
+            rawCall: { rawPrompt: 'test', rawSettings: {} },
+            response: { headers: {} },
+            warnings: [],
+          };
+        }),
+      } as LanguageModelV2;
+
+      const lengthGuardrail = defineOutputGuardrail({
+        name: 'min-length',
+        description: 'Requires minimum length',
+        execute: async ({ result }) => {
+          // Handle both middleware format (content array) and direct text format
+          const text =
+            (result as any).text || (result as any).content?.[0]?.text || '';
+          if (text.length < 50) {
+            return {
+              tripwireTriggered: true,
+              message: `Response too short: ${text.length} characters`,
+              severity: 'medium' as const,
+            };
+          }
+          return { tripwireTriggered: false };
+        },
+      });
+
+      const middleware = createOutputGuardrailsMiddleware({
+        outputGuardrails: [lengthGuardrail],
+        replaceOnBlocked: true,
+        retry: {
+          maxRetries: 2,
+          buildRetryParams: ({ originalParams }) => ({
+            ...originalParams,
+            prompt: [
+              ...(Array.isArray(originalParams.prompt)
+                ? originalParams.prompt
+                : []),
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: ' Please provide a more detailed response.',
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+      });
+
+      const mockParams = {
+        prompt: [
+          { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
+        ],
+      } as LanguageModelV2CallOptions;
+
+      const result = await middleware.wrapGenerate!({
+        doGenerate: () => mockModel.doGenerate(mockParams),
+        doStream: () => mockModel.doStream(mockParams),
+        params: mockParams,
+        model: mockModel,
+      });
+
+      // Should try 3 times (original + 2 retries)
+      expect(callCount).toBe(3);
+      // Should return blocked message since replaceOnBlocked is true
+      expect((result as any).content[0].text).toContain('[Output blocked:');
+    });
+
+    it('should respect onlyWhen predicate for retries', async () => {
+      let callCount = 0;
+      const mockModel = {
+        ...createMockModel(),
+        doGenerate: vi.fn().mockImplementation(async () => {
+          callCount++;
+          return {
+            content: [{ type: 'text', text: 'Short' }],
+            finishReason: 'stop',
+            usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 },
+            rawCall: { rawPrompt: 'test', rawSettings: {} },
+            response: { headers: {} },
+            warnings: [],
+          };
+        }),
+      } as LanguageModelV2;
+
+      const lengthGuardrail = defineOutputGuardrail({
+        name: 'min-length',
+        description: 'Requires minimum length',
+        execute: async ({ result }) => {
+          // Handle both middleware format (content array) and direct text format
+          const text =
+            (result as any).text || (result as any).content?.[0]?.text || '';
+          if (text.length < 50) {
+            return {
+              tripwireTriggered: true,
+              message: `Response too short: ${text.length} characters`,
+              severity: 'critical' as const, // Critical severity
+            };
+          }
+          return { tripwireTriggered: false };
+        },
+      });
+
+      const middleware = createOutputGuardrailsMiddleware({
+        outputGuardrails: [lengthGuardrail],
+        replaceOnBlocked: true,
+        retry: {
+          maxRetries: 2,
+          onlyWhen: (summary) => {
+            // Only retry for medium severity, not critical
+            return summary.blockedResults.some((r) => r.severity === 'medium');
+          },
+          buildRetryParams: ({ originalParams }) => originalParams,
+        },
+      });
+
+      const mockParams = {
+        prompt: [
+          { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
+        ],
+      } as LanguageModelV2CallOptions;
+
+      const result = await middleware.wrapGenerate!({
+        doGenerate: () => mockModel.doGenerate(mockParams),
+        doStream: () => mockModel.doStream(mockParams),
+        params: mockParams,
+        model: mockModel,
+      });
+
+      // Should only call once since onlyWhen predicate returns false for critical severity
+      expect(callCount).toBe(1);
+      expect((result as any).content[0].text).toContain('[Output blocked:');
+    });
+
+    it('should apply backoff delay between retry attempts', async () => {
+      let callCount = 0;
+      const mockModel = {
+        ...createMockModel(),
+        doGenerate: vi.fn().mockImplementation(async () => {
+          callCount++;
+          if (callCount === 1) {
+            return {
+              content: [{ type: 'text', text: 'Short' }],
+              finishReason: 'stop',
+              usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 },
+              rawCall: { rawPrompt: 'test', rawSettings: {} },
+              response: { headers: {} },
+              warnings: [],
+            };
+          }
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'This is a much longer response that should pass the length requirement',
+              },
+            ],
+            finishReason: 'stop',
+            usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+            rawCall: { rawPrompt: 'test', rawSettings: {} },
+            response: { headers: {} },
+            warnings: [],
+          };
+        }),
+      } as LanguageModelV2;
+
+      const lengthGuardrail = defineOutputGuardrail({
+        name: 'min-length',
+        description: 'Requires minimum length',
+        execute: async ({ result }) => {
+          // Handle both middleware format (content array) and direct text format
+          const text =
+            (result as any).text || (result as any).content?.[0]?.text || '';
+          if (text.length < 50) {
+            return {
+              tripwireTriggered: true,
+              message: `Response too short: ${text.length} characters`,
+              severity: 'medium' as const,
+            };
+          }
+          return { tripwireTriggered: false };
+        },
+      });
+
+      const middleware = createOutputGuardrailsMiddleware({
+        outputGuardrails: [lengthGuardrail],
+        replaceOnBlocked: false, // Don't replace on blocked so we can see the retry result
+        retry: {
+          maxRetries: 1,
+          backoffMs: 100,
+          buildRetryParams: ({ originalParams }) => originalParams,
+        },
+      });
+
+      const mockParams = {
+        prompt: [
+          { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
+        ],
+      } as LanguageModelV2CallOptions;
+
+      const startTime = Date.now();
+      await middleware.wrapGenerate!({
+        doGenerate: () => mockModel.doGenerate(mockParams),
+        doStream: () => mockModel.doStream(mockParams),
+        params: mockParams,
+        model: mockModel,
+      });
+      const endTime = Date.now();
+
+      expect(callCount).toBe(2);
+      // Should take at least 95ms due to backoff (allowing for timing variance)
+      expect(endTime - startTime).toBeGreaterThanOrEqual(95);
+    });
+  });
 });

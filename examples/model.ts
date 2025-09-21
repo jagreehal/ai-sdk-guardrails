@@ -14,7 +14,7 @@ export const llama3_2 = ollama(MODEL_NAME, {
 export const mistralModel = mistral('mistral-small-latest');
 
 // Default model for text generation (Llama works well for this)
-export const model = llama3_2;
+export const model = mistralModel;
 
 export async function getEmbedding(input: string) {
   const { embedding } = await embed({

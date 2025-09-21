@@ -487,17 +487,17 @@ const protectedModel = wrapWithGuardrails(model, {
     const result = executionSummary.blockedResults[0];
     console.log('❌ Role hierarchy violation detected:', result?.message);
     if (result?.metadata) {
-      console.log('   Violations:', result.metadata.totalViolations);
-      console.log('   Highest Severity:', result.metadata.highestSeverity);
-      console.log('   Risk Score:', result.metadata.riskScore);
-      if (
-        result.metadata.violationTypes &&
-        result.metadata.violationTypes.length > 0
-      ) {
-        console.log(
-          '   Violation Types:',
-          result.metadata.violationTypes.join(', '),
-        );
+      const meta = result.metadata as {
+        totalViolations?: number;
+        highestSeverity?: string;
+        riskScore?: number;
+        violationTypes?: string[];
+      };
+      console.log('   Violations:', meta.totalViolations);
+      console.log('   Highest Severity:', meta.highestSeverity);
+      console.log('   Risk Score:', meta.riskScore);
+      if (meta.violationTypes && meta.violationTypes.length > 0) {
+        console.log('   Violation Types:', meta.violationTypes.join(', '));
       }
     }
   },
@@ -505,9 +505,14 @@ const protectedModel = wrapWithGuardrails(model, {
     const result = executionSummary.blockedResults[0];
     console.log('❌ Output role hierarchy violation:', result?.message);
     if (result?.metadata) {
-      console.log('   Violations:', result.metadata.totalViolations);
-      console.log('   Highest Severity:', result.metadata.highestSeverity);
-      console.log('   Risk Score:', result.metadata.riskScore);
+      const meta = result.metadata as {
+        totalViolations?: number;
+        highestSeverity?: string;
+        riskScore?: number;
+      };
+      console.log('   Violations:', meta.totalViolations);
+      console.log('   Highest Severity:', meta.highestSeverity);
+      console.log('   Risk Score:', meta.riskScore);
     }
   },
 });
@@ -622,11 +627,9 @@ const warningModel = wrapWithGuardrails(model, {
     console.log('⚠️  Warning:', result?.message);
     if (result?.metadata) {
       console.log('   Risk Score:', result.metadata.riskScore);
-      if (
-        result.metadata.violationTypes &&
-        result.metadata.violationTypes.length > 0
-      ) {
-        console.log('   Primary Violation:', result.metadata.violationTypes[0]);
+      const meta = result.metadata as { violationTypes?: string[] };
+      if (meta.violationTypes && meta.violationTypes.length > 0) {
+        console.log('   Primary Violation:', meta.violationTypes[0]);
       }
     }
   },

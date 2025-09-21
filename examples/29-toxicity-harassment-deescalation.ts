@@ -321,9 +321,12 @@ function detectToxicity(text: string): {
   // Determine de-escalation strategy based on highest severity violation
   let deEscalationStrategy = 'redirect';
   if (violations.length > 0) {
-    let highestSeverityViolation = violations[0]!;
+    let highestSeverityViolation = violations[0];
     for (let i = 1; i < violations.length; i++) {
-      const current = violations[i]!;
+      const current = violations[i];
+      if (!current || !highestSeverityViolation) {
+        continue;
+      }
       const currentSeverity =
         TOXICITY_CATEGORIES[
           current.category as keyof typeof TOXICITY_CATEGORIES
@@ -341,10 +344,12 @@ function detectToxicity(text: string): {
         highestSeverityViolation = current;
       }
     }
-    deEscalationStrategy =
-      TOXICITY_CATEGORIES[
-        highestSeverityViolation.category as keyof typeof TOXICITY_CATEGORIES
-      ].deEscalationStrategy;
+    if (highestSeverityViolation) {
+      deEscalationStrategy =
+        TOXICITY_CATEGORIES[
+          highestSeverityViolation.category as keyof typeof TOXICITY_CATEGORIES
+        ].deEscalationStrategy;
+    }
   }
 
   return {
