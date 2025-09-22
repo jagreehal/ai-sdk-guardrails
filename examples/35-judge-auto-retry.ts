@@ -64,7 +64,9 @@ const llmJudgeGuardrail = defineOutputGuardrail<JudgeMeta>({
       if (json) {
         parsed = JSON.parse(json);
       }
-    } catch {}
+    } catch {
+      // Ignore JSON parse errors, will use fallback heuristic
+    }
 
     // Fallback heuristic if parse failed
     if (!parsed) {

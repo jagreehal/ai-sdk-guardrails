@@ -10,7 +10,7 @@ import { model } from './model';
 import {
   defineInputGuardrail,
   defineOutputGuardrail,
-  wrapWithGuardrails,
+  withGuardrails,
 } from '../src/guardrails';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
@@ -176,7 +176,7 @@ console.log(
 );
 
 // Create a fully protected model
-const protectedModel = wrapWithGuardrails<
+const protectedModel = withGuardrails<
   CombinedInputMetadata,
   CombinedOutputMetadata
 >(model, {
@@ -281,7 +281,7 @@ try {
 // Test 5: Blocking mode example
 console.log('Test 5: Blocking mode (throws on violations)');
 
-const strictModel = wrapWithGuardrails<
+const strictModel = withGuardrails<
   CombinedInputMetadata,
   CombinedOutputMetadata
 >(model, {
@@ -318,7 +318,7 @@ console.log('Test 6: Guardrail statistics tracking');
 let inputBlockCount = 0;
 let outputBlockCount = 0;
 
-const statsModel = wrapWithGuardrails<
+const statsModel = withGuardrails<
   CombinedInputMetadata,
   CombinedOutputMetadata
 >(model, {

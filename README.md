@@ -23,11 +23,11 @@ Copy/paste minimal setup:
 ```ts
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { wrapWithGuardrails } from 'ai-sdk-guardrails';
+import { withGuardrails } from 'ai-sdk-guardrails';
 import { piiDetector } from 'ai-sdk-guardrails/guardrails/input';
 import { minLengthRequirement } from 'ai-sdk-guardrails/guardrails/output';
 
-const model = wrapWithGuardrails(openai('gpt-4o'), {
+const model = withGuardrails(openai('gpt-4o'), {
   inputGuardrails: [piiDetector()],
   outputGuardrails: [minLengthRequirement(160)],
 });
@@ -55,10 +55,10 @@ Wrap your model and keep using `generateText` as usual:
 ```ts
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { wrapWithGuardrails } from 'ai-sdk-guardrails';
+import { withGuardrails } from 'ai-sdk-guardrails';
 import { piiDetector } from 'ai-sdk-guardrails/guardrails/input';
 
-const model = wrapWithGuardrails(openai('gpt-4o'), {
+const model = withGuardrails(openai('gpt-4o'), {
   inputGuardrails: [piiDetector()],
 });
 
@@ -85,6 +85,35 @@ const { text } = await generateText({
 - Architecture
 - Contributing
 
+## API Overview
+
+### Primary Functions
+
+- **`withGuardrails(model, config)`** - Main API for wrapping language models with guardrails
+- **`createGuardrails(config)`** - Factory to create reusable guardrail configurations
+- **`withAgentGuardrails(agentSettings, config)`** - Wrap AI SDK Agents with guardrails
+
+### Migration from v3.x
+
+- `wrapWithGuardrails` → `withGuardrails` (alias available, deprecated)
+- `wrapAgentWithGuardrails` → `withAgentGuardrails` (alias available, deprecated)
+- Error classes: `InputBlockedError` → `GuardrailsInputError`, `OutputBlockedError` → `GuardrailsOutputError`
+
+```ts
+// Before (v3.x - still works but deprecated)
+import { wrapWithGuardrails, InputBlockedError } from 'ai-sdk-guardrails';
+const model = wrapWithGuardrails(openai('gpt-4o'), { ... });
+
+// After (v4.x - recommended)
+import { withGuardrails, GuardrailsInputError } from 'ai-sdk-guardrails';
+const model = withGuardrails(openai('gpt-4o'), { ... });
+
+// Factory pattern (new in v4.x)
+import { createGuardrails } from 'ai-sdk-guardrails';
+const guards = createGuardrails({ ... });
+const model = guards(openai('gpt-4o'));
+```
+
 ## Concepts
 
 - Input guardrails: Validate or block prompts to save cost and enforce rules before the call.
@@ -104,7 +133,7 @@ import { openai } from '@ai-sdk/openai';
 import {
   defineInputGuardrail,
   defineOutputGuardrail,
-  wrapWithGuardrails,
+  withGuardrails,
 } from 'ai-sdk-guardrails';
 
 const businessHours = defineInputGuardrail({
@@ -126,7 +155,7 @@ const minQuality = defineOutputGuardrail({
   },
 });
 
-const model = wrapWithGuardrails(openai('gpt-4o'), {
+const model = withGuardrails(openai('gpt-4o'), {
   inputGuardrails: [businessHours],
   outputGuardrails: [minQuality],
 });
@@ -136,7 +165,7 @@ const model = wrapWithGuardrails(openai('gpt-4o'), {
 
 ```ts
 import { openai } from '@ai-sdk/openai';
-import { wrapWithGuardrails } from 'ai-sdk-guardrails';
+import { withGuardrails } from 'ai-sdk-guardrails';
 import {
   piiDetector,
   blockedKeywords,
@@ -148,7 +177,7 @@ import {
   confidenceThreshold,
 } from 'ai-sdk-guardrails/guardrails/output';
 
-const model = wrapWithGuardrails(openai('gpt-4o'), {
+const model = withGuardrails(openai('gpt-4o'), {
   inputGuardrails: [
     piiDetector(),
     blockedKeywords(['test', 'spam']),
@@ -169,10 +198,10 @@ Works out of the box. By default, guardrails run after the stream ends (buffer m
 ```ts
 import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { wrapWithGuardrails } from 'ai-sdk-guardrails';
+import { withGuardrails } from 'ai-sdk-guardrails';
 import { minLengthRequirement } from 'ai-sdk-guardrails/guardrails/output';
 
-const model = wrapWithGuardrails(openai('gpt-4o'), {
+const model = withGuardrails(openai('gpt-4o'), {
   outputGuardrails: [minLengthRequirement(120)],
   // Evaluate as tokens arrive; stop or replace early when blocked
   streamMode: 'progressive',
@@ -221,10 +250,7 @@ const result = await retry({
 ```ts
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import {
-  wrapWithOutputGuardrails,
-  defineOutputGuardrail,
-} from 'ai-sdk-guardrails';
+import { withGuardrails, defineOutputGuardrail } from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
 const minLengthGuardrail = defineOutputGuardrail<{ minChars: number }>({
@@ -300,16 +326,98 @@ try {
 }
 ```
 
+## Reusable Guardrails Factory
+
+Use `createGuardrails()` to create reusable guardrail configurations that can be applied to multiple models:
+
+```ts
+import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { createGuardrails, defineInputGuardrail } from 'ai-sdk-guardrails';
+
+// Create reusable guardrails configuration
+const productionGuards = createGuardrails({
+  inputGuardrails: [piiDetector(), contentFilter()],
+  outputGuardrails: [qualityCheck(), minLength(100)],
+  throwOnBlocked: true,
+});
+
+// Apply to multiple models
+const gpt4 = productionGuards(openai('gpt-4o'));
+const claude = productionGuards(anthropic('claude-3-sonnet'));
+
+// Compose multiple guardrail sets
+const strictLimits = createGuardrails({ inputGuardrails: [maxLength(500)] });
+const piiProtection = createGuardrails({ inputGuardrails: [piiDetector()] });
+
+// Chain them together
+const model = piiProtection(strictLimits(openai('gpt-4o')));
+```
+
+## Agent Support
+
+Guardrails work with AI SDK Agents for multi-step agentic workflows:
+
+```ts
+import { openai } from '@ai-sdk/openai';
+import { withAgentGuardrails, defineOutputGuardrail } from 'ai-sdk-guardrails';
+import { tool } from 'ai';
+import { z } from 'zod';
+
+// Define tools for the agent
+const searchTool = tool({
+  description: 'Search for information',
+  inputSchema: z.object({ query: z.string() }),
+  execute: async ({ query }) => `Results for: ${query}`,
+});
+
+// Create agent with guardrails
+const agent = withAgentGuardrails(
+  {
+    model: openai('gpt-4o'),
+    tools: { search: searchTool },
+    system: 'You are a helpful research assistant.',
+  },
+  {
+    outputGuardrails: [
+      defineOutputGuardrail({
+        name: 'tool-usage-required',
+        description: 'Ensures agent uses search tools',
+        execute: async (params) => {
+          const hasToolCall = params.result.steps?.some(
+            (step) => step.type === 'tool-call',
+          );
+
+          return {
+            tripwireTriggered: !hasToolCall,
+            message: hasToolCall
+              ? 'Tool usage validated'
+              : 'Must use search tools for research',
+            severity: 'high',
+          };
+        },
+      }),
+    ],
+    throwOnBlocked: true,
+  },
+);
+
+// Use the guarded agent
+const result = await agent.generate({
+  prompt: 'Research the latest AI developments',
+});
+```
+
 ## API
 
-| Export                                                                                                | Description                                                                      |
-| ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `defineInputGuardrail`, `defineOutputGuardrail`                                                       | Create guardrails with clear messages, severity, and metadata.                   |
-| `wrapWithInputGuardrails`, `wrapWithOutputGuardrails`, `wrapWithGuardrails`                           | Attach guardrails to any AI SDK model via middleware.                            |
-| `executeInputGuardrails`, `executeOutputGuardrails`                                                   | Run guardrails programmatically (outside middleware) and get structured results. |
-| `retry`, `retryHelpers`                                                                               | Standalone auto-retry utilities with validation and backoff.                     |
-| `GuardrailsError`, `InputBlockedError`, `OutputBlockedError`, `isGuardrailsError`, `extractErrorInfo` | Structured errors and helpers for robust handling.                               |
-| `exponentialBackoff`, `linearBackoff`, `fixedBackoff`, `jitteredExponentialBackoff`, `backoffPresets` | Backoff strategies to control retry pacing.                                      |
+| Export                                                                                                      | Description                                                                      |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `defineInputGuardrail`, `defineOutputGuardrail`                                                             | Create guardrails with clear messages, severity, and metadata.                   |
+| `withGuardrails`, `createGuardrails`, `withAgentGuardrails`                                                 | Attach guardrails to AI SDK models and agents via middleware.                    |
+| `executeInputGuardrails`, `executeOutputGuardrails`                                                         | Run guardrails programmatically (outside middleware) and get structured results. |
+| `retry`, `retryHelpers`                                                                                     | Standalone auto-retry utilities with validation and backoff.                     |
+| `GuardrailsError`, `GuardrailsInputError`, `GuardrailsOutputError`, `isGuardrailsError`, `extractErrorInfo` | Structured errors and helpers for robust handling.                               |
+| `exponentialBackoff`, `linearBackoff`, `fixedBackoff`, `jitteredExponentialBackoff`, `backoffPresets`       | Backoff strategies to control retry pacing.                                      |
 
 See source for built-in helpers:
 

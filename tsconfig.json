@@ -2,7 +2,7 @@
   "compilerOptions": {
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "target": "es2022",
+    "target": "es2023",
     "allowJs": true,
     "resolveJsonModule": true,
     "moduleDetection": "force",
@@ -13,7 +13,7 @@
     "noImplicitOverride": true,
     "module": "ES2022",
     "moduleResolution": "Bundler",
-    "lib": ["es2022", "dom"],
+    "lib": ["es2023", "dom"],
     "types": ["node"],
     "noEmit": true,
     "outDir": "./dist"

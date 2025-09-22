@@ -296,7 +296,6 @@ type CustomValidationInput = {
   maxOutputTokens?: number;
 };
 
-/* eslint-disable no-unused-vars */
 type CustomValidationFn = (payload: CustomValidationInput) => boolean;
 
 export const customValidation = (
@@ -599,3 +598,230 @@ export const codeGenerationLimiter = (
       };
     },
   );
+
+/**
+ * Allowed tools guardrail that validates tool calls against allowed/denied lists
+ * This guardrail works with the AI SDK's tool system to prevent unauthorized tool usage
+ */
+export interface AllowedToolsOptions {
+  /** List of explicitly allowed tool names - REQUIRED for security */
+  allowedTools: string[];
+  /** List of explicitly denied tool names (takes precedence over allowed) */
+  deniedTools?: string[];
+  /** Custom tool validation function */
+  customValidator?: (
+    toolName: string,
+    context: InputGuardrailContext,
+  ) => boolean;
+  /** Whether to detect tool calls in natural language requests */
+  detectNaturalLanguageTools?: boolean;
+  /** Custom tool name patterns to detect in natural language */
+  toolPatterns?: RegExp[];
+}
+
+// Helper function to extract tool calls from AI SDK context
+function extractToolCalls(context: InputGuardrailContext): string[] {
+  const { messages } = extractTextContent(context);
+  const toolCalls: string[] = [];
+
+  // Look for tool calls in messages (AI SDK pattern)
+  for (const message of messages) {
+    if (message && typeof message === 'object' && 'toolCalls' in message) {
+      const messageWithToolCalls = message as {
+        toolCalls?: Array<{ toolName?: string }>;
+      };
+      const toolCallsArray = messageWithToolCalls.toolCalls;
+      if (Array.isArray(toolCallsArray)) {
+        for (const toolCall of toolCallsArray) {
+          if (
+            toolCall &&
+            typeof toolCall === 'object' &&
+            'toolName' in toolCall
+          ) {
+            toolCalls.push(String(toolCall.toolName));
+          }
+        }
+      }
+    }
+  }
+
+  return toolCalls;
+}
+
+// Helper function to detect tool usage in natural language
+function detectNaturalLanguageToolRequests(
+  text: string,
+  patterns: RegExp[],
+): string[] {
+  const detectedTools: string[] = [];
+
+  for (const pattern of patterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      for (const match of matches) {
+        // Extract tool name from match - more precise extraction
+        const toolMatch = match.match(/(\w+)/);
+        if (toolMatch && toolMatch[1]) {
+          const toolName = toolMatch[1].toLowerCase();
+          // Filter out common English words that aren't tools
+          const commonWords = new Set([
+            'the',
+            'and',
+            'or',
+            'but',
+            'in',
+            'on',
+            'at',
+            'to',
+            'for',
+            'of',
+            'with',
+            'by',
+            'use',
+            'call',
+            'run',
+            'execute',
+            'get',
+            'set',
+            'make',
+            'take',
+            'give',
+            'put',
+          ]);
+          if (!commonWords.has(toolName) && toolName.length > 2) {
+            detectedTools.push(toolName);
+          }
+        }
+      }
+    }
+  }
+
+  return [...new Set(detectedTools)]; // Remove duplicates
+}
+
+export const allowedToolsGuardrail = (
+  options: AllowedToolsOptions,
+): InputGuardrail => {
+  const {
+    allowedTools,
+    deniedTools = [],
+    customValidator,
+    detectNaturalLanguageTools = false, // Default to false for security
+    toolPatterns = [
+      // More specific patterns that indicate actual tool usage
+      /use\s+the\s+(\w+)\s+tool/gi,
+      /call\s+the\s+(\w+)\s+function/gi,
+      /execute\s+(\w+)/gi,
+      /run\s+(\w+)/gi,
+      /invoke\s+(\w+)/gi,
+      /trigger\s+(\w+)/gi,
+    ],
+  } = options;
+
+  // Validate required configuration
+  if (!allowedTools || allowedTools.length === 0) {
+    throw new Error(
+      'allowedToolsGuardrail requires a non-empty allowedTools array for security',
+    );
+  }
+
+  return createInputGuardrail(
+    'allowed-tools-guardrail',
+    'Validates tool usage against allowed/denied lists',
+    (context) => {
+      const { prompt, messages, system } = extractTextContent(context);
+      const allText = [
+        prompt,
+        ...messages.map((msg: MessageContent) => String(msg?.content || '')),
+        system,
+      ].join(' ');
+
+      // Extract tool calls from AI SDK context
+      const contextToolCalls = extractToolCalls(context);
+
+      // Detect natural language tool requests if enabled
+      const naturalLanguageTools = detectNaturalLanguageTools
+        ? detectNaturalLanguageToolRequests(allText, toolPatterns)
+        : [];
+
+      // Combine all detected tools
+      const allDetectedTools = [
+        ...new Set([...contextToolCalls, ...naturalLanguageTools]),
+      ];
+
+      if (allDetectedTools.length === 0) {
+        return {
+          tripwireTriggered: false,
+          metadata: {
+            detectedTools: [],
+            allowedTools,
+            deniedTools,
+            detectionMethod: 'none',
+          },
+        };
+      }
+
+      const violations: string[] = [];
+      const blockedTools: string[] = [];
+
+      for (const toolName of allDetectedTools) {
+        // Check denied tools first (takes precedence)
+        if (deniedTools.includes(toolName)) {
+          violations.push(`Tool '${toolName}' is explicitly denied`);
+          blockedTools.push(toolName);
+          continue;
+        }
+
+        // Check custom validator
+        if (customValidator && !customValidator(toolName, context)) {
+          violations.push(`Tool '${toolName}' failed custom validation`);
+          blockedTools.push(toolName);
+          continue;
+        }
+
+        // Check allowed tools list (required - no default allow)
+        if (!allowedTools.includes(toolName)) {
+          violations.push(
+            `Tool '${toolName}' is not in the allowed tools list`,
+          );
+          blockedTools.push(toolName);
+          continue;
+        }
+      }
+
+      if (violations.length > 0) {
+        return {
+          tripwireTriggered: true,
+          message: `Unauthorized tool usage detected: ${violations.join('; ')}`,
+          severity: blockedTools.some((tool) => deniedTools.includes(tool))
+            ? 'critical'
+            : 'high',
+          metadata: {
+            detectedTools: allDetectedTools,
+            blockedTools,
+            violations,
+            allowedTools,
+            deniedTools,
+            contextToolCalls,
+            naturalLanguageTools,
+            textLength: allText.length,
+          },
+          suggestion:
+            'Remove unauthorized tool calls or update the allowed tools configuration',
+        };
+      }
+
+      return {
+        tripwireTriggered: false,
+        metadata: {
+          detectedTools: allDetectedTools,
+          allToolsAllowed: true,
+          allowedTools,
+          deniedTools,
+          contextToolCalls,
+          naturalLanguageTools,
+        },
+      };
+    },
+  );
+};

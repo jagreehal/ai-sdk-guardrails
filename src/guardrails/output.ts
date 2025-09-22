@@ -61,12 +61,16 @@ function emptyContent(): ContentExtraction {
   return { ...EMPTY_CONTENT };
 }
 
-function mapUsage(usage: UsageRecord) {
+function mapUsage(
+  usage: UsageRecord,
+):
+  | { promptTokens?: number; completionTokens?: number; totalTokens?: number }
+  | undefined {
   if (!usage) {
     return undefined;
   }
 
-  const pickNumber = (keys: string[]) => {
+  const pickNumber = (keys: string[]): number | undefined => {
     for (const key of keys) {
       const value = usage[key];
       if (typeof value === 'number') {
@@ -500,11 +504,9 @@ type CustomOutputValidationInput = {
   generationTimeMs?: number;
 };
 
-/* eslint-disable no-unused-vars */
 type CustomOutputValidationFn = (
   payload: CustomOutputValidationInput,
 ) => boolean;
-/* eslint-enable no-unused-vars */
 
 export const customValidation = (
   name: string,
@@ -539,7 +541,7 @@ export const customValidation = (
 };
 
 export const schemaValidation = (schema: {
-  parse: (obj: unknown) => unknown; // eslint-disable-line no-unused-vars
+  parse: (obj: unknown) => unknown;
 }): OutputGuardrail =>
   createOutputGuardrail(
     'schema-validation',
@@ -1027,6 +1029,552 @@ export const complianceChecker = (
             ?.environment,
         },
         suggestion: 'Review output for compliance with applicable regulations',
+      };
+    },
+  );
+
+/**
+ * Secret redaction guardrail that detects and blocks output containing sensitive information
+ * like API keys, access tokens, AWS ARNs, JWTs, and PEM certificates
+ */
+export const secretRedaction = createOutputGuardrail(
+  'secret-redaction',
+  (context: OutputGuardrailContext) => {
+    const { text, object } = extractContent(context.result);
+    const content = text || (object ? JSON.stringify(object) : '');
+
+    // Define patterns for common secret formats
+    const secretPatterns = [
+      // API Keys (various formats)
+      {
+        name: 'API Key',
+        pattern:
+          /(?:api[_-]?key|apikey|access[_-]?key)\s*[:=]\s*['"]?([a-zA-Z0-9]{20,})['"]?/gi,
+      },
+      {
+        name: 'Generic API Key',
+        pattern: /\b[a-zA-Z0-9]{32,}\b/g, // Generic long alphanumeric strings
+      },
+      // AWS Access Keys
+      {
+        name: 'AWS Access Key',
+        pattern: /AKIA[0-9A-Z]{16}/g,
+      },
+      // AWS Secret Keys
+      {
+        name: 'AWS Secret Key',
+        pattern: /[A-Za-z0-9/+=]{40}/g,
+      },
+      // AWS ARNs
+      {
+        name: 'AWS ARN',
+        pattern:
+          /arn:aws:[a-zA-Z0-9-]+:[a-zA-Z0-9-]*:[0-9]*:[a-zA-Z0-9-_/.:*]+/g,
+      },
+      // JWT Tokens
+      {
+        name: 'JWT Token',
+        pattern: /eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/g,
+      },
+      // Bearer Tokens
+      {
+        name: 'Bearer Token',
+        pattern: /Bearer\s+[a-zA-Z0-9_.-]+/gi,
+      },
+      // GitHub Personal Access Tokens
+      {
+        name: 'GitHub Token',
+        pattern: /ghp_[a-zA-Z0-9]{36}/g,
+      },
+      // Google API Keys
+      {
+        name: 'Google API Key',
+        pattern: /AIza[0-9A-Za-z_-]{35}/g,
+      },
+      // PEM Certificate/Key blocks
+      {
+        name: 'PEM Certificate/Key',
+        pattern: /-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----/g,
+      },
+      // SSH Private Keys
+      {
+        name: 'SSH Private Key',
+        pattern:
+          /-----BEGIN (RSA|DSA|EC|OPENSSH) PRIVATE KEY-----[\s\S]*?-----END (RSA|DSA|EC|OPENSSH) PRIVATE KEY-----/g,
+      },
+      // Database Connection Strings
+      {
+        name: 'Database Connection String',
+        pattern:
+          /(?:mongodb|postgres|mysql|redis):\/\/[^@\s]+:[^@\s]+@[^/\s]+/gi,
+      },
+      // Generic tokens/secrets in environment variable format
+      {
+        name: 'Environment Secret',
+        pattern:
+          /(?:token|secret|password|key)\s*[:=]\s*['"]?([a-zA-Z0-9_.-]{16,})['"]?/gi,
+      },
+    ];
+
+    const detectedSecrets: Array<{
+      type: string;
+      pattern: string;
+      position: number;
+    }> = [];
+
+    // Check for each pattern
+    for (const { name, pattern } of secretPatterns) {
+      let match;
+      const regex = new RegExp(pattern);
+      while ((match = regex.exec(content)) !== null) {
+        detectedSecrets.push({
+          type: name,
+          pattern: match[0].slice(0, 20) + '...',
+          position: match.index,
+        });
+      }
+    }
+
+    if (detectedSecrets.length > 0) {
+      return {
+        tripwireTriggered: true,
+        message: `Output contains ${detectedSecrets.length} potential secret(s): ${detectedSecrets.map((s) => s.type).join(', ')}`,
+        severity: 'critical' as const,
+        metadata: {
+          secretsDetected: detectedSecrets.length,
+          secretTypes: detectedSecrets.map((s) => s.type),
+          contentLength: content.length,
+        },
+        suggestion: 'Remove sensitive information before sharing output',
+      };
+    }
+
+    return { tripwireTriggered: false };
+  },
+);
+
+/**
+ * Enhanced unsafe content detector that flags potentially harmful, inappropriate, or prohibited content
+ */
+export const unsafeContentDetector = createOutputGuardrail(
+  'unsafe-content-detector',
+  (context: OutputGuardrailContext) => {
+    const { text, object } = extractContent(context.result);
+    const content = text || (object ? JSON.stringify(object) : '');
+
+    // Define categories of unsafe content
+    const unsafePatterns = [
+      {
+        category: 'Violence',
+        patterns: [
+          /\b(kill|murder|assassinate|torture|bomb|weapon|gun|knife|explosive)\b/gi,
+          /\b(harm|hurt|injure|attack|assault|fight)\s+(someone|people|person)/gi,
+          /\b(violence|violent|aggression|aggressive)\b/gi,
+        ],
+      },
+      {
+        category: 'Hate Speech',
+        patterns: [
+          /\b(hate|racist|sexist|homophobic|transphobic|xenophobic)\b/gi,
+          /\b(nazi|fascist|supremacist|terrorism|terrorist)\b/gi,
+          /\b(discrimination|prejudice|bigotry)\b/gi,
+        ],
+      },
+      {
+        category: 'Self-Harm',
+        patterns: [
+          /\b(suicide|self-harm|self-hurt|cut myself|end my life)\b/gi,
+          /\b(want to die|kill myself|harm myself)\b/gi,
+          /\b(suicidal|depression|self-destruction)\b/gi,
+        ],
+      },
+      {
+        category: 'Illegal Activities',
+        patterns: [
+          /\b(illegal drugs|drug dealing|money laundering|fraud|scam)\b/gi,
+          /\b(hack|crack|pirate|steal|burglary|theft)\b/gi,
+          /\b(counterfeit|forgery|blackmail|extortion)\b/gi,
+        ],
+      },
+      {
+        category: 'Adult Content',
+        patterns: [
+          /\b(pornography|explicit sexual|adult content|nsfw)\b/gi,
+          /\b(sexual explicit|graphic sexual|sexual imagery)\b/gi,
+        ],
+      },
+      {
+        category: 'Personal Information',
+        patterns: [
+          /\b\d{3}-\d{2}-\d{4}\b/g, // SSN format
+          /\b\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\b/g, // Credit card format
+          /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, // Email
+        ],
+      },
+    ];
+
+    const detectedIssues: Array<{ category: string; matches: number }> = [];
+
+    for (const { category, patterns } of unsafePatterns) {
+      let totalMatches = 0;
+      for (const pattern of patterns) {
+        const matches = content.match(pattern);
+        if (matches) {
+          totalMatches += matches.length;
+        }
+      }
+      if (totalMatches > 0) {
+        detectedIssues.push({ category, matches: totalMatches });
+      }
+    }
+
+    if (detectedIssues.length > 0) {
+      return {
+        tripwireTriggered: true,
+        message: `Unsafe content detected: ${detectedIssues.map((i) => `${i.category} (${i.matches})`).join(', ')}`,
+        severity: 'high' as const,
+        metadata: {
+          categoriesDetected: detectedIssues.length,
+          issues: detectedIssues,
+          contentLength: content.length,
+        },
+        suggestion:
+          'Review and modify content to remove potentially harmful material',
+      };
+    }
+
+    return { tripwireTriggered: false };
+  },
+);
+
+/**
+ * Cost and quota rails guardrail to monitor token usage and costs
+ */
+export const costQuotaRails = (options: {
+  maxTokensPerRequest?: number;
+  maxCostPerRequest?: number; // in dollars
+  tokenCostPer1K?: number; // cost per 1000 tokens
+}): OutputGuardrail =>
+  createOutputGuardrail(
+    'cost-quota-rails',
+    (context: OutputGuardrailContext) => {
+      const { text, object, usage } = extractContent(context.result);
+      const content = text || (object ? JSON.stringify(object) : '');
+
+      const totalTokens = usage?.totalTokens || 0;
+      const estimatedCost = options.tokenCostPer1K
+        ? (totalTokens / 1000) * options.tokenCostPer1K
+        : 0;
+
+      const issues = [];
+
+      if (
+        options.maxTokensPerRequest &&
+        totalTokens > options.maxTokensPerRequest
+      ) {
+        issues.push(
+          `Token usage (${totalTokens}) exceeds limit (${options.maxTokensPerRequest})`,
+        );
+      }
+
+      if (
+        options.maxCostPerRequest &&
+        estimatedCost > options.maxCostPerRequest
+      ) {
+        issues.push(
+          `Estimated cost ($${estimatedCost.toFixed(4)}) exceeds limit ($${options.maxCostPerRequest})`,
+        );
+      }
+
+      if (issues.length > 0) {
+        return {
+          tripwireTriggered: true,
+          message: `Cost/quota limits exceeded: ${issues.join(', ')}`,
+          severity: 'high' as const,
+          metadata: {
+            totalTokens,
+            estimatedCost,
+            maxTokensPerRequest: options.maxTokensPerRequest,
+            maxCostPerRequest: options.maxCostPerRequest,
+            tokenCostPer1K: options.tokenCostPer1K,
+            contentLength: content.length,
+          },
+          suggestion:
+            'Consider reducing request size or adjusting quota limits',
+        };
+      }
+
+      return { tripwireTriggered: false };
+    },
+  );
+
+/**
+ * Enhanced hallucination/grounding checker with schema constraints and citation validation
+ */
+export const enhancedHallucinationDetector = (options: {
+  requireCitations?: boolean;
+  citationFormats?: string[]; // e.g., ['[1]', '(Source:', 'doi:']
+  factCheckPatterns?: string[]; // patterns to identify factual claims
+  confidenceThreshold?: number; // 0-1, lower is stricter
+  schemaConstraints?: {
+    requiredFields?: string[];
+    allowedValues?: { [field: string]: string[] };
+  };
+}): OutputGuardrail =>
+  createOutputGuardrail(
+    'enhanced-hallucination-detector',
+    (context: OutputGuardrailContext) => {
+      const { text, object } = extractContent(context.result);
+      const content = text || (object ? JSON.stringify(object) : '');
+
+      const {
+        requireCitations = false,
+        citationFormats = ['[', '(', 'doi:', 'url:', 'source:', 'ref:'],
+        factCheckPatterns = [
+          'according to',
+          'studies show',
+          'research indicates',
+          'data suggests',
+          'statistics show',
+          'proven fact',
+          'scientific evidence',
+          'documented',
+          'confirmed by',
+          'published in',
+        ],
+        confidenceThreshold = 0.7,
+        schemaConstraints,
+      } = options;
+
+      const issues: string[] = [];
+      let hallucinationScore = 0;
+
+      // Check for factual claims
+      const factualClaims = factCheckPatterns.filter((pattern) =>
+        content.toLowerCase().includes(pattern.toLowerCase()),
+      );
+
+      // Check for citations if required
+      const citations = citationFormats.filter((format) =>
+        content.toLowerCase().includes(format.toLowerCase()),
+      );
+
+      if (
+        requireCitations &&
+        factualClaims.length > 0 &&
+        citations.length === 0
+      ) {
+        issues.push(
+          `${factualClaims.length} factual claims detected without citations`,
+        );
+        hallucinationScore += 0.4;
+      }
+
+      // Check uncertainty indicators
+      const uncertaintyIndicators = [
+        'i think',
+        'i believe',
+        'probably',
+        'likely',
+        'might be',
+        'could be',
+        'not sure',
+        'uncertain',
+        'possibly',
+        'perhaps',
+        'maybe',
+        'seems like',
+        'appears to be',
+        'if i recall correctly',
+      ];
+
+      const uncertaintyCount = uncertaintyIndicators.filter((indicator) =>
+        content.toLowerCase().includes(indicator),
+      ).length;
+
+      if (uncertaintyCount > 0 && factualClaims.length > 0) {
+        issues.push(`Uncertainty expressions combined with factual claims`);
+        hallucinationScore += uncertaintyCount * 0.1;
+      }
+
+      // Check schema constraints for structured output
+      if (schemaConstraints && object) {
+        const obj = object as Record<string, unknown>;
+
+        // Check required fields
+        if (schemaConstraints.requiredFields) {
+          const missingFields = schemaConstraints.requiredFields.filter(
+            (field) =>
+              !(field in obj) ||
+              obj[field] === null ||
+              obj[field] === undefined,
+          );
+          if (missingFields.length > 0) {
+            issues.push(`Missing required fields: ${missingFields.join(', ')}`);
+            hallucinationScore += 0.3;
+          }
+        }
+
+        // Check allowed values
+        if (schemaConstraints.allowedValues) {
+          for (const [field, allowedValues] of Object.entries(
+            schemaConstraints.allowedValues,
+          )) {
+            if (field in obj && !allowedValues.includes(String(obj[field]))) {
+              issues.push(`Invalid value for field '${field}': ${obj[field]}`);
+              hallucinationScore += 0.2;
+            }
+          }
+        }
+      }
+
+      // Check for contradictory statements
+      const contradictionPatterns = [
+        ['always', 'never'],
+        ['all', 'none'],
+        ['definitely', 'maybe'],
+        ['certain', 'uncertain'],
+        ['true', 'false'],
+      ];
+
+      for (const [pos, neg] of contradictionPatterns) {
+        if (
+          pos &&
+          neg &&
+          content.toLowerCase().includes(pos) &&
+          content.toLowerCase().includes(neg)
+        ) {
+          issues.push(`Potential contradiction detected: ${pos}/${neg}`);
+          hallucinationScore += 0.15;
+        }
+      }
+
+      const isHallucination = hallucinationScore > confidenceThreshold;
+
+      if (isHallucination || issues.length > 0) {
+        return {
+          tripwireTriggered: isHallucination,
+          message: `Potential hallucination detected (score: ${hallucinationScore.toFixed(2)}): ${issues.join('; ')}`,
+          severity: hallucinationScore > 0.8 ? 'high' : 'medium',
+          metadata: {
+            hallucinationScore,
+            confidenceThreshold,
+            issues,
+            factualClaimsCount: factualClaims.length,
+            citationsCount: citations.length,
+            uncertaintyCount,
+            contentLength: content.length,
+            requireCitations,
+          },
+          suggestion:
+            'Verify factual claims with reliable sources and add citations if making specific claims',
+        };
+      }
+
+      return { tripwireTriggered: false };
+    },
+  );
+
+/**
+ * Retry-After integration guardrail that handles provider rate limiting and backoff
+ */
+export const retryAfterIntegration = (options: {
+  maxRetryDelayMs?: number;
+  defaultBackoffMs?: number;
+  jitterFactor?: number; // 0-1, adds randomness to backoff
+  trackRateLimits?: boolean;
+}): OutputGuardrail =>
+  createOutputGuardrail(
+    'retry-after-integration',
+    (context: OutputGuardrailContext) => {
+      const { usage, generationTimeMs } = extractContent(context.result);
+
+      const {
+        maxRetryDelayMs = 60_000, // 1 minute max
+        defaultBackoffMs = 1000, // 1 second default
+        jitterFactor = 0.1,
+        trackRateLimits = true,
+      } = options;
+
+      // Check for rate limiting indicators in the result
+      // Note: In a real implementation, you'd access response headers directly
+      const rateLimitIndicators = {
+        hasRetryAfter: false,
+        retryAfterMs: 0,
+        rateLimitExceeded: false,
+        requestsRemaining: null as number | null,
+        resetTime: null as Date | null,
+      };
+
+      // Simulate checking for rate limit headers (in real usage, these would come from provider response)
+      // const headers = context.result.response?.headers;
+      // if (headers && 'retry-after' in headers) {
+      //   rateLimitIndicators.hasRetryAfter = true;
+      //   rateLimitIndicators.retryAfterMs = parseInt(headers['retry-after']) * 1000;
+      // }
+
+      // Check for high generation time as potential rate limiting indicator
+      if (generationTimeMs && generationTimeMs > 5000) {
+        rateLimitIndicators.rateLimitExceeded = true;
+      }
+
+      // Check usage patterns for potential rate limiting
+      const totalTokens = usage?.totalTokens || 0;
+      if (totalTokens > 10_000) {
+        // High token usage might indicate approaching limits
+        rateLimitIndicators.rateLimitExceeded = true;
+      }
+
+      let recommendedBackoffMs = defaultBackoffMs;
+
+      if (rateLimitIndicators.hasRetryAfter) {
+        recommendedBackoffMs = Math.min(
+          rateLimitIndicators.retryAfterMs,
+          maxRetryDelayMs,
+        );
+      } else if (rateLimitIndicators.rateLimitExceeded) {
+        // Exponential backoff with jitter
+        recommendedBackoffMs = Math.min(
+          defaultBackoffMs * 2 +
+            Math.random() * jitterFactor * defaultBackoffMs,
+          maxRetryDelayMs,
+        );
+      }
+
+      // Add jitter to prevent thundering herd
+      const jitter = Math.random() * jitterFactor * recommendedBackoffMs;
+      const finalBackoffMs = Math.round(recommendedBackoffMs + jitter);
+
+      if (
+        rateLimitIndicators.hasRetryAfter ||
+        rateLimitIndicators.rateLimitExceeded
+      ) {
+        return {
+          tripwireTriggered: true,
+          message: `Rate limiting detected, recommended backoff: ${finalBackoffMs}ms`,
+          severity: 'medium' as const,
+          metadata: {
+            ...rateLimitIndicators,
+            recommendedBackoffMs: finalBackoffMs,
+            originalBackoffMs: recommendedBackoffMs,
+            jitterMs: jitter,
+            maxRetryDelayMs,
+            totalTokens,
+            generationTimeMs,
+            trackRateLimits,
+          },
+          suggestion: `Wait ${finalBackoffMs}ms before making the next request to respect rate limits`,
+        };
+      }
+
+      return {
+        tripwireTriggered: false,
+        metadata: {
+          backoffCalculated: finalBackoffMs,
+          rateLimitTracking: trackRateLimits,
+          generationTimeMs,
+          totalTokens,
+        },
       };
     },
   );

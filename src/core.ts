@@ -8,11 +8,14 @@ export {
   GuardrailExecutionError,
   GuardrailTimeoutError,
   GuardrailConfigurationError,
-  InputBlockedError,
-  OutputBlockedError,
+  GuardrailsInputError,
+  GuardrailsOutputError,
   MiddlewareError,
   isGuardrailsError,
   extractErrorInfo,
+  // Deprecated - use GuardrailsInputError and GuardrailsOutputError instead
+  InputBlockedError,
+  OutputBlockedError,
 } from './errors';
 
 export function createInputGuardrail(
@@ -319,7 +322,7 @@ async function performBackoffWait(
     });
   }
 
-  return Promise.resolve();
+  return;
 }
 
 /**

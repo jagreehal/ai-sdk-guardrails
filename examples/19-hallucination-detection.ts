@@ -421,7 +421,7 @@ const hallucinationDetectionGuardrail =
         // Generate hedging suggestions
         const hedgingSuggestions = verifications
           .map((v) => v.suggestedHedging)
-          .filter((suggestion): suggestion is string => Boolean(suggestion));
+          .filter((s): s is string => s != null);
 
         return {
           tripwireTriggered: true,

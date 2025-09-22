@@ -12,10 +12,7 @@
 import { tool, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapAgentWithGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withAgentGuardrails } from '../src/guardrails';
 import { extractContent } from '../src/guardrails/output';
 
 console.log('🤖 Agent Class + Guardrails Example');
@@ -123,7 +120,7 @@ const qualityGuardrail = defineOutputGuardrail({
 });
 
 // Create an agent with guardrails at the Agent level
-const researchAgent = wrapAgentWithGuardrails(
+const researchAgent = withAgentGuardrails(
   {
     model,
     system: `You are an expert research assistant. Your job is to:

@@ -488,7 +488,7 @@ export interface InputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
   /**
    * Whether to throw errors when guardrails are triggered.
    *
-   * - **true**: Throws `InputBlockedError` - use for strict validation
+   * - **true**: Throws `GuardrailsInputError` - use for strict validation
    * - **false**: Logs warnings and continues - use for monitoring/analytics
    *
    * @default false
@@ -610,7 +610,7 @@ export interface OutputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
   /**
    * Whether to throw errors when guardrails are triggered.
    *
-   * - **true**: Throws `OutputBlockedError` - use for strict validation
+   * - **true**: Throws `GuardrailsOutputError` - use for strict validation
    * - **false**: Logs warnings and continues - use for monitoring/analytics
    *
    * @default false

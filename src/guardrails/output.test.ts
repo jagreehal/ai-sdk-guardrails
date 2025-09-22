@@ -1,4 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type {
+  GenerateTextResult,
+  LanguageModelRequestMetadata,
+  LanguageModelResponseMetadata,
+} from 'ai';
 import {
   lengthLimit,
   blockedContent,
@@ -13,6 +18,52 @@ import {
   performanceMonitor,
 } from './output';
 
+// Helper function to create mock GenerateTextResult
+const createMockGenerateTextResult = (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  overrides: Partial<GenerateTextResult<any, any>> = {},
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): GenerateTextResult<any, any> => ({
+  content: [],
+  text: 'Mock response text',
+  reasoning: [],
+  reasoningText: undefined,
+  files: [],
+  sources: [],
+  toolCalls: [],
+  staticToolCalls: [],
+  dynamicToolCalls: [],
+  toolResults: [],
+  staticToolResults: [],
+  dynamicToolResults: [],
+  finishReason: 'stop' as const,
+  usage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
+  totalUsage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
+  warnings: undefined,
+  request: {} as LanguageModelRequestMetadata,
+  response: {
+    id: 'test-id',
+    timestamp: new Date(),
+    modelId: 'test-model',
+    messages: [],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as LanguageModelResponseMetadata & { messages: any[] },
+  providerMetadata: undefined,
+  steps: [],
+  experimental_output: null,
+  ...overrides,
+});
+
+// Helper function to create mock input context
+const createMockInputContext = () => ({
+  prompt: 'Test prompt',
+  messages: [],
+  system: '',
+  maxOutputTokens: 100,
+  temperature: 0.7,
+  modelParams: {},
+});
+
 describe('Output Guardrails', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -22,13 +73,12 @@ describe('Output Guardrails', () => {
     it('should pass when text content is within limit', async () => {
       const guardrail = lengthLimit(100);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Short response',
           usage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
-          finishReason: 'stop',
-          experimental_providerMetadata: { generationTimeMs: 1000 },
-        } as any,
+          finishReason: 'stop' as const,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -38,13 +88,12 @@ describe('Output Guardrails', () => {
     it('should block when text content exceeds limit', async () => {
       const guardrail = lengthLimit(10);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'This is a very long response that exceeds the limit',
           usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
-          finishReason: 'stop',
-          experimental_providerMetadata: { generationTimeMs: 2000 },
-        } as any,
+          finishReason: 'stop' as const,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -58,14 +107,12 @@ describe('Output Guardrails', () => {
       const guardrail = lengthLimit(50);
       const obj = { name: 'John', age: 30, city: 'New York' };
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: '',
-          object: obj,
-          usage: { totalTokens: 15 },
-          finishReason: 'stop',
-          experimental_providerMetadata: { generationTimeMs: 1500 },
-        } as any,
+          usage: { totalTokens: 15, inputTokens: 0, outputTokens: 15 },
+          finishReason: 'stop' as const,
+        }),
       });
 
       const stringified = JSON.stringify(obj);
@@ -76,13 +123,12 @@ describe('Output Guardrails', () => {
     it('should include performance metadata', async () => {
       const guardrail = lengthLimit(100);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Test',
           usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
-          finishReason: 'stop',
-          experimental_providerMetadata: { generationTimeMs: 2000 },
-        } as any,
+          finishReason: 'stop' as const,
+        }),
       });
 
       expect(result.metadata?.usage).toBeDefined();
@@ -96,11 +142,10 @@ describe('Output Guardrails', () => {
     it('should pass when no blocked words are found', async () => {
       const guardrail = blockedContent(['spam', 'hack']);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Clean output content',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -109,11 +154,10 @@ describe('Output Guardrails', () => {
     it('should block when blocked word is found in text', async () => {
       const guardrail = blockedContent(['spam', 'hack']);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'This response contains spam content',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -126,11 +170,10 @@ describe('Output Guardrails', () => {
     it('should block when blocked word is found in object', async () => {
       const guardrail = blockedContent(['confidential']);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: '',
-          object: { message: 'This is confidential information' },
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -140,11 +183,10 @@ describe('Output Guardrails', () => {
     it('should be case insensitive', async () => {
       const guardrail = blockedContent(['SPAM']);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'spam content',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -156,11 +198,10 @@ describe('Output Guardrails', () => {
     it('should pass when content is within limit', async () => {
       const guardrail = outputLengthLimit(100);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Short output',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -170,11 +211,10 @@ describe('Output Guardrails', () => {
     it('should block when content exceeds limit', async () => {
       const guardrail = outputLengthLimit(10);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'This is a very long output that exceeds the limit',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -187,11 +227,10 @@ describe('Output Guardrails', () => {
     it('should pass when no blocked content is found', async () => {
       const guardrail = blockedOutputContent(['password', 'secret']);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Safe output content',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -200,11 +239,10 @@ describe('Output Guardrails', () => {
     it('should block when blocked content is found', async () => {
       const guardrail = blockedOutputContent(['password', 'secret']);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Your password is 123456',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -217,11 +255,10 @@ describe('Output Guardrails', () => {
     it('should pass when object is provided', async () => {
       const guardrail = jsonValidation();
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: '',
-          object: { valid: true },
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -230,11 +267,10 @@ describe('Output Guardrails', () => {
     it('should pass when text is valid JSON', async () => {
       const guardrail = jsonValidation();
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: '{"name": "John", "age": 30}',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -243,11 +279,10 @@ describe('Output Guardrails', () => {
     it('should block when text is invalid JSON', async () => {
       const guardrail = jsonValidation();
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: '{"name": "John", "age": 30',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -260,11 +295,10 @@ describe('Output Guardrails', () => {
     it('should handle empty text', async () => {
       const guardrail = jsonValidation();
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: '',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -276,14 +310,13 @@ describe('Output Guardrails', () => {
     it('should pass when confidence is above threshold', async () => {
       const guardrail = confidenceThreshold(0.8);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'I am certain this is correct',
-          object: null,
-          usage: { totalTokens: 10 },
-          finishReason: 'stop',
+          usage: { totalTokens: 10, inputTokens: 0, outputTokens: 10 },
+          finishReason: 'stop' as const,
           reasoningText: 'High confidence response',
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -292,13 +325,12 @@ describe('Output Guardrails', () => {
     it('should block when confidence is below threshold due to uncertainty words', async () => {
       const guardrail = confidenceThreshold(0.7);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'I think this might be correct, but I am not sure',
-          object: null,
-          usage: { totalTokens: 15 },
-          finishReason: 'stop',
-        } as any,
+          usage: { totalTokens: 15, inputTokens: 0, outputTokens: 15 },
+          finishReason: 'stop' as const,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -310,13 +342,12 @@ describe('Output Guardrails', () => {
     it('should apply finish reason penalty', async () => {
       const guardrail = confidenceThreshold(0.8);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'This is a confident response',
-          object: null,
-          usage: { totalTokens: 10 },
-          finishReason: 'length',
-        } as any,
+          usage: { totalTokens: 10, inputTokens: 0, outputTokens: 10 },
+          finishReason: 'length' as const,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -327,17 +358,13 @@ describe('Output Guardrails', () => {
     it('should include comprehensive metadata', async () => {
       const guardrail = confidenceThreshold(0.6);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Maybe this is correct',
-          object: null,
           usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
-          finishReason: 'stop',
+          finishReason: 'stop' as const,
           reasoningText: 'Uncertain response',
-          experimental_providerMetadata: {
-            reasoningText: 'Uncertain response',
-          },
-        } as any,
+        }),
       });
 
       expect(result.metadata?.confidence).toBeDefined();
@@ -354,11 +381,10 @@ describe('Output Guardrails', () => {
     it('should pass when content is not toxic', async () => {
       const guardrail = toxicityFilter(0.7);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'This is a positive and helpful response',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -367,11 +393,10 @@ describe('Output Guardrails', () => {
     it('should block when content is toxic', async () => {
       const guardrail = toxicityFilter(0.5);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'This is toxic and harmful content',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -386,11 +411,10 @@ describe('Output Guardrails', () => {
     it('should use default threshold', async () => {
       const guardrail = toxicityFilter();
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'This is toxic and harmful and offensive content',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -401,11 +425,10 @@ describe('Output Guardrails', () => {
     it('should handle object content', async () => {
       const guardrail = toxicityFilter(0.2);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: '',
-          object: { message: 'This is toxic content' },
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -422,11 +445,10 @@ describe('Output Guardrails', () => {
       );
 
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Test output',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -440,11 +462,10 @@ describe('Output Guardrails', () => {
       );
 
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Test output',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -462,24 +483,19 @@ describe('Output Guardrails', () => {
 
       const output = {
         text: 'Test output',
-        object: { test: true },
         usage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
-        finishReason: 'stop',
-        generationTimeMs: 1000,
-        experimental_providerMetadata: { generationTimeMs: 1000 },
+        finishReason: 'stop' as const,
       };
 
       await guardrail.execute({
-        input: {} as any,
-        result: output as any,
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult(output),
       });
 
       expect(mockValidator).toHaveBeenCalledWith({
         text: 'Test output',
-        object: { test: true },
         usage: { totalTokens: 10, promptTokens: 5, completionTokens: 5 },
-        finishReason: 'stop',
-        generationTimeMs: 1000,
+        finishReason: 'stop' as const,
       });
     });
 
@@ -491,15 +507,12 @@ describe('Output Guardrails', () => {
       );
 
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Test output',
-          object: { test: true },
           usage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
-          finishReason: 'stop',
-          generationTimeMs: 1000,
-          experimental_providerMetadata: { generationTimeMs: 1000 },
-        } as any,
+          finishReason: 'stop' as const,
+        }),
       });
 
       expect(result.metadata?.validatorName).toBe('test-validator');
@@ -523,11 +536,10 @@ describe('Output Guardrails', () => {
     it('should block when no object is provided', async () => {
       const guardrail = schemaValidation(mockSchema);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Text output',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -540,14 +552,12 @@ describe('Output Guardrails', () => {
       mockSchema.parse.mockReturnValue({ valid: true });
       const guardrail = schemaValidation(mockSchema);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: '',
-          object: { name: 'John', age: 30 },
-          usage: { totalTokens: 10 },
-          finishReason: 'stop',
-          generationTimeMs: 1000,
-        } as any,
+          usage: { totalTokens: 10, inputTokens: 0, outputTokens: 10 },
+          finishReason: 'stop' as const,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -564,14 +574,12 @@ describe('Output Guardrails', () => {
 
       const guardrail = schemaValidation(mockSchema);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: '',
-          object: { invalid: true },
-          usage: { totalTokens: 10 },
-          finishReason: 'stop',
-          generationTimeMs: 1000,
-        } as any,
+          usage: { totalTokens: 10, inputTokens: 0, outputTokens: 10 },
+          finishReason: 'stop' as const,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -589,11 +597,10 @@ describe('Output Guardrails', () => {
 
       const guardrail = schemaValidation(mockSchema);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: '',
-          object: { invalid: true },
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -606,13 +613,11 @@ describe('Output Guardrails', () => {
     it('should pass when token usage is within limit', async () => {
       const guardrail = tokenUsageLimit(100);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Output text',
-          object: null,
           usage: { totalTokens: 50, inputTokens: 20, outputTokens: 30 },
-          generationTimeMs: 1000,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -621,14 +626,11 @@ describe('Output Guardrails', () => {
     it('should block when token usage exceeds limit', async () => {
       const guardrail = tokenUsageLimit(50);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Output text',
-          object: null,
           usage: { totalTokens: 100, inputTokens: 40, outputTokens: 60 },
-          generationTimeMs: 2000,
-          experimental_providerMetadata: { generationTimeMs: 2000 },
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -644,13 +646,11 @@ describe('Output Guardrails', () => {
     it('should handle missing usage information', async () => {
       const guardrail = tokenUsageLimit(50);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Output text',
-          object: null,
-          usage: null,
-          generationTimeMs: 1000,
-        } as any,
+          usage: undefined,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -662,13 +662,11 @@ describe('Output Guardrails', () => {
     it('should pass when generation time is within limit', async () => {
       const guardrail = performanceMonitor(5000);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Fast response',
-          object: null,
           usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
-          generationTimeMs: 3000,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -677,14 +675,11 @@ describe('Output Guardrails', () => {
     it('should block when generation time exceeds limit', async () => {
       const guardrail = performanceMonitor(2000);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Slow response',
-          object: null,
           usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
-          generationTimeMs: 5000,
-          experimental_providerMetadata: { generationTimeMs: 5000 },
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -699,14 +694,11 @@ describe('Output Guardrails', () => {
     it('should calculate performance metrics', async () => {
       const guardrail = performanceMonitor(10_000);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Response with metrics',
-          object: null,
           usage: { totalTokens: 100, inputTokens: 40, outputTokens: 60 },
-          generationTimeMs: 4000,
-          experimental_providerMetadata: { generationTimeMs: 4000 },
-        } as any,
+        }),
       });
 
       expect(result.metadata?.tokensPerMs).toBe(0.025); // 100 / 4000
@@ -717,13 +709,11 @@ describe('Output Guardrails', () => {
     it('should handle missing generation time', async () => {
       const guardrail = performanceMonitor(5000);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Response',
-          object: null,
-          usage: { totalTokens: 20 },
-          generationTimeMs: 0,
-        } as any,
+          usage: { totalTokens: 20, inputTokens: 0, outputTokens: 20 },
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -735,11 +725,10 @@ describe('Output Guardrails', () => {
     it('should handle empty text and null object', async () => {
       const guardrail = lengthLimit(100);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: '',
-          object: null,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -749,11 +738,10 @@ describe('Output Guardrails', () => {
     it('should handle undefined inputs gracefully', async () => {
       const guardrail = blockedContent(['test']);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: undefined,
-          object: undefined,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -770,11 +758,10 @@ describe('Output Guardrails', () => {
       };
 
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: '',
-          object: complexObject,
-        } as any,
+        }),
       });
 
       const expectedLength = JSON.stringify(complexObject).length;
@@ -784,13 +771,11 @@ describe('Output Guardrails', () => {
     it('should handle null usage gracefully', async () => {
       const guardrail = tokenUsageLimit(100);
       const result = await guardrail.execute({
-        input: {} as any,
-        result: {
+        input: createMockInputContext(),
+        result: createMockGenerateTextResult({
           text: 'Test',
-          object: null,
           usage: undefined,
-          generationTimeMs: 1000,
-        } as any,
+        }),
       });
 
       expect(result.tripwireTriggered).toBe(false);
