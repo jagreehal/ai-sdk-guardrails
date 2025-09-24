@@ -21,11 +21,11 @@ import type {
   LanguageModelV2TextPart,
 } from '@ai-sdk/provider';
 import { model } from './model';
-import { wrapWithOutputGuardrails } from '../src/guardrails';
+import { withGuardrails } from '../src/index';
 import { expectedToolUse } from '../src/guardrails/tools';
 import { createOutputGuardrail } from '../src/core';
 import { extractContent } from '../src/guardrails/output';
-import { wrapAgentWithGuardrails } from '../src/guardrails/agent';
+import { withAgentGuardrails } from '../src/guardrails/agent';
 
 const toTextParts = (content: unknown): LanguageModelV2TextPart[] => {
   if (Array.isArray(content)) {
@@ -185,7 +185,7 @@ async function runWithoutGuardrails() {
       prompt: 'Research the current state of AI market adoption.',
     });
 
-    console.log('📊 Research Output:', research.text.substring(0, 100) + '...');
+    console.log('📊 Research Output:', research.text.slice(0, 100) + '...');
 
     // Analysis Agent (no guardrails - might produce unstructured output)
     const analysis = await generateText({
@@ -194,7 +194,7 @@ async function runWithoutGuardrails() {
       prompt: `Analyze this research: ${research.text}`,
     });
 
-    console.log('📈 Analysis Output:', analysis.text.substring(0, 100) + '...');
+    console.log('📈 Analysis Output:', analysis.text.slice(0, 100) + '...');
 
     // Report Agent (no guardrails - might miss citations)
     const report = await generateText({
@@ -203,7 +203,7 @@ async function runWithoutGuardrails() {
       prompt: `Create a business report based on this analysis: ${analysis.text}`,
     });
 
-    console.log('📋 Final Report:', report.text.substring(0, 200) + '...');
+    console.log('📋 Final Report:', report.text.slice(0, 200) + '...');
     console.log(
       '❌ Result: Likely incomplete/unreliable due to unvalidated chain\n',
     );
@@ -219,24 +219,21 @@ async function runWithGuardrails() {
 
   try {
     // Research Agent with tool usage guardrail
-    const guardedResearchModel = wrapWithOutputGuardrails(
-      model,
-      [expectedToolUse({ tools: 'search' })],
-      {
-        retry: {
-          maxRetries: 2,
-          buildRetryParams: ({ lastParams }) => ({
-            ...lastParams,
-            prompt: [
-              ...normalizePrompt(lastParams.prompt),
-              createUserMessage(
-                'IMPORTANT: You must use the search tool to gather data.',
-              ),
-            ],
-          }),
-        },
+    const guardedResearchModel = withGuardrails(model, {
+      outputGuardrails: [expectedToolUse({ tools: 'search' })],
+      retry: {
+        maxRetries: 2,
+        buildRetryParams: ({ lastParams }) => ({
+          ...lastParams,
+          prompt: [
+            ...normalizePrompt(lastParams.prompt),
+            createUserMessage(
+              'IMPORTANT: You must use the search tool to gather data.',
+            ),
+          ],
+        }),
       },
-    );
+    });
 
     const research = await generateText({
       model: guardedResearchModel,
@@ -247,28 +244,25 @@ async function runWithGuardrails() {
 
     console.log(
       '📊 Research Output (validated):',
-      research.text.substring(0, 100) + '...',
+      research.text.slice(0, 100) + '...',
     );
 
     // Analysis Agent with structure guardrail
-    const guardedAnalysisModel = wrapWithOutputGuardrails(
-      model,
-      [structuredAnalysis],
-      {
-        retry: {
-          maxRetries: 2,
-          buildRetryParams: ({ lastParams }) => ({
-            ...lastParams,
-            prompt: [
-              ...normalizePrompt(lastParams.prompt),
-              createUserMessage(
-                'Format: Key Points: • point 1 • point 2\nConclusion: summary',
-              ),
-            ],
-          }),
-        },
+    const guardedAnalysisModel = withGuardrails(model, {
+      outputGuardrails: [structuredAnalysis],
+      retry: {
+        maxRetries: 2,
+        buildRetryParams: ({ lastParams }) => ({
+          ...lastParams,
+          prompt: [
+            ...normalizePrompt(lastParams.prompt),
+            createUserMessage(
+              'Format: Key Points: • point 1 • point 2\nConclusion: summary',
+            ),
+          ],
+        }),
       },
-    );
+    });
 
     const analysis = await generateText({
       model: guardedAnalysisModel,
@@ -279,28 +273,25 @@ async function runWithGuardrails() {
 
     console.log(
       '📈 Analysis Output (structured):',
-      analysis.text.substring(0, 100) + '...',
+      analysis.text.slice(0, 100) + '...',
     );
 
     // Report Agent with citation guardrail
-    const guardedReportModel = wrapWithOutputGuardrails(
-      model,
-      [requireCitations],
-      {
-        retry: {
-          maxRetries: 2,
-          buildRetryParams: ({ lastParams }) => ({
-            ...lastParams,
-            prompt: [
-              ...normalizePrompt(lastParams.prompt),
-              createUserMessage(
-                'IMPORTANT: Include sources and citations in your report.',
-              ),
-            ],
-          }),
-        },
+    const guardedReportModel = withGuardrails(model, {
+      outputGuardrails: [requireCitations],
+      retry: {
+        maxRetries: 2,
+        buildRetryParams: ({ lastParams }) => ({
+          ...lastParams,
+          prompt: [
+            ...normalizePrompt(lastParams.prompt),
+            createUserMessage(
+              'IMPORTANT: Include sources and citations in your report.',
+            ),
+          ],
+        }),
       },
-    );
+    });
 
     const report = await generateText({
       model: guardedReportModel,
@@ -310,7 +301,7 @@ async function runWithGuardrails() {
 
     console.log(
       '📋 Final Report (with citations):',
-      report.text.substring(0, 200) + '...',
+      report.text.slice(0, 200) + '...',
     );
     console.log(
       '✅ Result: Reliable, validated workflow with quality guarantees\n',
@@ -326,7 +317,7 @@ async function runAgentWrapper() {
   console.log('------------------------------------');
 
   // Create guarded agents using the new agent wrapper
-  const researchAgent = wrapAgentWithGuardrails(
+  const researchAgent = withAgentGuardrails(
     {
       model,
       tools: searchTool,
@@ -342,10 +333,11 @@ async function runAgentWrapper() {
     },
   );
 
-  const analysisAgent = wrapAgentWithGuardrails(
+  const analysisAgent = withAgentGuardrails(
     {
       model,
-      system: 'You are an analyst. Provide structured analysis with key points and conclusion.',
+      system:
+        'You are an analyst. Provide structured analysis with key points and conclusion.',
     },
     {
       outputGuardrails: [structuredAnalysis],
@@ -357,7 +349,7 @@ async function runAgentWrapper() {
     },
   );
 
-  const reportAgent = wrapAgentWithGuardrails(
+  const reportAgent = withAgentGuardrails(
     {
       model,
       system: 'You are a report writer. Always include citations and sources.',
@@ -381,7 +373,7 @@ async function runAgentWrapper() {
 
     console.log(
       '📊 Research Output (validated):',
-      research.text.substring(0, 100) + '...',
+      research.text.slice(0, 100) + '...',
     );
 
     // Analysis Agent with structure validation
@@ -392,7 +384,7 @@ async function runAgentWrapper() {
 
     console.log(
       '📈 Analysis Output (structured):',
-      analysis.text.substring(0, 100) + '...',
+      analysis.text.slice(0, 100) + '...',
     );
 
     // Report Agent with citation validation
@@ -403,7 +395,7 @@ async function runAgentWrapper() {
 
     console.log(
       '📋 Final Report (with citations):',
-      report.text.substring(0, 200) + '...',
+      report.text.slice(0, 200) + '...',
     );
     console.log(
       '✅ Result: Reliable, validated workflow with quality guarantees\n',
@@ -419,13 +411,13 @@ async function runOrchestratorWorker() {
   console.log('------------------------------------------');
 
   // Worker agents with different specializations
-  const marketWorker = wrapWithOutputGuardrails(
-    model,
-    [expectedToolUse({ tools: 'search' })],
-    { throwOnBlocked: false },
-  );
+  const marketWorker = withGuardrails(model, {
+    outputGuardrails: [expectedToolUse({ tools: 'search' })],
+    throwOnBlocked: false,
+  });
 
-  const techWorker = wrapWithOutputGuardrails(model, [structuredAnalysis], {
+  const techWorker = withGuardrails(model, {
+    outputGuardrails: [structuredAnalysis],
     throwOnBlocked: false,
   });
 
@@ -477,7 +469,9 @@ async function main() {
   );
   console.log('• Guardrails at EACH step prevent cascade failures');
   console.log('• Each agent becomes a reliable foundation for the next');
-  console.log('• Agent wrapper provides clean, type-safe guardrail integration');
+  console.log(
+    '• Agent wrapper provides clean, type-safe guardrail integration',
+  );
   console.log('• Orchestrator-worker patterns need validated worker outputs');
   console.log('• Guardrails are not optional in production agentic systems');
 }

@@ -10,9 +10,8 @@ import { model } from './model';
 import {
   defineInputGuardrail,
   defineOutputGuardrail,
-  wrapWithInputGuardrails,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+  withGuardrails,
+} from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
 
@@ -99,27 +98,23 @@ const outputLengthGuardrail = defineOutputGuardrail<{ length: number }>({
 console.log('🛡️  Simple Combined Protection Example\n');
 
 // Combine all guardrails
-const protectedModel = wrapWithOutputGuardrails(
-  wrapWithInputGuardrails(model, [lengthGuardrail, keywordGuardrail] as const, {
-    throwOnBlocked: false,
-    onInputBlocked: (summary) => {
-      console.log('🚫 Input blocked:');
-      for (const result of summary.blockedResults) {
-        console.log(`   ${result.context?.guardrailName}: ${result.message}`);
-      }
-    },
-  }),
-  [outputLengthGuardrail],
-  {
-    throwOnBlocked: false,
-    onOutputBlocked: (summary) => {
-      console.log('⚠️  Output issue:');
-      for (const result of summary.blockedResults) {
-        console.log(`   ${result.context?.guardrailName}: ${result.message}`);
-      }
-    },
+const protectedModel = withGuardrails(model, {
+  inputGuardrails: [lengthGuardrail, keywordGuardrail] as const,
+  outputGuardrails: [outputLengthGuardrail],
+  throwOnBlocked: false,
+  onInputBlocked: (summary) => {
+    console.log('🚫 Input blocked:');
+    for (const result of summary.blockedResults) {
+      console.log(`   ${result.context?.guardrailName}: ${result.message}`);
+    }
   },
-);
+  onOutputBlocked: (summary) => {
+    console.log('⚠️  Output issue:');
+    for (const result of summary.blockedResults) {
+      console.log(`   ${result.context?.guardrailName}: ${result.message}`);
+    }
+  },
+});
 
 // Test 1: Valid request
 console.log('Test 1: Normal request (should pass all guards)');

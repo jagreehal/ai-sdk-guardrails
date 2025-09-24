@@ -19,9 +19,52 @@ import type {
   InputGuardrailContext,
   NormalizedGuardrailContext,
   Logger,
+  AIResult,
 } from '../types';
 
 type AnyRecord = Record<string, unknown>;
+
+// Helper function to create a minimal GenerateTextResult for guardrail validation
+function createMockGenerateTextResult<TOOLS extends ToolSet, OUTPUT>(
+  text: string,
+): GenerateTextResult<TOOLS, OUTPUT> {
+  return {
+    content: [],
+    text,
+    reasoning: [],
+    reasoningText: undefined,
+    files: [],
+    sources: [],
+    toolCalls: [],
+    staticToolCalls: [],
+    dynamicToolCalls: [],
+    toolResults: [],
+    staticToolResults: [],
+    dynamicToolResults: [],
+    finishReason: 'stop' as const,
+    usage: {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+    } as LanguageModelUsage,
+    totalUsage: {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+    } as LanguageModelUsage,
+    warnings: undefined,
+    request: {},
+    response: {
+      messages: [],
+      id: '',
+      timestamp: new Date(),
+      modelId: '',
+    },
+    providerMetadata: undefined,
+    steps: [],
+    experimental_output: undefined as OUTPUT,
+  } as GenerateTextResult<TOOLS, OUTPUT>;
+}
 
 // Extract the interface from the Agent class to ensure we stay in sync
 type AgentInterface<
@@ -37,9 +80,7 @@ type AgentInterface<
 
 export interface AgentGuardrailsRetry {
   maxRetries?: number;
-  // eslint-disable-next-line no-unused-vars
   backoffMs?: number | ((attempt: number) => number);
-  // eslint-disable-next-line no-unused-vars
   buildRetryPrompt: (args: { lastPrompt: string; reason: string }) => string;
 }
 
@@ -60,7 +101,6 @@ export interface AgentGuardrailsConfig<MIn = AnyRecord, MOut = AnyRecord> {
     logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
     logger?: Logger;
   };
-  /* eslint-disable no-unused-vars */
   onInputBlocked?: (
     summary: GuardrailExecutionSummary<MIn>,
     context: InputGuardrailContext,
@@ -70,7 +110,6 @@ export interface AgentGuardrailsConfig<MIn = AnyRecord, MOut = AnyRecord> {
     context: NormalizedGuardrailContext,
     stepIndex: number,
   ) => void;
-  /* eslint-enable no-unused-vars */
 }
 
 function toNormalizedContextFromAgent(
@@ -124,8 +163,7 @@ function toNormalizedContextFromAgent(
         : (m.content ?? ''),
     }));
 
-    const lastUser =
-      getLastByRole(flattened, 'user') || flattened[flattened.length - 1];
+    const lastUser = getLastByRole(flattened, 'user') || flattened.at(-1);
 
     // Also run through input extractor for consistent prompt/system derivation
     const simplifiedForExtractor = {
@@ -167,7 +205,7 @@ function toNormalizedContextFromAgent(
  * Wraps an AI SDK Agent by applying input, per-step output, and tool guardrails.
  * Accepts full AgentSettings for forward compatibility.
  */
-export function wrapAgentWithGuardrails<
+export function withAgentGuardrails<
   TOOLS extends ToolSet,
   OUTPUT = never,
   OUTPUT_PARTIAL = never,
@@ -190,9 +228,9 @@ export function wrapAgentWithGuardrails<
   // Wrap tools to validate tool calls before/after execution
   const wrappedTools = Object.fromEntries(
     Object.entries(settings.tools ?? {}).map(([name, tool]) => {
-      const originalExecute = // eslint-disable-next-line no-unused-vars
-        (tool as unknown as { execute: (_input: unknown) => Promise<unknown> })
-          .execute;
+      const originalExecute = (
+        tool as unknown as { execute: (_input: unknown) => Promise<unknown> }
+      ).execute;
       const wrapped = {
         ...(tool as Record<string, unknown>),
         execute: async (_input: unknown) => {
@@ -208,7 +246,7 @@ export function wrapAgentWithGuardrails<
               {
                 input: context,
                 // Treat tool-call as text for generic guardrails
-                result: { text: '' } as any,
+                result: createMockGenerateTextResult<ToolSet, unknown>(''),
               },
               executionOptions,
             );
@@ -289,7 +327,10 @@ export function wrapAgentWithGuardrails<
       };
       const res = await executeOutputGuardrails(
         toolGuardrails,
-        { input: ctx, result: { text: '' } as any },
+        {
+          input: ctx,
+          result: createMockGenerateTextResult<ToolSet, unknown>(''),
+        },
         executionOptions,
       );
       const blocked = res.filter((r) => r.tripwireTriggered);
@@ -329,7 +370,10 @@ export function wrapAgentWithGuardrails<
       };
       const out = await executeOutputGuardrails(
         outputGuardrails,
-        { input: ctx, result: { text } as any },
+        {
+          input: ctx,
+          result: createMockGenerateTextResult<ToolSet, unknown>(text),
+        },
         executionOptions,
       );
       const blocked = out.filter((r) => r.tripwireTriggered);
@@ -369,29 +413,7 @@ export function wrapAgentWithGuardrails<
     const inputBlocked = await checkInputGuardrails(normalized);
     if (inputBlocked) {
       // Return a minimal GenerateTextResult for blocked input
-      return {
-        content: [],
-        text: inputBlocked.text,
-        reasoning: [],
-        reasoningText: undefined,
-        files: [],
-        sources: [],
-        toolCalls: [],
-        staticToolCalls: [],
-        dynamicToolCalls: [],
-        toolResults: [],
-        staticToolResults: [],
-        dynamicToolResults: [],
-        finishReason: 'stop' as const,
-        usage: { inputTokens: 0, outputTokens: 0 } as LanguageModelUsage,
-        totalUsage: { inputTokens: 0, outputTokens: 0 } as LanguageModelUsage,
-        warnings: undefined,
-        request: {} as any,
-        response: { messages: [] } as any,
-        providerMetadata: undefined,
-        steps: [],
-        experimental_output: undefined as OUTPUT,
-      } as GenerateTextResult<TOOLS, OUTPUT>;
+      return createMockGenerateTextResult<TOOLS, OUTPUT>(inputBlocked.text);
     }
 
     let attempts = 0;
@@ -399,7 +421,9 @@ export function wrapAgentWithGuardrails<
 
     // Auto-retry loop on output guardrails
     while (true) {
-      const result = await baseAgent.generate({ prompt: promptValue } as any);
+      const result = await baseAgent.generate({
+        prompt: promptValue,
+      } as Parameters<typeof baseAgent.generate>[0]);
 
       // Validate steps
       if (outputGuardrails.length > 0 || toolGuardrails.length > 0) {
@@ -445,12 +469,14 @@ export function wrapAgentWithGuardrails<
 
             if (replaceOnBlocked) {
               const replaced = `[Output blocked: ${blockedSummary.blockedResults.map((b) => b.message).join(', ')}]`;
-              const { text: full } = extractContent(result as unknown as any);
+              const { text: full } = extractContent(
+                result as unknown as AIResult,
+              );
               const finalText = full.replace('', replaced);
-              return { ...result, text: finalText } as GenerateTextResult<
-                TOOLS,
-                OUTPUT
-              >;
+              return {
+                ...result,
+                text: finalText,
+              } as GenerateTextResult<TOOLS, OUTPUT>;
             }
           }
         }
@@ -473,3 +499,8 @@ export function wrapAgentWithGuardrails<
     tools: wrappedTools,
   };
 }
+
+/**
+ * @deprecated Use withAgentGuardrails instead. Will be removed in next major version.
+ */
+export const wrapAgentWithGuardrails = withAgentGuardrails;

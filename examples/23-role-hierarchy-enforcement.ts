@@ -12,8 +12,8 @@ import { model } from './model';
 import {
   defineInputGuardrail,
   defineOutputGuardrail,
-  wrapWithGuardrails,
-} from '../src/guardrails';
+  withGuardrails,
+} from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
 
@@ -479,7 +479,7 @@ const roleHierarchyOutputGuardrail = defineOutputGuardrail({
 console.log('🛡️  Role Hierarchy Enforcement Example\n');
 
 // Create a protected model with role hierarchy enforcement
-const protectedModel = wrapWithGuardrails(model, {
+const protectedModel = withGuardrails(model, {
   inputGuardrails: [roleHierarchyInputGuardrail],
   outputGuardrails: [roleHierarchyOutputGuardrail],
   throwOnBlocked: true,
@@ -618,7 +618,7 @@ try {
 
 // Test 9: Warning mode with violation analysis
 console.log('Test 9: Warning mode with violation analysis');
-const warningModel = wrapWithGuardrails(model, {
+const warningModel = withGuardrails(model, {
   inputGuardrails: [roleHierarchyInputGuardrail],
   outputGuardrails: [roleHierarchyOutputGuardrail],
   throwOnBlocked: false,

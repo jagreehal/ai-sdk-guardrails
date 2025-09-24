@@ -1,9 +1,6 @@
 import { generateText } from 'ai';
 import { model, MODEL_NAME } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import type {
   OutputGuardrailContext,
   GuardrailExecutionSummary,
@@ -107,24 +104,21 @@ async function example1_FactualityCorrect() {
     minScore: 0.4,
   });
 
-  const protectedModel = wrapWithOutputGuardrails(
-    model,
-    [factualityGuardrail],
-    {
-      throwOnBlocked: false,
-      onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {
-        const blockedResult = executionSummary.blockedResults[0];
-        console.log(
-          '❌ Response blocked for factuality:',
-          blockedResult?.message,
-        );
-        console.log(
-          '📊 Factuality score:',
-          blockedResult?.metadata?.factualityScore,
-        );
-      },
+  const protectedModel = withGuardrails(model, {
+    outputGuardrails: [factualityGuardrail],
+    throwOnBlocked: false,
+    onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {
+      const blockedResult = executionSummary.blockedResults[0];
+      console.log(
+        '❌ Response blocked for factuality:',
+        blockedResult?.message,
+      );
+      console.log(
+        '📊 Factuality score:',
+        blockedResult?.metadata?.factualityScore,
+      );
     },
-  );
+  });
 
   console.log('🧪 Testing with correct answer...');
   try {
@@ -154,13 +148,10 @@ async function example2_FactualityIncorrect() {
     minScore: 0.4,
   });
 
-  const protectedModel = wrapWithOutputGuardrails(
-    model,
-    [factualityGuardrail],
-    {
-      throwOnBlocked: true, // Will throw error when factuality check fails
-    },
-  );
+  const protectedModel = withGuardrails(model, {
+    outputGuardrails: [factualityGuardrail],
+    throwOnBlocked: true, // Will throw error when factuality check fails
+  });
 
   console.log(
     '🧪 Testing with unrelated question (expecting to be blocked)...',
@@ -195,21 +186,18 @@ async function example3_FactualityNonBlocking() {
     minScore: 0.4,
   });
 
-  const protectedModel = wrapWithOutputGuardrails(
-    model,
-    [factualityGuardrail],
-    {
-      throwOnBlocked: false, // Only logs, doesn't block
-      onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {
-        const blockedResult = executionSummary.blockedResults[0];
-        console.log('\n⚠️  GUARDRAIL TRIGGERED (Non-blocking mode):');
-        console.log('   - Message:', blockedResult?.message);
-        console.log('   - Score:', blockedResult?.metadata?.factualityScore);
-        console.log('   - Rationale:', blockedResult?.metadata?.rationale);
-        console.log('   - Action: Response allowed through (non-blocking)\n');
-      },
+  const protectedModel = withGuardrails(model, {
+    outputGuardrails: [factualityGuardrail],
+    throwOnBlocked: false, // Only logs, doesn't block
+    onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {
+      const blockedResult = executionSummary.blockedResults[0];
+      console.log('\n⚠️  GUARDRAIL TRIGGERED (Non-blocking mode):');
+      console.log('   - Message:', blockedResult?.message);
+      console.log('   - Score:', blockedResult?.metadata?.factualityScore);
+      console.log('   - Rationale:', blockedResult?.metadata?.rationale);
+      console.log('   - Action: Response allowed through (non-blocking)\n');
     },
-  );
+  });
 
   console.log('🧪 Testing non-blocking mode...');
   console.log('📝 Question: "What is the capital of France?"');
@@ -273,23 +261,21 @@ async function example4_MultipleFactuality() {
     },
   });
 
-  const protectedModel = wrapWithOutputGuardrails(
-    model,
-    [populationGuardrail, capitalGuardrail] as OutputGuardrail<
-      Record<string, unknown>
-    >[],
-    {
-      throwOnBlocked: false,
-      onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {
-        for (const result of executionSummary.blockedResults) {
-          console.log(
-            `❌ Blocked by ${result.context?.guardrailName}:`,
-            result.message,
-          );
-        }
-      },
+  const protectedModel = withGuardrails(model, {
+    outputGuardrails: [
+      populationGuardrail,
+      capitalGuardrail,
+    ] as OutputGuardrail<Record<string, unknown>>[],
+    throwOnBlocked: false,
+    onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {
+      for (const result of executionSummary.blockedResults) {
+        console.log(
+          `❌ Blocked by ${result.context?.guardrailName}:`,
+          result.message,
+        );
+      }
     },
-  );
+  });
 
   // Test population question
   console.log('🧪 Testing population question...');
@@ -373,19 +359,16 @@ async function example5_CustomEvaluation() {
     },
   });
 
-  const protectedModel = wrapWithOutputGuardrails(
-    model,
-    [responseQualityGuardrail],
-    {
-      throwOnBlocked: false,
-      onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {
-        const result = executionSummary.blockedResults[0];
-        console.log('❌ Quality check failed:', result?.message);
-        console.log('📊 Quality score:', result?.metadata?.qualityScore);
-        console.log('💡 Suggestion:', result?.suggestion);
-      },
+  const protectedModel = withGuardrails(model, {
+    outputGuardrails: [responseQualityGuardrail],
+    throwOnBlocked: false,
+    onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {
+      const result = executionSummary.blockedResults[0];
+      console.log('❌ Quality check failed:', result?.message);
+      console.log('📊 Quality score:', result?.metadata?.qualityScore);
+      console.log('💡 Suggestion:', result?.suggestion);
     },
-  );
+  });
 
   console.log('🧪 Testing response quality evaluation...');
   try {

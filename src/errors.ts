@@ -144,8 +144,8 @@ export class GuardrailConfigurationError extends GuardrailsError {
 /**
  * Thrown when input to guardrails is blocked/rejected
  */
-export class InputBlockedError extends GuardrailsError {
-  override readonly name = 'InputBlockedError';
+export class GuardrailsInputError extends GuardrailsError {
+  override readonly name = 'GuardrailsInputError';
   readonly code = 'INPUT_BLOCKED';
 
   public readonly blockedGuardrails: Array<{
@@ -155,7 +155,7 @@ export class InputBlockedError extends GuardrailsError {
   }>;
 
   constructor(
-    blockedGuardrails: InputBlockedError['blockedGuardrails'],
+    blockedGuardrails: GuardrailsInputError['blockedGuardrails'],
     metadata: Record<string, unknown> = {},
   ) {
     const guardrailNames = blockedGuardrails.map((g) => g.name).join(', ');
@@ -169,8 +169,8 @@ export class InputBlockedError extends GuardrailsError {
 /**
  * Thrown when output from AI model is blocked/rejected
  */
-export class OutputBlockedError extends GuardrailsError {
-  override readonly name = 'OutputBlockedError';
+export class GuardrailsOutputError extends GuardrailsError {
+  override readonly name = 'GuardrailsOutputError';
   readonly code = 'OUTPUT_BLOCKED';
 
   public readonly blockedGuardrails: Array<{
@@ -180,7 +180,7 @@ export class OutputBlockedError extends GuardrailsError {
   }>;
 
   constructor(
-    blockedGuardrails: OutputBlockedError['blockedGuardrails'],
+    blockedGuardrails: GuardrailsOutputError['blockedGuardrails'],
     metadata: Record<string, unknown> = {},
   ) {
     const guardrailNames = blockedGuardrails.map((g) => g.name).join(', ');
@@ -272,3 +272,17 @@ export function extractErrorInfo(error: unknown): {
     message: String(error),
   };
 }
+
+// ============================================================================
+// DEPRECATED ALIASES - Will be removed in next major version
+// ============================================================================
+
+/**
+ * @deprecated Use GuardrailsInputError instead. Will be removed in next major version.
+ */
+export const InputBlockedError = GuardrailsInputError;
+
+/**
+ * @deprecated Use GuardrailsOutputError instead. Will be removed in next major version.
+ */
+export const OutputBlockedError = GuardrailsOutputError;

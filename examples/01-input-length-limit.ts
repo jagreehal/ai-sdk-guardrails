@@ -7,10 +7,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineInputGuardrail,
-  wrapWithInputGuardrails,
-} from '../src/guardrails';
+import { defineInputGuardrail, withGuardrails } from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 
 // Define a guardrail that limits input length
@@ -41,7 +38,8 @@ const lengthLimitGuardrail = defineInputGuardrail({
 console.log('🛡️  Input Length Limit Example\n');
 
 // Create a protected model with length limit
-const protectedModel = wrapWithInputGuardrails(model, [lengthLimitGuardrail], {
+const protectedModel = withGuardrails(model, {
+  inputGuardrails: [lengthLimitGuardrail],
   throwOnBlocked: true,
   onInputBlocked: (executionSummary) => {
     console.log(
@@ -82,7 +80,8 @@ try {
 
 // Test 3: Warning mode (doesn't throw, just logs)
 console.log('Test 3: Long input with warning mode');
-const warningModel = wrapWithInputGuardrails(model, [lengthLimitGuardrail], {
+const warningModel = withGuardrails(model, {
+  inputGuardrails: [lengthLimitGuardrail],
   throwOnBlocked: false, // Warning mode
   onInputBlocked: (executionSummary) => {
     console.log('⚠️  Warning:', executionSummary.blockedResults[0]?.message);

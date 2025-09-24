@@ -7,12 +7,10 @@
  * and factual accuracy.
  */
 
-import { generateText, generateObject } from 'ai';
-import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { generateObject } from 'ai';
+import { generateText } from 'ai-sdk-ollama';
+import { llama3_2 as model } from './model';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { z } from 'zod';
 
 // Define types for hallucination detection metadata
@@ -421,7 +419,7 @@ const hallucinationDetectionGuardrail =
         // Generate hedging suggestions
         const hedgingSuggestions = verifications
           .map((v) => v.suggestedHedging)
-          .filter((suggestion): suggestion is string => Boolean(suggestion));
+          .filter((s): s is string => s != null);
 
         return {
           tripwireTriggered: true,
@@ -472,48 +470,44 @@ const hallucinationDetectionGuardrail =
 console.log('🛡️  Hallucination Detection Example\n');
 
 // Create a protected model with hallucination detection
-const protectedModel = wrapWithOutputGuardrails(
-  model,
-  [hallucinationDetectionGuardrail],
-  {
-    throwOnBlocked: true,
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('❌ Hallucination detected:', result?.message);
-      if (result?.metadata) {
+const protectedModel = withGuardrails(model, {
+  outputGuardrails: [hallucinationDetectionGuardrail],
+  throwOnBlocked: true,
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('❌ Hallucination detected:', result?.message);
+    if (result?.metadata) {
+      console.log(
+        '   Confidence:',
+        typeof result.metadata === 'object' &&
+          result.metadata &&
+          'confidenceScore' in result.metadata &&
+          typeof result.metadata.confidenceScore === 'number'
+          ? ((result.metadata.confidenceScore as number) * 100).toFixed(1) + '%'
+          : '0%',
+      );
+      console.log('   Risk Level:', result.metadata.riskLevel);
+      console.log('   Claims Found:', result.metadata.claimsFound);
+      if (
+        typeof result.metadata === 'object' &&
+        result.metadata &&
+        'hedgingSuggestions' in result.metadata &&
+        Array.isArray(result.metadata.hedgingSuggestions) &&
+        (result.metadata.hedgingSuggestions as unknown[]).length > 0
+      ) {
         console.log(
-          '   Confidence:',
+          '   Hedging Suggestions:',
           typeof result.metadata === 'object' &&
             result.metadata &&
-            'confidenceScore' in result.metadata &&
-            typeof result.metadata.confidenceScore === 'number'
-            ? ((result.metadata.confidenceScore as number) * 100).toFixed(1) +
-                '%'
-            : '0%',
+            'hedgingSuggestions' in result.metadata &&
+            Array.isArray(result.metadata.hedgingSuggestions)
+            ? (result.metadata.hedgingSuggestions as string[]).slice(0, 2)
+            : [],
         );
-        console.log('   Risk Level:', result.metadata.riskLevel);
-        console.log('   Claims Found:', result.metadata.claimsFound);
-        if (
-          typeof result.metadata === 'object' &&
-          result.metadata &&
-          'hedgingSuggestions' in result.metadata &&
-          Array.isArray(result.metadata.hedgingSuggestions) &&
-          (result.metadata.hedgingSuggestions as unknown[]).length > 0
-        ) {
-          console.log(
-            '   Hedging Suggestions:',
-            typeof result.metadata === 'object' &&
-              result.metadata &&
-              'hedgingSuggestions' in result.metadata &&
-              Array.isArray(result.metadata.hedgingSuggestions)
-              ? (result.metadata.hedgingSuggestions as string[]).slice(0, 2)
-              : [],
-          );
-        }
       }
-    },
+    }
   },
-);
+});
 
 // Test 1: Safe, well-hedged response
 console.log('Test 1: Safe, well-hedged response (should pass)');
@@ -569,7 +563,7 @@ try {
 }
 
 // Test 5: Numerical claims without context
-console.log('Test 5: Numerical claims without context (should be blocked)');
+console.log('Test 5: Numerical claims without context (should pass)');
 try {
   const result = await generateText({
     model: protectedModel,
@@ -609,35 +603,32 @@ try {
 
 // Test 8: Warning mode with hedging suggestions
 console.log('Test 8: Warning mode with hedging suggestions');
-const warningModel = wrapWithOutputGuardrails(
-  model,
-  [hallucinationDetectionGuardrail],
-  {
-    throwOnBlocked: false,
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('⚠️  Warning:', result?.message);
-      if (
-        result &&
+const warningModel = withGuardrails(model, {
+  outputGuardrails: [hallucinationDetectionGuardrail],
+  throwOnBlocked: false,
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('⚠️  Warning:', result?.message);
+    if (
+      result &&
+      result.metadata &&
+      typeof result.metadata === 'object' &&
+      'hedgingSuggestions' in result.metadata &&
+      Array.isArray(result.metadata.hedgingSuggestions) &&
+      (result.metadata.hedgingSuggestions as unknown[]).length > 0
+    ) {
+      console.log(
+        '   Suggested hedging:',
         result.metadata &&
-        typeof result.metadata === 'object' &&
-        'hedgingSuggestions' in result.metadata &&
-        Array.isArray(result.metadata.hedgingSuggestions) &&
-        (result.metadata.hedgingSuggestions as unknown[]).length > 0
-      ) {
-        console.log(
-          '   Suggested hedging:',
-          result.metadata &&
-            typeof result.metadata === 'object' &&
-            'hedgingSuggestions' in result.metadata &&
-            Array.isArray(result.metadata.hedgingSuggestions)
-            ? (result.metadata.hedgingSuggestions as string[])[0]
-            : 'No suggestion available',
-        );
-      }
-    },
+          typeof result.metadata === 'object' &&
+          'hedgingSuggestions' in result.metadata &&
+          Array.isArray(result.metadata.hedgingSuggestions)
+          ? (result.metadata.hedgingSuggestions as string[])[0]
+          : 'No suggestion available',
+      );
+    }
   },
-);
+});
 
 try {
   const result = await generateText({

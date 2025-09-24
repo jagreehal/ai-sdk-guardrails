@@ -70,7 +70,9 @@ describe('Input Guardrails', () => {
       );
 
       expect(result.tripwireTriggered).toBe(true);
-      expect(result.message).toContain('Input length 49 exceeds limit of 10');
+      expect(result.message).toContain(
+        'Input characters count 50 exceeds limit of 10',
+      );
       expect(result.severity).toBe('medium');
     });
 
@@ -205,7 +207,9 @@ describe('Input Guardrails', () => {
       );
 
       expect(result.tripwireTriggered).toBe(true);
-      expect(result.message).toContain('Content length 50 exceeds limit of 10');
+      expect(result.message).toContain(
+        'Input characters count 51 exceeds limit of 10',
+      );
       expect(result.severity).toBe('medium');
     });
   });
@@ -231,10 +235,10 @@ describe('Input Guardrails', () => {
       );
 
       expect(result.tripwireTriggered).toBe(true);
-      expect(result.message).toBe('Blocked keyword detected: malware');
+      expect(result.message).toBe('Blocked word detected: malware');
       expect(result.severity).toBe('high');
       expect(result.metadata?.blockedWord).toBe('malware');
-      expect(result.metadata?.allKeywords).toEqual(['malware', 'virus']);
+      expect(result.metadata?.allWords).toEqual(['malware', 'virus']);
     });
 
     it('should include text length in metadata', async () => {
@@ -245,7 +249,7 @@ describe('Input Guardrails', () => {
         }),
       );
 
-      expect(result.metadata?.textLength).toBe(15);
+      expect(result.metadata?.totalLength).toBe(14);
     });
   });
 
@@ -364,7 +368,7 @@ describe('Input Guardrails', () => {
       );
 
       expect(result.tripwireTriggered).toBe(true);
-      expect(result.message).toBe('Profanity detected: badword');
+      expect(result.message).toBe('Profanity detected (custom): badword');
       expect(result.severity).toBe('high');
     });
 
@@ -391,18 +395,18 @@ describe('Input Guardrails', () => {
         }),
       );
 
-      expect(result.metadata?.textLength).toBe(13);
+      expect(result.metadata?.totalLength).toBe(12);
     });
   });
 
   describe('customValidation', () => {
     it('should pass when validator returns false', async () => {
-      const guardrail = customValidation(
-        'test-validator',
-        'Test validator',
-        () => false,
-        'Test message',
-      );
+      const guardrail = customValidation({
+        name: 'test-validator',
+        description: 'Test validator',
+        validator: () => true,
+        message: 'Test message',
+      });
 
       const result = await guardrail.execute(
         createMockContext({
@@ -414,12 +418,12 @@ describe('Input Guardrails', () => {
     });
 
     it('should block when validator returns true', async () => {
-      const guardrail = customValidation(
-        'test-validator',
-        'Test validator',
-        () => true,
-        'Custom validation failed',
-      );
+      const guardrail = customValidation({
+        name: 'test-validator',
+        description: 'Test validator',
+        validator: () => false,
+        message: 'Custom validation failed',
+      });
 
       const result = await guardrail.execute(
         createMockContext({
@@ -433,13 +437,13 @@ describe('Input Guardrails', () => {
     });
 
     it('should pass input data to validator', async () => {
-      const mockValidator = vi.fn(() => false);
-      const guardrail = customValidation(
-        'test-validator',
-        'Test validator',
-        mockValidator,
-        'Test message',
-      );
+      const mockValidator = vi.fn(() => true);
+      const guardrail = customValidation({
+        name: 'test-validator',
+        description: 'Test validator',
+        validator: mockValidator,
+        message: 'Test message',
+      });
 
       const input = createMockContext({
         prompt: 'Test prompt',
@@ -456,19 +460,23 @@ describe('Input Guardrails', () => {
         prompt: 'Test prompt',
         messages: [{ role: 'user', content: 'Test message' }],
         system: 'System',
-        model: expect.any(Object),
+        model: '[object Object]',
         temperature: 0.7,
         maxOutputTokens: 1000,
+        allText: 'Test prompt Test message System',
+        allTextLower: 'test prompt test message system',
+        totalBytes: 31,
+        totalWords: 5,
       });
     });
 
     it('should include metadata about input and validator', async () => {
-      const guardrail = customValidation(
-        'test-validator',
-        'Test validator',
-        () => true,
-        'Test message',
-      );
+      const guardrail = customValidation({
+        name: 'test-validator',
+        description: 'Test validator',
+        validator: () => true,
+        message: 'Test message',
+      });
 
       const result = await guardrail.execute(
         createMockContext({

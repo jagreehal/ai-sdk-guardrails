@@ -11,10 +11,7 @@
 import { z } from 'zod';
 import { generateObject } from 'ai';
 import { mistralModel as model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { extractContent } from '../src/guardrails/output';
 
 // Define types for object content filter metadata
@@ -177,7 +174,8 @@ const socialMediaFilter = defineOutputGuardrail({
 });
 
 // Create protected models with guardrails
-const messageModel = wrapWithOutputGuardrails(model, [messageContentFilter], {
+const messageModel = withGuardrails(model, {
+  outputGuardrails: [messageContentFilter],
   throwOnBlocked: false, // Warning mode to see all issues
   onOutputBlocked: (executionSummary) => {
     console.log(
@@ -196,7 +194,8 @@ const messageModel = wrapWithOutputGuardrails(model, [messageContentFilter], {
   },
 });
 
-const socialModel = wrapWithOutputGuardrails(model, [socialMediaFilter], {
+const socialModel = withGuardrails(model, {
+  outputGuardrails: [socialMediaFilter],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {
     console.log(

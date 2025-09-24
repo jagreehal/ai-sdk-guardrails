@@ -20,10 +20,10 @@ import type {
   LanguageModelV2TextPart,
 } from '@ai-sdk/provider';
 import { model } from './model';
-import { wrapWithOutputGuardrails } from '../src/guardrails';
+import { withGuardrails } from '../src/index';
 import { createOutputGuardrail } from '../src/core';
 import { extractContent } from '../src/guardrails/output';
-import { wrapAgentWithGuardrails } from '../src/guardrails/agent';
+import { withAgentGuardrails } from '../src/guardrails/agent';
 
 const toTextParts = (content: unknown): LanguageModelV2TextPart[] => {
   if (Array.isArray(content)) {
@@ -243,7 +243,7 @@ async function runWithoutGuardrails() {
         prompt: query,
       });
 
-      console.log(`💬 Response: ${response.text.substring(0, 100)}...`);
+      console.log(`💬 Response: ${response.text.slice(0, 100)}...`);
       console.log(`❓ Quality: Unknown (no validation)`);
     } catch (error) {
       console.log(`❌ Failed: ${error}`);
@@ -257,22 +257,19 @@ async function runWithGuardrails() {
   console.log('------------------------------');
 
   // Guarded intent classifier
-  const guardedClassifier = wrapWithOutputGuardrails(
-    model,
-    [validIntentClassification],
-    {
-      retry: {
-        maxRetries: 2,
-        buildRetryParams: ({ lastParams }) => ({
-          ...lastParams,
-          prompt: [
-            ...normalizePrompt(lastParams.prompt),
-            createUserMessage('Format: Intent: [INTENT] (confidence: [X]%)'),
-          ],
-        }),
-      },
+  const guardedClassifier = withGuardrails(model, {
+    outputGuardrails: [validIntentClassification],
+    retry: {
+      maxRetries: 2,
+      buildRetryParams: ({ lastParams }) => ({
+        ...lastParams,
+        prompt: [
+          ...normalizePrompt(lastParams.prompt),
+          createUserMessage('Format: Intent: [INTENT] (confidence: [X]%)'),
+        ],
+      }),
     },
-  );
+  });
 
   for (const query of testQueries) {
     console.log(`\n🔍 Query: "${query}"`);
@@ -298,24 +295,21 @@ async function runWithGuardrails() {
 
       // Guarded specialist response
       const specialist = specialists[intent as keyof typeof specialists];
-      const guardedSpecialist = wrapWithOutputGuardrails(
-        model,
-        [specialist.guardrail],
-        {
-          retry: {
-            maxRetries: 2,
-            buildRetryParams: ({ lastParams }) => ({
-              ...lastParams,
-              prompt: [
-                ...normalizePrompt(lastParams.prompt),
-                createUserMessage(
-                  `Ensure your response demonstrates ${intent.toLowerCase()} expertise.`,
-                ),
-              ],
-            }),
-          },
+      const guardedSpecialist = withGuardrails(model, {
+        outputGuardrails: [specialist.guardrail],
+        retry: {
+          maxRetries: 2,
+          buildRetryParams: ({ lastParams }) => ({
+            ...lastParams,
+            prompt: [
+              ...normalizePrompt(lastParams.prompt),
+              createUserMessage(
+                `Ensure your response demonstrates ${intent.toLowerCase()} expertise.`,
+              ),
+            ],
+          }),
         },
-      );
+      });
 
       const response = await generateText({
         model: guardedSpecialist,
@@ -323,9 +317,7 @@ async function runWithGuardrails() {
         prompt: query,
       });
 
-      console.log(
-        `💬 Response (validated): ${response.text.substring(0, 100)}...`,
-      );
+      console.log(`💬 Response (validated): ${response.text.slice(0, 100)}...`);
       console.log(`✅ Quality: Guaranteed domain expertise`);
     } catch (error) {
       console.log(`❌ Failed: ${error}`);
@@ -339,10 +331,11 @@ async function runAgentWrapperRouting() {
   console.log('------------------------------------');
 
   // Create specialized agents using the agent wrapper
-  const classifierAgent = wrapAgentWithGuardrails(
+  const classifierAgent = withAgentGuardrails(
     {
       model,
-      system: 'Classify user intent as TECHNICAL, BUSINESS, LEGAL, or GENERAL with confidence percentage.',
+      system:
+        'Classify user intent as TECHNICAL, BUSINESS, LEGAL, or GENERAL with confidence percentage.',
     },
     {
       outputGuardrails: [validIntentClassification],
@@ -354,10 +347,11 @@ async function runAgentWrapperRouting() {
     },
   );
 
-  const technicalAgent = wrapAgentWithGuardrails(
+  const technicalAgent = withAgentGuardrails(
     {
       model,
-      system: 'You are a senior software engineer. Provide technical solutions with code examples.',
+      system:
+        'You are a senior software engineer. Provide technical solutions with code examples.',
     },
     {
       outputGuardrails: [domainExpertise('technical')],
@@ -369,10 +363,11 @@ async function runAgentWrapperRouting() {
     },
   );
 
-  const businessAgent = wrapAgentWithGuardrails(
+  const businessAgent = withAgentGuardrails(
     {
       model,
-      system: 'You are a business consultant. Focus on strategy, ROI, and market impact.',
+      system:
+        'You are a business consultant. Focus on strategy, ROI, and market impact.',
     },
     {
       outputGuardrails: [domainExpertise('business')],
@@ -384,10 +379,11 @@ async function runAgentWrapperRouting() {
     },
   );
 
-  const legalAgent = wrapAgentWithGuardrails(
+  const legalAgent = withAgentGuardrails(
     {
       model,
-      system: 'You are a legal advisor. Address compliance, regulations, and legal implications.',
+      system:
+        'You are a legal advisor. Address compliance, regulations, and legal implications.',
     },
     {
       outputGuardrails: [domainExpertise('legal')],
@@ -421,26 +417,28 @@ async function runAgentWrapperRouting() {
       // Route to appropriate specialist agent
       let response;
       switch (intent) {
-        case 'TECHNICAL':
+        case 'TECHNICAL': {
           response = await technicalAgent.generate({ prompt: query });
           break;
-        case 'BUSINESS':
+        }
+        case 'BUSINESS': {
           response = await businessAgent.generate({ prompt: query });
           break;
-        case 'LEGAL':
+        }
+        case 'LEGAL': {
           response = await legalAgent.generate({ prompt: query });
           break;
-        default:
+        }
+        default: {
           response = await generateText({
             model,
             system: 'You are a helpful general assistant.',
             prompt: query,
           });
+        }
       }
 
-      console.log(
-        `💬 Response (validated): ${response.text.substring(0, 100)}...`,
-      );
+      console.log(`💬 Response (validated): ${response.text.slice(0, 100)}...`);
       console.log(`✅ Quality: Guaranteed domain expertise`);
     } catch (error) {
       console.log(`❌ Failed: ${error}`);
@@ -459,12 +457,12 @@ async function runCollaborativeRouting() {
   console.log(`🔍 Complex Query: "${complexQuery}"`);
 
   // Multi-agent classification
-  const technicalAgent = wrapWithOutputGuardrails(model, [
-    domainExpertise('technical'),
-  ]);
-  const legalAgent = wrapWithOutputGuardrails(model, [
-    domainExpertise('legal'),
-  ]);
+  const technicalAgent = withGuardrails(model, {
+    outputGuardrails: [domainExpertise('technical')],
+  });
+  const legalAgent = withGuardrails(model, {
+    outputGuardrails: [domainExpertise('legal')],
+  });
 
   // Each agent evaluates relevance to their domain
   const [techEval, legalEval] = await Promise.all([
@@ -482,8 +480,8 @@ async function runCollaborativeRouting() {
     }),
   ]);
 
-  console.log(`🔧 Technical evaluation: ${techEval.text.substring(0, 80)}...`);
-  console.log(`⚖️ Legal evaluation: ${legalEval.text.substring(0, 80)}...`);
+  console.log(`🔧 Technical evaluation: ${techEval.text.slice(0, 80)}...`);
+  console.log(`⚖️ Legal evaluation: ${legalEval.text.slice(0, 80)}...`);
   console.log(`✅ Router can now make informed multi-domain routing decision`);
 }
 
@@ -498,7 +496,9 @@ async function main() {
   console.log('• Wrong classification = Wrong routing = Wrong answer');
   console.log('• Router decisions are only as good as classifier reliability');
   console.log('• Specialists must demonstrate domain expertise');
-  console.log('• Agent wrapper provides clean, type-safe routing with guardrails');
+  console.log(
+    '• Agent wrapper provides clean, type-safe routing with guardrails',
+  );
   console.log('• Multi-domain queries need validated specialist evaluations');
   console.log('• Guardrails ensure routing integrity across the entire flow');
   console.log(

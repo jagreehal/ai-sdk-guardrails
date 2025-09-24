@@ -7,10 +7,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineInputGuardrail,
-  wrapWithInputGuardrails,
-} from '../src/guardrails';
+import { defineInputGuardrail, withGuardrails } from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 
 // Define types for PII detection metadata
@@ -89,7 +86,8 @@ const piiDetectionGuardrail = defineInputGuardrail<PIIMetadata>({
 console.log('🔒 PII Detection Example\n');
 
 // Create a protected model with PII detection
-const protectedModel = wrapWithInputGuardrails(model, [piiDetectionGuardrail], {
+const protectedModel = withGuardrails(model, {
+  inputGuardrails: [piiDetectionGuardrail],
   throwOnBlocked: true,
   onInputBlocked: (executionSummary) => {
     console.log('🛡️ PII Blocked:', executionSummary.blockedResults[0]?.message);
@@ -200,7 +198,8 @@ const redactionGuardrail = defineInputGuardrail<{
   },
 });
 
-const redactionModel = wrapWithInputGuardrails(model, [redactionGuardrail], {
+const redactionModel = withGuardrails(model, {
+  inputGuardrails: [redactionGuardrail],
   throwOnBlocked: false,
 });
 

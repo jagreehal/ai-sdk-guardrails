@@ -9,10 +9,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { extractContent } from '../src/guardrails/output';
 
 // Define SQL safety patterns and rules
@@ -629,39 +626,33 @@ const sqlCodeSafetyGuardrail = defineOutputGuardrail<{
 console.log('🛡️  SQL Code Safety Example\n');
 
 // Create a protected model with SQL safety enforcement
-const protectedModel = wrapWithOutputGuardrails(
-  model,
-  [sqlCodeSafetyGuardrail],
-  {
-    throwOnBlocked: true,
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('❌ SQL safety violation detected:', result?.message);
-      if (result?.metadata) {
-        const metadata = result.metadata;
-        console.log('   Risk Level:', metadata.riskLevel);
+const protectedModel = withGuardrails(model, {
+  outputGuardrails: [sqlCodeSafetyGuardrail],
+  throwOnBlocked: true,
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('❌ SQL safety violation detected:', result?.message);
+    if (result?.metadata) {
+      const metadata = result.metadata;
+      console.log('   Risk Level:', metadata.riskLevel);
+      console.log(
+        '   Violations:',
+        (metadata.violations as string[])?.length || 0,
+      );
+      console.log('   Warnings:', (metadata.warnings as string[])?.length || 0);
+      const validation = metadata.validation as ReturnType<
+        typeof validateSQLSafety
+      >;
+      if (validation?.metadata?.dangerousOperations?.operations?.length > 0) {
+        const operations = validation.metadata.dangerousOperations.operations;
         console.log(
-          '   Violations:',
-          (metadata.violations as string[])?.length || 0,
+          '   Dangerous Operations:',
+          operations.slice(0, 3).join(', '),
         );
-        console.log(
-          '   Warnings:',
-          (metadata.warnings as string[])?.length || 0,
-        );
-        const validation = metadata.validation as ReturnType<
-          typeof validateSQLSafety
-        >;
-        if (validation?.metadata?.dangerousOperations?.operations?.length > 0) {
-          const operations = validation.metadata.dangerousOperations.operations;
-          console.log(
-            '   Dangerous Operations:',
-            operations.slice(0, 3).join(', '),
-          );
-        }
       }
-    },
+    }
   },
-);
+});
 
 // Test 1: Safe SELECT query (should pass)
 console.log('Test 1: Safe SELECT query (should pass)');
@@ -765,7 +756,8 @@ try {
 
 // Test 9: Warning mode with safety analysis
 console.log('Test 9: Warning mode with safety analysis');
-const warningModel = wrapWithOutputGuardrails(model, [sqlCodeSafetyGuardrail], {
+const warningModel = withGuardrails(model, {
+  outputGuardrails: [sqlCodeSafetyGuardrail],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {
     const result = executionSummary.blockedResults[0];
