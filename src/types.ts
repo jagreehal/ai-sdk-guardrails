@@ -146,6 +146,7 @@ export type {
   LanguageModelUsage,
   LanguageModelRequestMetadata,
   LanguageModelResponseMetadata,
+  ToolSet,
 } from 'ai';
 
 // Re-export middleware and provider types for convenience

@@ -1,6 +1,10 @@
 # AI SDK Guardrails
 
-Production-ready input and output guardrails for the Vercel AI SDK. Stop wasteful requests, enforce quality, and protect sensitive data without changing how you use your models.
+**Input and output validation for the Vercel AI SDK**
+
+Add safety checks and quality controls to your AI applications. Guard against prompt injection, prevent sensitive data leaks, and improve output reliability - all while keeping your existing AI SDK code unchanged.
+
+**Now includes MCP (Model Context Protocol) security guardrails** to help protect against attacks when using AI tools.
 
 [![npm version](https://img.shields.io/npm/v/ai-sdk-guardrails.svg?logo=npm&label=npm)](https://www.npmjs.com/package/ai-sdk-guardrails)
 [![downloads](https://img.shields.io/npm/dw/ai-sdk-guardrails.svg?label=downloads)](https://www.npmjs.com/package/ai-sdk-guardrails)
@@ -12,9 +16,46 @@ Production-ready input and output guardrails for the Vercel AI SDK. Stop wastefu
 
 ## Why this matters
 
-- Save money by blocking low-value requests before they hit your model
-- Ensure quality and safety on every response
-- Drop-in middleware for any AI SDK model, making it easy to integrate
+- **MCP**: Protect against prompt injection and data exfiltration when using MCP tools
+- **Agent**: Have more reliable and secure agentic workflows
+- **Tool security**: Protect against data exfiltration when using MCP tools
+- **Save costs**: Block unnecessary requests before they hit your model
+- **Improve safety**: Detect PII, block harmful content, prevent prompt injection
+- **Better quality**: Enforce minimum response lengths, validate structure, auto-retry on failures
+- **Easy integration**: Works as middleware with any AI SDK model
+
+## Common use cases
+
+- Content moderation and safety filters
+- PII detection for compliance
+- Output quality requirements (length, format)
+- Prompt injection prevention
+- Tool usage validation
+- Auto-retry on low-quality responses
+
+## Secure AI in Under 60 Seconds
+
+**Step 1:** Install (10 seconds)
+
+```bash
+npm install ai-sdk-guardrails
+```
+
+**Step 2:** Import (15 seconds)
+
+```ts
+import { withGuardrails, piiDetector } from 'ai-sdk-guardrails';
+```
+
+**Step 3:** Wrap your model (30 seconds)
+
+```ts
+const safeModel = withGuardrails(yourModel, {
+  inputGuardrails: [piiDetector()],
+});
+```
+
+**Result:** Your AI now automatically blocks PII, prevents prompt injection, and validates outputs. That's it. No architecture changes, no security team required.
 
 ## TL;DR
 
@@ -23,13 +64,24 @@ Copy/paste minimal setup:
 ```ts
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { withGuardrails } from 'ai-sdk-guardrails';
-import { piiDetector } from 'ai-sdk-guardrails/guardrails/input';
-import { minLengthRequirement } from 'ai-sdk-guardrails/guardrails/output';
+import {
+  withGuardrails,
+  piiDetector,
+  promptInjectionDetector,
+  minLengthRequirement,
+  mcpSecurityGuardrail,
+} from 'ai-sdk-guardrails';
 
 const model = withGuardrails(openai('gpt-4o'), {
-  inputGuardrails: [piiDetector()],
-  outputGuardrails: [minLengthRequirement(160)],
+  inputGuardrails: [piiDetector(), promptInjectionDetector()],
+  outputGuardrails: [
+    minLengthRequirement(160),
+    mcpSecurityGuardrail({
+      maxContentSize: 51200, // 50KB limit
+      injectionThreshold: 0.7, // Configurable sensitivity
+      allowedDomains: ['api.company.com'], // Domain allowlist
+    }),
+  ],
 });
 
 const { text } = await generateText({
@@ -55,8 +107,7 @@ Wrap your model and keep using `generateText` as usual:
 ```ts
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { withGuardrails } from 'ai-sdk-guardrails';
-import { piiDetector } from 'ai-sdk-guardrails/guardrails/input';
+import { withGuardrails, piiDetector } from 'ai-sdk-guardrails';
 
 const model = withGuardrails(openai('gpt-4o'), {
   inputGuardrails: [piiDetector()],
@@ -135,10 +186,12 @@ import {
   defineOutputGuardrail,
   withGuardrails,
 } from 'ai-sdk-guardrails';
+import { extractTextContent } from 'ai-sdk-guardrails/guardrails/input';
+import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
 const businessHours = defineInputGuardrail({
   name: 'business-hours',
-  execute: async () => {
+  execute: async (params) => {
     const hr = new Date().getHours();
     return hr >= 9 && hr <= 17
       ? { tripwireTriggered: false }
@@ -149,7 +202,8 @@ const businessHours = defineInputGuardrail({
 const minQuality = defineOutputGuardrail({
   name: 'min-quality',
   execute: async ({ result }) => {
-    return (result.text ?? '').length >= 80
+    const { text } = extractContent(result);
+    return text.length >= 80
       ? { tripwireTriggered: false }
       : { tripwireTriggered: true, message: 'Response too short' };
   },
@@ -165,25 +219,33 @@ const model = withGuardrails(openai('gpt-4o'), {
 
 ```ts
 import { openai } from '@ai-sdk/openai';
-import { withGuardrails } from 'ai-sdk-guardrails';
 import {
+  withGuardrails,
   piiDetector,
   blockedKeywords,
   contentLengthLimit,
-} from 'ai-sdk-guardrails/guardrails/input';
-import {
+  promptInjectionDetector,
   sensitiveDataFilter,
   minLengthRequirement,
   confidenceThreshold,
-} from 'ai-sdk-guardrails/guardrails/output';
+  mcpSecurityGuardrail,
+  mcpResponseSanitizer,
+} from 'ai-sdk-guardrails';
 
 const model = withGuardrails(openai('gpt-4o'), {
   inputGuardrails: [
     piiDetector(),
+    promptInjectionDetector({ threshold: 0.7 }),
     blockedKeywords(['test', 'spam']),
     contentLengthLimit(4000),
   ],
   outputGuardrails: [
+    mcpSecurityGuardrail({
+      detectExfiltration: true,
+      scanEncodedContent: true,
+      allowedDomains: ['trusted-api.com'],
+    }),
+    mcpResponseSanitizer(),
     sensitiveDataFilter(),
     minLengthRequirement(160),
     confidenceThreshold(0.6),
@@ -198,8 +260,7 @@ Works out of the box. By default, guardrails run after the stream ends (buffer m
 ```ts
 import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { withGuardrails } from 'ai-sdk-guardrails';
-import { minLengthRequirement } from 'ai-sdk-guardrails/guardrails/output';
+import { withGuardrails, minLengthRequirement } from 'ai-sdk-guardrails';
 
 const model = withGuardrails(openai('gpt-4o'), {
   outputGuardrails: [minLengthRequirement(120)],
@@ -353,6 +414,160 @@ const piiProtection = createGuardrails({ inputGuardrails: [piiDetector()] });
 // Chain them together
 const model = piiProtection(strictLimits(openai('gpt-4o')));
 ```
+
+## MCP Security Guardrails
+
+**Production-Ready**: Protect against prompt injection and data exfiltration attacks when using Model Context Protocol (MCP) tools. Based on research into the ["lethal trifecta" vulnerability](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/) that has affected major AI platforms.
+
+### The Problem
+
+AI agents with MCP tools can be vulnerable when they have:
+
+1. **Access to private data** (through tools)
+2. **Process untrusted content** (from tool responses)
+3. **Can communicate externally** (make web requests)
+
+Malicious tool responses can contain hidden instructions that trick the AI into exfiltrating sensitive data.
+
+### Production-Ready Solution
+
+Full configurability with sensible defaults for immediate deployment:
+
+```ts
+import {
+  withGuardrails,
+  promptInjectionDetector,
+  mcpSecurityGuardrail,
+  mcpResponseSanitizer,
+  toolEgressPolicy,
+} from 'ai-sdk-guardrails';
+
+// Conservative production setup (high security)
+const secureModel = withGuardrails(openai('gpt-4o'), {
+  inputGuardrails: [
+    promptInjectionDetector({ threshold: 0.6, includeExamples: true }),
+  ],
+  outputGuardrails: [
+    mcpSecurityGuardrail({
+      injectionThreshold: 0.5, // Lower = more sensitive
+      maxSuspiciousUrls: 0, // Zero tolerance
+      maxContentSize: 25600, // 25KB limit for performance
+      minEncodedLength: 15, // Detect shorter encoded attacks
+      encodedInjectionThreshold: 0.2, // Combined encoded + injection threshold
+      highRiskThreshold: 0.3, // High-risk cascade blocking
+      authorityThreshold: 0.5, // Authority manipulation detection
+      allowedDomains: ['api.company.com', 'trusted-partner.com'],
+      customSuspiciousDomains: ['evil.com', 'malicious.org'],
+      blockCascadingCalls: true,
+      scanEncodedContent: true,
+      detectExfiltration: true,
+    }),
+    mcpResponseSanitizer(), // Clean malicious content vs blocking
+    toolEgressPolicy({
+      allowedHosts: ['api.company.com', 'trusted-partner.com'],
+      blockedHosts: ['webhook.site', 'requestcatcher.com', 'ngrok.io'],
+      scanForUrls: true,
+    }),
+  ],
+});
+```
+
+### Environment & Role-Based Configuration
+
+```ts
+// Different security profiles for different environments
+function getSecurityConfig(env: 'production' | 'staging' | 'development') {
+  const configs = {
+    production: {
+      injectionThreshold: 0.5, // High security
+      maxContentSize: 25600, // 25KB limit
+      authorityThreshold: 0.5, // Very sensitive
+    },
+    staging: {
+      injectionThreshold: 0.7, // Balanced security
+      maxContentSize: 51200, // 50KB default
+      authorityThreshold: 0.7, // Standard sensitivity
+    },
+    development: {
+      injectionThreshold: 0.8, // Lower security, better performance
+      maxContentSize: 102400, // 100KB for testing
+      authorityThreshold: 0.8, // Less restrictive
+    },
+  };
+  return configs[env];
+}
+
+const productionModel = withGuardrails(openai('gpt-4o'), {
+  outputGuardrails: [mcpSecurityGuardrail(getSecurityConfig('production'))],
+});
+```
+
+### Attack Vectors Prevented
+
+✅ **Direct prompt injection** - "System: ignore all previous instructions"
+✅ **Tool response poisoning** - Malicious content in MCP tool responses
+✅ **Data exfiltration** - URLs constructed to steal sensitive data
+✅ **Encoded attacks** - Base64/hex hidden malicious instructions
+✅ **Cascading exploits** - Tool responses triggering additional dangerous calls
+✅ **Context poisoning** - Attempts to modify AI behavior mid-conversation
+
+### Secure MCP Agent Example
+
+```ts
+import { withAgentGuardrails } from 'ai-sdk-guardrails';
+
+const secureAgent = withAgentGuardrails(
+  {
+    model: openai('gpt-4o'),
+    tools: { file_search, api_call, database_query },
+    system: 'You are a secure assistant. Always validate tool responses.',
+  },
+  {
+    inputGuardrails: [promptInjectionDetector()],
+    outputGuardrails: [
+      mcpSecurityGuardrail({
+        detectExfiltration: true,
+        allowedDomains: ['trusted-api.com'],
+      }),
+      mcpResponseSanitizer(),
+    ],
+    toolGuardrails: [
+      toolEgressPolicy({
+        allowedHosts: ['trusted-api.com'],
+        scanForUrls: true,
+      }),
+    ],
+  },
+);
+```
+
+### Configuration Options
+
+All security parameters are fully configurable with sensible defaults:
+
+| Option                      | Default | Description                                      |
+| --------------------------- | ------- | ------------------------------------------------ |
+| `injectionThreshold`        | 0.7     | Prompt injection confidence threshold (0-1)      |
+| `maxSuspiciousUrls`         | 0       | Max allowed suspicious URLs (0 = zero tolerance) |
+| `maxContentSize`            | 51200   | Max content size in bytes (50KB default)         |
+| `minEncodedLength`          | 20      | Min encoded content length to analyze            |
+| `encodedInjectionThreshold` | 0.3     | Combined encoded + injection threshold           |
+| `authorityThreshold`        | 0.7     | Authority manipulation detection sensitivity     |
+| `allowedDomains`            | []      | Allowed domains for URL construction             |
+| `customSuspiciousDomains`   | []      | Additional suspicious domain patterns            |
+
+### Performance & Security Balance
+
+- **High Security**: Lower thresholds, stricter limits, comprehensive scanning
+- **Balanced**: Default settings, good for most production use cases
+- **High Performance**: Higher thresholds, larger limits, selective scanning
+
+See complete examples:
+
+- [Production MCP Configuration](./examples/44-production-mcp-config.ts) - **New!**
+- [MCP Security Test Suite](./examples/41-mcp-security-test.ts)
+- [Enhanced Security Testing](./examples/43-enhanced-mcp-security-test.ts)
+- [Vulnerability Proof of Concept](./examples/42-mcp-vulnerability-proof.ts)
 
 ## Agent Support
 

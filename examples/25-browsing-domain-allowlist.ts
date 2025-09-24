@@ -11,9 +11,8 @@ import { model } from './model';
 import {
   defineInputGuardrail,
   defineOutputGuardrail,
-  wrapWithInputGuardrails,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+  withGuardrails,
+} from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
 
@@ -704,35 +703,31 @@ const domainAllowlistOutputGuardrail = defineOutputGuardrail<{
 console.log('🛡️  Domain Allowlisting Example\n');
 
 // Create a protected model with domain allowlisting
-const protectedModel = wrapWithOutputGuardrails(
-  wrapWithInputGuardrails(model, [domainAllowlistInputGuardrail], {
-    throwOnBlocked: true,
-    onInputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('❌ Domain allowlist violation detected:', result?.message);
-      if (result?.metadata) {
-        const metadata = result.metadata;
-        console.log('   URLs Found:', metadata.urlsFound);
-        console.log('   Risk Level:', metadata.riskLevel);
-        console.log('   Violations:', metadata.violations?.length || 0);
-      }
-    },
-  }),
-  [domainAllowlistOutputGuardrail],
-  {
-    throwOnBlocked: true,
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('❌ Output domain violation detected:', result?.message);
-      if (result?.metadata) {
-        const metadata = result.metadata;
-        console.log('   URLs Found:', metadata.urlsFound);
-        console.log('   Risk Level:', metadata.riskLevel);
-        console.log('   Violations:', metadata.violations?.length || 0);
-      }
-    },
+const protectedModel = withGuardrails(model, {
+  inputGuardrails: [domainAllowlistInputGuardrail],
+  outputGuardrails: [domainAllowlistOutputGuardrail],
+  throwOnBlocked: true,
+  onInputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('❌ Domain allowlist violation detected:', result?.message);
+    if (result?.metadata) {
+      const metadata = result.metadata;
+      console.log('   URLs Found:', metadata.urlsFound);
+      console.log('   Risk Level:', metadata.riskLevel);
+      console.log('   Violations:', metadata.violations?.length || 0);
+    }
   },
-);
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('❌ Output domain violation detected:', result?.message);
+    if (result?.metadata) {
+      const metadata = result.metadata;
+      console.log('   URLs Found:', metadata.urlsFound);
+      console.log('   Risk Level:', metadata.riskLevel);
+      console.log('   Violations:', metadata.violations?.length || 0);
+    }
+  },
+});
 
 // Test 1: No URLs (should pass)
 console.log('Test 1: No URLs (should pass)');
@@ -832,30 +827,26 @@ try {
 
 // Test 9: Warning mode with domain analysis
 console.log('Test 9: Warning mode with domain analysis');
-const warningModel = wrapWithOutputGuardrails(
-  wrapWithInputGuardrails(model, [domainAllowlistInputGuardrail], {
-    throwOnBlocked: false,
-    onInputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('⚠️  Warning:', result?.message);
-      if (result?.metadata) {
-        const metadata = result.metadata;
-        console.log('   Risk Level:', metadata.riskLevel);
-        if (metadata.violations && metadata.violations.length > 0) {
-          console.log('   Primary Violation:', metadata.violations[0]);
-        }
+const warningModel = withGuardrails(model, {
+  inputGuardrails: [domainAllowlistInputGuardrail],
+  outputGuardrails: [domainAllowlistOutputGuardrail],
+  throwOnBlocked: false,
+  onInputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('⚠️  Warning:', result?.message);
+    if (result?.metadata) {
+      const metadata = result.metadata;
+      console.log('   Risk Level:', metadata.riskLevel);
+      if (metadata.violations && metadata.violations.length > 0) {
+        console.log('   Primary Violation:', metadata.violations[0]);
       }
-    },
-  }),
-  [domainAllowlistOutputGuardrail],
-  {
-    throwOnBlocked: false,
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('⚠️  Output Warning:', result?.message);
-    },
+    }
   },
-);
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('⚠️  Output Warning:', result?.message);
+  },
+});
 
 try {
   const result = await generateText({

@@ -11,10 +11,7 @@
 import { z } from 'zod';
 import { generateObject } from 'ai';
 import { mistralModel as model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { extractContent } from '../src/guardrails/output';
 
 // Define schemas for different object types
@@ -97,7 +94,8 @@ console.log('==================================\n');
 const userValidator = createSchemaValidator(userSchema, 'user');
 
 // Blocking mode - rejects invalid objects
-const strictUserModel = wrapWithOutputGuardrails(model, [userValidator], {
+const strictUserModel = withGuardrails(model, {
+  outputGuardrails: [userValidator],
   throwOnBlocked: true,
   onOutputBlocked: (executionSummary) => {
     console.log(
@@ -152,19 +150,16 @@ console.log('===================================================\n');
 
 const productValidator = createSchemaValidator(productSchema, 'product');
 
-const warningProductModel = wrapWithOutputGuardrails(
-  model,
-  [productValidator],
-  {
-    throwOnBlocked: false, // Warning mode
-    onOutputBlocked: (executionSummary) => {
-      console.log(
-        '⚠️  Validation warning:',
-        executionSummary.blockedResults[0]?.message,
-      );
-    },
+const warningProductModel = withGuardrails(model, {
+  outputGuardrails: [productValidator],
+  throwOnBlocked: false, // Warning mode
+  onOutputBlocked: (executionSummary) => {
+    console.log(
+      '⚠️  Validation warning:',
+      executionSummary.blockedResults[0]?.message,
+    );
   },
-);
+});
 
 console.log('Test: Generate product object');
 try {
@@ -204,7 +199,8 @@ const orderSchema = z.object({
 
 const orderValidator = createSchemaValidator(orderSchema, 'order');
 
-const orderModel = wrapWithOutputGuardrails(model, [orderValidator], {
+const orderModel = withGuardrails(model, {
+  outputGuardrails: [orderValidator],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {
     console.log(
@@ -290,19 +286,16 @@ const businessSchema = z.object({
   featured: z.boolean().optional(),
 });
 
-const businessModel = wrapWithOutputGuardrails(
-  model,
-  [businessRulesGuardrail],
-  {
-    throwOnBlocked: false,
-    onOutputBlocked: (executionSummary) => {
-      console.log(
-        '⚠️  Business rule violation:',
-        executionSummary.blockedResults[0]?.message,
-      );
-    },
+const businessModel = withGuardrails(model, {
+  outputGuardrails: [businessRulesGuardrail],
+  throwOnBlocked: false,
+  onOutputBlocked: (executionSummary) => {
+    console.log(
+      '⚠️  Business rule violation:',
+      executionSummary.blockedResults[0]?.message,
+    );
   },
-);
+});
 
 try {
   const result = await generateObject({

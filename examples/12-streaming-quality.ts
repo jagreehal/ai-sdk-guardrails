@@ -7,10 +7,7 @@
 
 import { streamText } from 'ai';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { extractContent } from '../src/guardrails/output';
 
 // Quality guardrail for streaming responses
@@ -199,28 +196,25 @@ async function demonstrateQualityMonitoring() {
   console.log('📊 Stream Quality Monitoring');
   console.log('============================\n');
 
-  const qualityModel = wrapWithOutputGuardrails(
-    model,
-    [streamQualityGuardrail],
-    {
-      throwOnBlocked: false,
-      onOutputBlocked: (executionSummary) => {
+  const qualityModel = withGuardrails(model, {
+    outputGuardrails: [streamQualityGuardrail],
+    throwOnBlocked: false,
+    onOutputBlocked: (executionSummary) => {
+      console.log(
+        '\n📊 Quality Assessment:',
+        executionSummary.blockedResults[0]?.message,
+      );
+      const metadata = executionSummary.blockedResults[0]?.metadata;
+      if (metadata?.metrics) {
+        console.log('   Metrics:');
+        console.log(`   - Words: ${metadata.metrics.wordCount}`);
+        console.log(`   - Sentences: ${metadata.metrics.sentenceCount}`);
         console.log(
-          '\n📊 Quality Assessment:',
-          executionSummary.blockedResults[0]?.message,
+          `   - Avg words/sentence: ${metadata.metrics.avgWordsPerSentence}`,
         );
-        const metadata = executionSummary.blockedResults[0]?.metadata;
-        if (metadata?.metrics) {
-          console.log('   Metrics:');
-          console.log(`   - Words: ${metadata.metrics.wordCount}`);
-          console.log(`   - Sentences: ${metadata.metrics.sentenceCount}`);
-          console.log(
-            `   - Avg words/sentence: ${metadata.metrics.avgWordsPerSentence}`,
-          );
-        }
-      },
+      }
     },
-  );
+  });
 
   console.log('Test 1: Well-formed stream');
   try {
@@ -260,28 +254,25 @@ async function demonstrateHallucinationDetection() {
   console.log('🔍 Hallucination Pattern Detection');
   console.log('===================================\n');
 
-  const hallucinationModel = wrapWithOutputGuardrails(
-    model,
-    [hallucinationDetector],
-    {
-      throwOnBlocked: false,
-      onOutputBlocked: (executionSummary) => {
+  const hallucinationModel = withGuardrails(model, {
+    outputGuardrails: [hallucinationDetector],
+    throwOnBlocked: false,
+    onOutputBlocked: (executionSummary) => {
+      console.log(
+        '\n⚠️  Hallucination Warning:',
+        executionSummary.blockedResults[0]?.message,
+      );
+      const metadata = executionSummary.blockedResults[0]?.metadata;
+      if (metadata) {
+        console.log('   Detection counts:');
         console.log(
-          '\n⚠️  Hallucination Warning:',
-          executionSummary.blockedResults[0]?.message,
+          `   - Confidence markers: ${metadata.metrics.confidenceCount}`,
         );
-        const metadata = executionSummary.blockedResults[0]?.metadata;
-        if (metadata) {
-          console.log('   Detection counts:');
-          console.log(
-            `   - Confidence markers: ${metadata.metrics.confidenceCount}`,
-          );
-          console.log(`   - Citations: ${metadata.metrics.citationCount}`);
-          console.log(`   - Specific numbers: ${metadata.metrics.numberCount}`);
-        }
-      },
+        console.log(`   - Citations: ${metadata.metrics.citationCount}`);
+        console.log(`   - Specific numbers: ${metadata.metrics.numberCount}`);
+      }
     },
-  );
+  });
 
   console.log('Test: Generate factual content');
   try {
@@ -304,27 +295,24 @@ async function demonstrateCombinedQualityChecks() {
   console.log('🎯 Combined Quality Checks');
   console.log('==========================\n');
 
-  const combinedModel = wrapWithOutputGuardrails(
-    model,
-    [streamQualityGuardrail, hallucinationDetector],
-    {
-      throwOnBlocked: false,
-      onOutputBlocked: (executionSummary) => {
-        console.log('\n📋 Quality Report:');
-        for (const result of executionSummary.blockedResults) {
-          const severity =
-            result.severity === 'high'
-              ? '🚨'
-              : result.severity === 'medium'
-                ? '⚠️'
-                : 'ℹ️';
-          console.log(
-            `${severity} [${result.context?.guardrailName}] ${result.message}`,
-          );
-        }
-      },
+  const combinedModel = withGuardrails(model, {
+    outputGuardrails: [streamQualityGuardrail, hallucinationDetector],
+    throwOnBlocked: false,
+    onOutputBlocked: (executionSummary) => {
+      console.log('\n📋 Quality Report:');
+      for (const result of executionSummary.blockedResults) {
+        const severity =
+          result.severity === 'high'
+            ? '🚨'
+            : result.severity === 'medium'
+              ? '⚠️'
+              : 'ℹ️';
+        console.log(
+          `${severity} [${result.context?.guardrailName}] ${result.message}`,
+        );
+      }
     },
-  );
+  });
 
   console.log('Test: Complex response with multiple quality checks');
   try {

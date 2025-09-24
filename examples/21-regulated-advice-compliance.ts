@@ -9,10 +9,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 
 // Define regulated advice patterns and categories
 const REGULATED_ADVICE_PATTERNS = {
@@ -420,56 +417,53 @@ const regulatedAdviceComplianceGuardrail = defineOutputGuardrail({
 console.log('🛡️  Regulated Advice Compliance Example\n');
 
 // Create a protected model with regulated advice compliance
-const protectedModel = wrapWithOutputGuardrails(
-  model,
-  [regulatedAdviceComplianceGuardrail],
-  {
-    throwOnBlocked: true,
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('❌ Regulated advice detected:', result?.message);
-      if (result?.metadata) {
-        console.log('   Advice Types:', result.metadata.totalAdviceTypes);
-        console.log('   Severity:', result.metadata.highestSeverity);
-        console.log('   Jurisdiction:', result.metadata.jurisdiction);
-        if (
+const protectedModel = withGuardrails(model, {
+  outputGuardrails: [regulatedAdviceComplianceGuardrail],
+  throwOnBlocked: true,
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('❌ Regulated advice detected:', result?.message);
+    if (result?.metadata) {
+      console.log('   Advice Types:', result.metadata.totalAdviceTypes);
+      console.log('   Severity:', result.metadata.highestSeverity);
+      console.log('   Jurisdiction:', result.metadata.jurisdiction);
+      if (
+        result.metadata &&
+        typeof result.metadata === 'object' &&
+        'disclaimers' in result.metadata &&
+        Array.isArray(result.metadata.disclaimers) &&
+        (result.metadata.disclaimers as unknown[]).length > 0
+      ) {
+        console.log(
+          '   Required Disclaimers:',
           result.metadata &&
-          typeof result.metadata === 'object' &&
-          'disclaimers' in result.metadata &&
-          Array.isArray(result.metadata.disclaimers) &&
-          (result.metadata.disclaimers as unknown[]).length > 0
-        ) {
-          console.log(
-            '   Required Disclaimers:',
-            result.metadata &&
-              typeof result.metadata === 'object' &&
-              'disclaimers' in result.metadata &&
-              Array.isArray(result.metadata.disclaimers)
-              ? (result.metadata.disclaimers as unknown[]).length
-              : 0,
-          );
-        }
-        if (
-          result.metadata &&
-          typeof result.metadata === 'object' &&
-          'recommendations' in result.metadata &&
-          Array.isArray(result.metadata.recommendations) &&
-          (result.metadata.recommendations as unknown[]).length > 0
-        ) {
-          console.log(
-            '   Professional Recommendations:',
-            result.metadata &&
-              typeof result.metadata === 'object' &&
-              'recommendations' in result.metadata &&
-              Array.isArray(result.metadata.recommendations)
-              ? (result.metadata.recommendations as unknown[]).length
-              : 0,
-          );
-        }
+            typeof result.metadata === 'object' &&
+            'disclaimers' in result.metadata &&
+            Array.isArray(result.metadata.disclaimers)
+            ? (result.metadata.disclaimers as unknown[]).length
+            : 0,
+        );
       }
-    },
+      if (
+        result.metadata &&
+        typeof result.metadata === 'object' &&
+        'recommendations' in result.metadata &&
+        Array.isArray(result.metadata.recommendations) &&
+        (result.metadata.recommendations as unknown[]).length > 0
+      ) {
+        console.log(
+          '   Professional Recommendations:',
+          result.metadata &&
+            typeof result.metadata === 'object' &&
+            'recommendations' in result.metadata &&
+            Array.isArray(result.metadata.recommendations)
+            ? (result.metadata.recommendations as unknown[]).length
+            : 0,
+        );
+      }
+    }
   },
-);
+});
 
 // Test 1: Safe, non-regulated content
 console.log('Test 1: Safe, non-regulated content (should pass)');
@@ -563,45 +557,42 @@ try {
 
 // Test 8: Warning mode with compliance information
 console.log('Test 8: Warning mode with compliance information');
-const warningModel = wrapWithOutputGuardrails(
-  model,
-  [regulatedAdviceComplianceGuardrail],
-  {
-    throwOnBlocked: false,
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('⚠️  Warning:', result?.message);
-      if (result?.metadata) {
-        console.log('   Jurisdiction:', result.metadata.jurisdiction);
-        if (
-          result.metadata &&
-          typeof result.metadata === 'object' &&
-          'disclaimers' in result.metadata &&
-          Array.isArray(result.metadata.disclaimers) &&
-          (result.metadata.disclaimers as unknown[]).length > 0
-        ) {
-          console.log(
-            '   Required Disclaimer:',
-            ((result.metadata.disclaimers as string[])[0] || '').slice(0, 100) +
-              '...',
-          );
-        }
-        if (
-          result.metadata &&
-          typeof result.metadata === 'object' &&
-          'recommendations' in result.metadata &&
-          Array.isArray(result.metadata.recommendations) &&
-          (result.metadata.recommendations as unknown[]).length > 0
-        ) {
-          console.log(
-            '   Professional Recommendation:',
-            (result.metadata.recommendations as string[])[0] || '',
-          );
-        }
+const warningModel = withGuardrails(model, {
+  outputGuardrails: [regulatedAdviceComplianceGuardrail],
+  throwOnBlocked: false,
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('⚠️  Warning:', result?.message);
+    if (result?.metadata) {
+      console.log('   Jurisdiction:', result.metadata.jurisdiction);
+      if (
+        result.metadata &&
+        typeof result.metadata === 'object' &&
+        'disclaimers' in result.metadata &&
+        Array.isArray(result.metadata.disclaimers) &&
+        (result.metadata.disclaimers as unknown[]).length > 0
+      ) {
+        console.log(
+          '   Required Disclaimer:',
+          ((result.metadata.disclaimers as string[])[0] || '').slice(0, 100) +
+            '...',
+        );
       }
-    },
+      if (
+        result.metadata &&
+        typeof result.metadata === 'object' &&
+        'recommendations' in result.metadata &&
+        Array.isArray(result.metadata.recommendations) &&
+        (result.metadata.recommendations as unknown[]).length > 0
+      ) {
+        console.log(
+          '   Professional Recommendation:',
+          (result.metadata.recommendations as string[])[0] || '',
+        );
+      }
+    }
   },
-);
+});
 
 try {
   const result = await generateText({

@@ -7,10 +7,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineInputGuardrail,
-  wrapWithInputGuardrails,
-} from '../src/guardrails';
+import { defineInputGuardrail, withGuardrails } from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 
 // Define a guardrail that blocks specific keywords
@@ -45,22 +42,19 @@ const blockedKeywordsGuardrail = defineInputGuardrail({
 console.log('🚫 Blocked Keywords Example\n');
 
 // Create a protected model with keyword blocking
-const protectedModel = wrapWithInputGuardrails(
-  model,
-  [blockedKeywordsGuardrail],
-  {
-    throwOnBlocked: true,
-    onInputBlocked: (executionSummary) => {
-      console.log('🛡️ Blocked:', executionSummary.blockedResults[0]?.message);
-      if (executionSummary.blockedResults[0]?.metadata) {
-        console.log(
-          '   Keywords checked:',
-          executionSummary.blockedResults[0].metadata.blockedKeywords,
-        );
-      }
-    },
+const protectedModel = withGuardrails(model, {
+  inputGuardrails: [blockedKeywordsGuardrail],
+  throwOnBlocked: true,
+  onInputBlocked: (executionSummary) => {
+    console.log('🛡️ Blocked:', executionSummary.blockedResults[0]?.message);
+    if (executionSummary.blockedResults[0]?.metadata) {
+      console.log(
+        '   Keywords checked:',
+        executionSummary.blockedResults[0].metadata.blockedKeywords,
+      );
+    }
   },
-);
+});
 
 // Test 1: Clean prompt
 console.log('Test 1: Clean prompt (should pass)');

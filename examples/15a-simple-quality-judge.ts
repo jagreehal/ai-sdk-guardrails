@@ -7,10 +7,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { extractContent } from '../src/guardrails/output';
 
 // Simple quality evaluation guardrail
@@ -98,7 +95,8 @@ Respond with just a number (1-10):`,
 console.log('⚖️ Simple Quality Judge Example\n');
 
 // Create a protected model with quality checking
-const judgedModel = wrapWithOutputGuardrails(model, [qualityJudgeGuardrail], {
+const judgedModel = withGuardrails(model, {
+  outputGuardrails: [qualityJudgeGuardrail],
   throwOnBlocked: false, // Warning mode
   onOutputBlocked: (executionSummary) => {
     const result = executionSummary.blockedResults[0];

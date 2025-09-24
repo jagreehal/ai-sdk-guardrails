@@ -21,7 +21,7 @@ import type {
   LanguageModelV2TextPart,
 } from '@ai-sdk/provider';
 import { model } from './model';
-import { wrapWithOutputGuardrails } from '../src/guardrails';
+import { withGuardrails } from '../src/index';
 import { expectedToolUse } from '../src/guardrails/tools';
 import { createOutputGuardrail } from '../src/core';
 import { extractContent } from '../src/guardrails/output';
@@ -219,24 +219,21 @@ async function runWithGuardrails() {
 
   try {
     // Research Agent with tool usage guardrail
-    const guardedResearchModel = wrapWithOutputGuardrails(
-      model,
-      [expectedToolUse({ tools: 'search' })],
-      {
-        retry: {
-          maxRetries: 2,
-          buildRetryParams: ({ lastParams }) => ({
-            ...lastParams,
-            prompt: [
-              ...normalizePrompt(lastParams.prompt),
-              createUserMessage(
-                'IMPORTANT: You must use the search tool to gather data.',
-              ),
-            ],
-          }),
-        },
+    const guardedResearchModel = withGuardrails(model, {
+      outputGuardrails: [expectedToolUse({ tools: 'search' })],
+      retry: {
+        maxRetries: 2,
+        buildRetryParams: ({ lastParams }) => ({
+          ...lastParams,
+          prompt: [
+            ...normalizePrompt(lastParams.prompt),
+            createUserMessage(
+              'IMPORTANT: You must use the search tool to gather data.',
+            ),
+          ],
+        }),
       },
-    );
+    });
 
     const research = await generateText({
       model: guardedResearchModel,
@@ -251,24 +248,21 @@ async function runWithGuardrails() {
     );
 
     // Analysis Agent with structure guardrail
-    const guardedAnalysisModel = wrapWithOutputGuardrails(
-      model,
-      [structuredAnalysis],
-      {
-        retry: {
-          maxRetries: 2,
-          buildRetryParams: ({ lastParams }) => ({
-            ...lastParams,
-            prompt: [
-              ...normalizePrompt(lastParams.prompt),
-              createUserMessage(
-                'Format: Key Points: • point 1 • point 2\nConclusion: summary',
-              ),
-            ],
-          }),
-        },
+    const guardedAnalysisModel = withGuardrails(model, {
+      outputGuardrails: [structuredAnalysis],
+      retry: {
+        maxRetries: 2,
+        buildRetryParams: ({ lastParams }) => ({
+          ...lastParams,
+          prompt: [
+            ...normalizePrompt(lastParams.prompt),
+            createUserMessage(
+              'Format: Key Points: • point 1 • point 2\nConclusion: summary',
+            ),
+          ],
+        }),
       },
-    );
+    });
 
     const analysis = await generateText({
       model: guardedAnalysisModel,
@@ -283,24 +277,21 @@ async function runWithGuardrails() {
     );
 
     // Report Agent with citation guardrail
-    const guardedReportModel = wrapWithOutputGuardrails(
-      model,
-      [requireCitations],
-      {
-        retry: {
-          maxRetries: 2,
-          buildRetryParams: ({ lastParams }) => ({
-            ...lastParams,
-            prompt: [
-              ...normalizePrompt(lastParams.prompt),
-              createUserMessage(
-                'IMPORTANT: Include sources and citations in your report.',
-              ),
-            ],
-          }),
-        },
+    const guardedReportModel = withGuardrails(model, {
+      outputGuardrails: [requireCitations],
+      retry: {
+        maxRetries: 2,
+        buildRetryParams: ({ lastParams }) => ({
+          ...lastParams,
+          prompt: [
+            ...normalizePrompt(lastParams.prompt),
+            createUserMessage(
+              'IMPORTANT: Include sources and citations in your report.',
+            ),
+          ],
+        }),
       },
-    );
+    });
 
     const report = await generateText({
       model: guardedReportModel,
@@ -420,13 +411,13 @@ async function runOrchestratorWorker() {
   console.log('------------------------------------------');
 
   // Worker agents with different specializations
-  const marketWorker = wrapWithOutputGuardrails(
-    model,
-    [expectedToolUse({ tools: 'search' })],
-    { throwOnBlocked: false },
-  );
+  const marketWorker = withGuardrails(model, {
+    outputGuardrails: [expectedToolUse({ tools: 'search' })],
+    throwOnBlocked: false,
+  });
 
-  const techWorker = wrapWithOutputGuardrails(model, [structuredAnalysis], {
+  const techWorker = withGuardrails(model, {
+    outputGuardrails: [structuredAnalysis],
     throwOnBlocked: false,
   });
 

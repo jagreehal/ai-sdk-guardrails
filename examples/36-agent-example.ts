@@ -12,7 +12,7 @@
 import { tool, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { model } from './model';
-import { defineOutputGuardrail, withAgentGuardrails } from '../src/guardrails';
+import { defineOutputGuardrail, withAgentGuardrails } from '../src/index';
 import { extractContent } from '../src/guardrails/output';
 
 console.log('🤖 Agent Class + Guardrails Example');

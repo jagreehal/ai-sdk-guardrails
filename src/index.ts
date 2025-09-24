@@ -71,12 +71,10 @@ export type { BackoffOptions } from './backoff';
 // Built-in guardrails
 export {
   // Output guardrails
-  lengthLimit,
   minLengthRequirement,
   sensitiveDataFilter,
   blockedContent,
   outputLengthLimit,
-  blockedOutputContent,
   jsonValidation,
   confidenceThreshold,
   toxicityFilter,
@@ -121,9 +119,20 @@ export {
   toolEgressPolicy,
 } from './guardrails/tools';
 
+export {
+  // MCP Security guardrails
+  mcpSecurityGuardrail,
+  mcpResponseSanitizer,
+} from './guardrails/mcp-security';
+
 export type {
   ExpectedToolUseOptions,
   ToolEgressPolicyOptions,
 } from './guardrails/tools';
+
+export type {
+  McpSecurityOptions,
+  McpSecurityMetadata,
+} from './guardrails/mcp-security';
 
 export type { AllowedToolsOptions } from './guardrails/input';

@@ -842,6 +842,7 @@ export function withGuardrails<
     };
     onInputBlocked?: InputGuardrailsMiddlewareConfig<MIn>['onInputBlocked'];
     onOutputBlocked?: OutputGuardrailsMiddlewareConfig<MOut>['onOutputBlocked'];
+    retry?: OutputGuardrailsMiddlewareConfig<MOut>['retry'];
   },
 ): LanguageModelV2 {
   return wrapWithGuardrails(model, config);

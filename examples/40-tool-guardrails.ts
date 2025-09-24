@@ -62,7 +62,14 @@ const securityTools = {
       subject: z.string().describe('Email subject'),
       body: z.string().describe('Email body content'),
     }),
-    execute: async ({ to, subject }: { to: string; subject: string; body: string }) => {
+    execute: async ({
+      to,
+      subject,
+    }: {
+      to: string;
+      subject: string;
+      body: string;
+    }) => {
       console.log(`📧 Mock email sent to ${to}: ${subject}`);
       return {
         status: 'Email sent successfully',
@@ -121,7 +128,10 @@ const securityPolicies = {
     detectNaturalLanguageTools: true,
     customValidator: (toolName: string) => {
       // Business hours validation for email
-      if (toolName.toLowerCase().includes('email') || toolName.toLowerCase().includes('send')) {
+      if (
+        toolName.toLowerCase().includes('email') ||
+        toolName.toLowerCase().includes('send')
+      ) {
         const hour = new Date().getHours();
         const isBusinessHours = hour >= 8 && hour <= 18;
         console.log(
@@ -135,12 +145,23 @@ const securityPolicies = {
 
   // Admin user - access to dangerous tools with extra validation
   admin: {
-    allowedTools: ['calculator', 'weather', 'search', 'sendEmail', 'systemCommand', 'fileDelete'],
+    allowedTools: [
+      'calculator',
+      'weather',
+      'search',
+      'sendEmail',
+      'systemCommand',
+      'fileDelete',
+    ],
     deniedTools: ['dangerous'],
     detectNaturalLanguageTools: true,
     customValidator: (toolName: string) => {
       // Extra validation for dangerous tools
-      if (['systemcommand', 'filedelete', 'system', 'delete'].includes(toolName.toLowerCase())) {
+      if (
+        ['systemcommand', 'filedelete', 'system', 'delete'].includes(
+          toolName.toLowerCase(),
+        )
+      ) {
         console.log(
           `⚠️  Admin tool access requested: ${toolName} - Requires additional authorization`,
         );
@@ -153,7 +174,14 @@ const securityPolicies = {
   // Restricted - minimal tools allowed
   restricted: {
     allowedTools: ['calculator'],
-    deniedTools: ['systemCommand', 'fileDelete', 'sendEmail', 'dangerous', 'search', 'weather'],
+    deniedTools: [
+      'systemCommand',
+      'fileDelete',
+      'sendEmail',
+      'dangerous',
+      'search',
+      'weather',
+    ],
     detectNaturalLanguageTools: true,
   } as AllowedToolsOptions,
 };
@@ -333,7 +361,7 @@ async function testConfigurationValidation() {
 
   // Test 2: Valid configuration should work
   try {
-    const validModel = withGuardrails(model, {
+    withGuardrails(model, {
       inputGuardrails: [
         allowedToolsGuardrail({
           allowedTools: ['calculator'],
@@ -357,7 +385,9 @@ async function main() {
     console.log('\n\n🎯 Comprehensive Tool Security Summary');
     console.log('======================================');
     console.log('✅ Multi-layered security with input and output guardrails');
-    console.log('✅ Role-based access control with different security policies');
+    console.log(
+      '✅ Role-based access control with different security policies',
+    );
     console.log('✅ Natural language tool detection and blocking');
     console.log('✅ Custom validation with business logic (time-based, etc.)');
     console.log('✅ Configuration validation prevents insecure setups');

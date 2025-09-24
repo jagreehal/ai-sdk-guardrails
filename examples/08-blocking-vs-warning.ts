@@ -7,10 +7,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineInputGuardrail,
-  wrapWithInputGuardrails,
-} from '../src/guardrails';
+import { defineInputGuardrail, withGuardrails } from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 
 // Define a simple guardrail for demonstration
@@ -49,7 +46,8 @@ async function demonstrateBlockingMode() {
     'In blocking mode, guardrail violations throw errors and stop execution.\n',
   );
 
-  const blockingModel = wrapWithInputGuardrails(model, [profanityGuardrail], {
+  const blockingModel = withGuardrails(model, {
+    inputGuardrails: [profanityGuardrail],
     throwOnBlocked: true, // BLOCKING MODE
     onInputBlocked: (executionSummary) => {
       console.log(
@@ -121,7 +119,8 @@ async function demonstrateWarningMode() {
     'In warning mode, violations are logged but execution continues.\n',
   );
 
-  const warningModel = wrapWithInputGuardrails(model, [profanityGuardrail], {
+  const warningModel = withGuardrails(model, {
+    inputGuardrails: [profanityGuardrail],
     throwOnBlocked: false, // WARNING MODE
     onInputBlocked: (executionSummary) => {
       console.log('⚠️  Warning:', executionSummary.blockedResults[0]?.message);
@@ -243,7 +242,8 @@ async function demonstrateConditionalMode() {
   });
 
   // Create a model that blocks only on high severity
-  const conditionalModel = wrapWithInputGuardrails(model, [severityGuardrail], {
+  const conditionalModel = withGuardrails(model, {
+    inputGuardrails: [severityGuardrail],
     throwOnBlocked: false, // We'll handle this manually
     onInputBlocked: (executionSummary) => {
       const result = executionSummary.blockedResults[0];

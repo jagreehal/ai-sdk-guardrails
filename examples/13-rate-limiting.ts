@@ -7,10 +7,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineInputGuardrail,
-  wrapWithInputGuardrails,
-} from '../src/guardrails';
+import { defineInputGuardrail, withGuardrails } from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 
 // Simple rate limiter implementation
@@ -113,7 +110,8 @@ console.log('============================================================\n');
 
 const basicRateLimit = createRateLimitGuardrail(3, 10_000);
 
-const rateLimitedModel = wrapWithInputGuardrails(model, [basicRateLimit], {
+const rateLimitedModel = withGuardrails(model, {
+  inputGuardrails: [basicRateLimit],
   throwOnBlocked: true,
   onInputBlocked: (executionSummary) => {
     console.log(
@@ -152,7 +150,8 @@ console.log('=================================================\n');
 
 const warningRateLimit = createRateLimitGuardrail(2, 5000);
 
-const warningModel = wrapWithInputGuardrails(model, [warningRateLimit], {
+const warningModel = withGuardrails(model, {
+  inputGuardrails: [warningRateLimit],
   throwOnBlocked: false, // Warning mode
   onInputBlocked: (executionSummary) => {
     console.log(
@@ -231,7 +230,8 @@ const dynamicRateLimit = defineInputGuardrail({
   },
 });
 
-const dynamicModel = wrapWithInputGuardrails(model, [dynamicRateLimit], {
+const dynamicModel = withGuardrails(model, {
+  inputGuardrails: [dynamicRateLimit],
   throwOnBlocked: false,
   onInputBlocked: (executionSummary) => {
     console.log(
@@ -335,7 +335,8 @@ const tokenBucketGuardrail = defineInputGuardrail({
   },
 });
 
-const tokenModel = wrapWithInputGuardrails(model, [tokenBucketGuardrail], {
+const tokenModel = withGuardrails(model, {
+  inputGuardrails: [tokenBucketGuardrail],
   throwOnBlocked: false,
   onInputBlocked: (executionSummary) => {
     console.log(

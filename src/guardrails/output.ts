@@ -100,7 +100,15 @@ function mapUsage(
 }
 
 function extractGenerationTime(result: BaseResult) {
-  return result.experimental_providerMetadata?.generationTimeMs;
+  return (
+    result.experimental_providerMetadata?.generationTimeMs ??
+    (
+      (result as Record<string, unknown>).providerMetadata as {
+        generationTimeMs?: number;
+      }
+    )?.generationTimeMs ??
+    0
+  );
 }
 
 function extractReasoningText(result: BaseResult) {
@@ -120,9 +128,11 @@ function createContent(partial: Partial<ContentExtraction>): ContentExtraction {
 
 // Helper function to safely extract content from different AI result types
 export function extractContent(result: AIResult): ContentExtraction {
+  const contentArray = (result as { content?: unknown[] }).content;
   if (
     'content' in result &&
-    Array.isArray((result as { content?: unknown[] }).content)
+    Array.isArray(contentArray) &&
+    contentArray.length > 0
   ) {
     const typedResult = result as BaseResult & {
       content: Array<{ type: string; text?: string }>;
@@ -143,18 +153,7 @@ export function extractContent(result: AIResult): ContentExtraction {
     });
   }
 
-  if ('object' in result && result.object !== null) {
-    const objectResult = result as ObjectResult;
-    return createContent({
-      text: objectResult.text || '',
-      object: objectResult.object,
-      usage: mapUsage(objectResult.usage as UsageRecord),
-      finishReason: objectResult.finishReason,
-      generationTimeMs: extractGenerationTime(objectResult),
-      reasoningText: extractReasoningText(objectResult),
-    });
-  }
-
+  // Check for text property first (prioritize text over object)
   if ('text' in result && typeof result.text === 'string') {
     const textResult = result as TextResult;
     return createContent({
@@ -164,6 +163,23 @@ export function extractContent(result: AIResult): ContentExtraction {
       finishReason: textResult.finishReason,
       generationTimeMs: extractGenerationTime(textResult),
       reasoningText: extractReasoningText(textResult),
+    });
+  }
+
+  // Check for object property (for structured outputs)
+  if (
+    'object' in result &&
+    result.object !== null &&
+    result.object !== undefined
+  ) {
+    const objectResult = result as ObjectResult;
+    return createContent({
+      text: objectResult.text || '',
+      object: objectResult.object,
+      usage: mapUsage(objectResult.usage as UsageRecord),
+      finishReason: objectResult.finishReason,
+      generationTimeMs: extractGenerationTime(objectResult),
+      reasoningText: extractReasoningText(objectResult),
     });
   }
 
@@ -179,15 +195,92 @@ export function extractContent(result: AIResult): ContentExtraction {
   return emptyContent();
 }
 
-export const lengthLimit = (maxLength: number): OutputGuardrail =>
+// Unified content stringification helper for streaming-aware content
+export function stringifyContent(
+  text?: string,
+  object?: unknown,
+  accumulatedText?: string,
+): string {
+  // For streaming, always prefer accumulatedText
+  if (accumulatedText !== undefined) {
+    return accumulatedText;
+  }
+
+  // For non-streaming, prioritize text over object
+  if (text !== undefined && text !== null && text.length > 0) {
+    return text;
+  }
+
+  if (object !== null && object !== undefined) {
+    return JSON.stringify(object);
+  }
+
+  return '';
+}
+
+// Normalized usage metrics interface
+export interface NormalizedUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+}
+
+// Helper to normalize usage metrics from different providers
+export function normalizeUsage(
+  usage: UsageRecord,
+): NormalizedUsage | undefined {
+  if (!usage) {
+    return undefined;
+  }
+
+  const pickNumber = (keys: string[]): number | undefined => {
+    for (const key of keys) {
+      const value = usage[key];
+      if (typeof value === 'number') {
+        return value;
+      }
+    }
+    return undefined;
+  };
+
+  const totalTokens = pickNumber(['totalTokens', 'total_tokens']);
+  const promptTokens = pickNumber([
+    'inputTokens',
+    'promptTokens',
+    'input_tokens',
+    'prompt_tokens',
+  ]);
+  const completionTokens = pickNumber([
+    'outputTokens',
+    'completionTokens',
+    'output_tokens',
+    'completion_tokens',
+  ]);
+
+  if (
+    promptTokens === undefined &&
+    completionTokens === undefined &&
+    totalTokens === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens,
+  };
+}
+
+export const outputLengthLimit = (maxLength: number): OutputGuardrail =>
   createOutputGuardrail(
     'output-length-limit',
     (context: OutputGuardrailContext, accumulatedText?: string) => {
       const { text, object, usage, finishReason, generationTimeMs } =
         extractContent(context.result);
-      // For streaming, use accumulatedText; otherwise use text or stringified object
-      const content =
-        accumulatedText || text || (object ? JSON.stringify(object) : '');
+
+      const content = stringifyContent(text, object, accumulatedText);
+      const normalizedUsage = normalizeUsage(usage as UsageRecord);
 
       return {
         tripwireTriggered: content.length > maxLength,
@@ -197,12 +290,12 @@ export const lengthLimit = (maxLength: number): OutputGuardrail =>
           contentLength: content.length,
           maxLength,
           hasObject: !!object,
-          usage,
+          usage: normalizedUsage,
           finishReason,
           generationTimeMs,
           tokensPerMs:
-            usage?.totalTokens && generationTimeMs
-              ? usage.totalTokens / generationTimeMs
+            normalizedUsage?.totalTokens && generationTimeMs
+              ? normalizedUsage.totalTokens / generationTimeMs
               : undefined,
         },
       };
@@ -316,14 +409,13 @@ export const sensitiveDataFilter = (): OutputGuardrail =>
 export const blockedContent = (words: string[]): OutputGuardrail =>
   createOutputGuardrail(
     'blocked-content',
-    (context: OutputGuardrailContext) => {
+    (context: OutputGuardrailContext, accumulatedText?: string) => {
       const { text, object } = extractContent(context.result);
-      const content = (
-        text || (object ? JSON.stringify(object) : '')
-      ).toLowerCase();
+      const content = stringifyContent(text, object, accumulatedText);
+      const lowerContent = content.toLowerCase();
 
       const blockedWord = words.find((word) =>
-        content.includes(word.toLowerCase()),
+        lowerContent.includes(word.toLowerCase()),
       );
 
       return {
@@ -341,77 +433,55 @@ export const blockedContent = (words: string[]): OutputGuardrail =>
     },
   );
 
-export const outputLengthLimit = (maxLength: number): OutputGuardrail =>
-  createOutputGuardrail(
-    'output-length-limit',
-    (context: OutputGuardrailContext, accumulatedText?: string) => {
-      const { text, object } = extractContent(context.result);
-      // For streaming, use accumulatedText; otherwise use text or stringified object
-      const content =
-        accumulatedText || text || (object ? JSON.stringify(object) : '');
+// Removed duplicate - use outputLengthLimit above
 
-      return {
-        tripwireTriggered: content.length > maxLength,
-        message: `Output length ${content.length} exceeds limit of ${maxLength}`,
-        severity: 'medium' as const,
-        metadata: {
-          contentLength: content.length,
-          maxLength,
-          hasObject: !!object,
-        },
-      };
-    },
-  );
-
-export const blockedOutputContent = (words: string[]): OutputGuardrail =>
-  createOutputGuardrail(
-    'blocked-output-content',
-    (context: OutputGuardrailContext) => {
-      const { text, object } = extractContent(context.result);
-      const content = (
-        text || (object ? JSON.stringify(object) : '')
-      ).toLowerCase();
-
-      const blockedWord = words.find((word) =>
-        content.includes(word.toLowerCase()),
-      );
-
-      return {
-        tripwireTriggered: !!blockedWord,
-        message: blockedWord
-          ? `Blocked output content detected: ${blockedWord}`
-          : undefined,
-        severity: 'high' as const,
-        metadata: {
-          blockedWord,
-          allWords: words,
-          contentLength: content.length,
-        },
-      };
-    },
-  );
+// Removed duplicate - use blockedContent above
 
 export const jsonValidation = (): OutputGuardrail =>
   createOutputGuardrail(
     'json-validation',
-    (context: OutputGuardrailContext) => {
+    (context: OutputGuardrailContext, accumulatedText?: string) => {
       const { text, object } = extractContent(context.result);
+      const content = stringifyContent(text, object, accumulatedText);
 
       if (object) {
         return { tripwireTriggered: false };
       } // Object is already valid
 
-      try {
-        JSON.parse(text);
-        return { tripwireTriggered: false };
-      } catch (error) {
+      // Fast-fail non-JSON by prefix check
+      const trimmed = content.trim();
+      if (
+        !trimmed.startsWith('{') &&
+        !trimmed.startsWith('[') &&
+        !trimmed.startsWith('"')
+      ) {
         return {
           tripwireTriggered: true,
-          message: 'Output is not valid JSON',
+          message:
+            'Output is not valid JSON - does not start with valid JSON character',
           severity: 'medium' as const,
           metadata: {
-            error: error instanceof Error ? error.message : String(error),
-            textLength: text.length,
+            error: 'Invalid JSON prefix',
+            textLength: content.length,
+            firstChar: trimmed.charAt(0),
+          },
+        };
+      }
+
+      try {
+        JSON.parse(content);
+        return { tripwireTriggered: false };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        return {
+          tripwireTriggered: true,
+          message: `Output is not valid JSON: ${errorMessage}`,
+          severity: 'medium' as const,
+          metadata: {
+            error: errorMessage,
+            textLength: content.length,
+            validationErrors: [errorMessage],
           },
         };
       }
@@ -1043,17 +1113,13 @@ export const secretRedaction = createOutputGuardrail(
     const { text, object } = extractContent(context.result);
     const content = text || (object ? JSON.stringify(object) : '');
 
-    // Define patterns for common secret formats
+    // Precompiled patterns for common secret formats
     const secretPatterns = [
-      // API Keys (various formats)
+      // API Keys (various formats) - more specific patterns to reduce false positives
       {
         name: 'API Key',
         pattern:
           /(?:api[_-]?key|apikey|access[_-]?key)\s*[:=]\s*['"]?([a-zA-Z0-9]{20,})['"]?/gi,
-      },
-      {
-        name: 'Generic API Key',
-        pattern: /\b[a-zA-Z0-9]{32,}\b/g, // Generic long alphanumeric strings
       },
       // AWS Access Keys
       {
@@ -1108,7 +1174,7 @@ export const secretRedaction = createOutputGuardrail(
         pattern:
           /(?:mongodb|postgres|mysql|redis):\/\/[^@\s]+:[^@\s]+@[^/\s]+/gi,
       },
-      // Generic tokens/secrets in environment variable format
+      // Environment variables with secrets (more specific to reduce false positives)
       {
         name: 'Environment Secret',
         pattern:
@@ -1122,16 +1188,31 @@ export const secretRedaction = createOutputGuardrail(
       position: number;
     }> = [];
 
-    // Check for each pattern
+    // Check for each pattern (precompiled regexes)
     for (const { name, pattern } of secretPatterns) {
+      // Reset regex lastIndex for global patterns
+      if (pattern.global) {
+        pattern.lastIndex = 0;
+      }
+
       let match;
-      const regex = new RegExp(pattern);
-      while ((match = regex.exec(content)) !== null) {
+      while ((match = pattern.exec(content)) !== null) {
+        // Mask the secret for security
+        const maskedSecret =
+          match[0].length > 20
+            ? match[0].slice(0, 8) + '...' + match[0].slice(-4)
+            : match[0].slice(0, 4) + '...';
+
         detectedSecrets.push({
           type: name,
-          pattern: match[0].slice(0, 20) + '...',
+          pattern: maskedSecret,
           position: match.index,
         });
+
+        // Prevent infinite loops on zero-length matches
+        if (match[0].length === 0) {
+          pattern.lastIndex++;
+        }
       }
     }
 

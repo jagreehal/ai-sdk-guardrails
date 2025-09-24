@@ -8,10 +8,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { extractContent } from '../src/guardrails/output';
 
 // Define types for secret leakage scan metadata
@@ -325,42 +322,39 @@ const secretLeakageGuardrail = defineOutputGuardrail<SecretLeakageMetadata>({
 console.log('🛡️  Secret Leakage Scan Example\n');
 
 // Create a protected model with secret leakage scanning
-const protectedModel = wrapWithOutputGuardrails(
-  model,
-  [secretLeakageGuardrail],
-  {
-    throwOnBlocked: true,
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('❌ Secret leakage detected:', result?.message);
-      if (result?.metadata) {
-        const metadata = result.metadata as {
-          totalSecrets: number;
-          secretTypes?: string[];
-          hasCriticalSecrets: boolean;
-          hasMediumSecrets: boolean;
-          redactedText?: string;
-        };
-        console.log('   Total secrets:', metadata.totalSecrets);
-        console.log('   Secret types:', metadata.secretTypes?.join(', '));
+const protectedModel = withGuardrails(model, {
+  outputGuardrails: [secretLeakageGuardrail],
+  throwOnBlocked: true,
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('❌ Secret leakage detected:', result?.message);
+    if (result?.metadata) {
+      const metadata = result.metadata as {
+        totalSecrets: number;
+        secretTypes?: string[];
+        hasCriticalSecrets: boolean;
+        hasMediumSecrets: boolean;
+        redactedText?: string;
+      };
+      console.log('   Total secrets:', metadata.totalSecrets);
+      console.log('   Secret types:', metadata.secretTypes?.join(', '));
+      console.log(
+        '   Severity:',
+        metadata.hasCriticalSecrets
+          ? 'CRITICAL'
+          : metadata.hasMediumSecrets
+            ? 'MEDIUM'
+            : 'LOW',
+      );
+      if (metadata.redactedText) {
         console.log(
-          '   Severity:',
-          metadata.hasCriticalSecrets
-            ? 'CRITICAL'
-            : metadata.hasMediumSecrets
-              ? 'MEDIUM'
-              : 'LOW',
+          '   Redacted preview:',
+          metadata.redactedText.slice(0, 100) + '...',
         );
-        if (metadata.redactedText) {
-          console.log(
-            '   Redacted preview:',
-            metadata.redactedText.slice(0, 100) + '...',
-          );
-        }
       }
-    },
+    }
   },
-);
+});
 
 // Test 1: Safe response
 console.log('Test 1: Safe response (should pass)');
@@ -453,7 +447,8 @@ try {
 
 // Test 8: Warning mode with redaction
 console.log('Test 8: Warning mode with redaction (should log but continue)');
-const warningModel = wrapWithOutputGuardrails(model, [secretLeakageGuardrail], {
+const warningModel = withGuardrails(model, {
+  outputGuardrails: [secretLeakageGuardrail],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {
     const result = executionSummary.blockedResults[0];

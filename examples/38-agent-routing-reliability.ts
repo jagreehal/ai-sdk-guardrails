@@ -20,7 +20,7 @@ import type {
   LanguageModelV2TextPart,
 } from '@ai-sdk/provider';
 import { model } from './model';
-import { wrapWithOutputGuardrails } from '../src/guardrails';
+import { withGuardrails } from '../src/index';
 import { createOutputGuardrail } from '../src/core';
 import { extractContent } from '../src/guardrails/output';
 import { withAgentGuardrails } from '../src/guardrails/agent';
@@ -257,22 +257,19 @@ async function runWithGuardrails() {
   console.log('------------------------------');
 
   // Guarded intent classifier
-  const guardedClassifier = wrapWithOutputGuardrails(
-    model,
-    [validIntentClassification],
-    {
-      retry: {
-        maxRetries: 2,
-        buildRetryParams: ({ lastParams }) => ({
-          ...lastParams,
-          prompt: [
-            ...normalizePrompt(lastParams.prompt),
-            createUserMessage('Format: Intent: [INTENT] (confidence: [X]%)'),
-          ],
-        }),
-      },
+  const guardedClassifier = withGuardrails(model, {
+    outputGuardrails: [validIntentClassification],
+    retry: {
+      maxRetries: 2,
+      buildRetryParams: ({ lastParams }) => ({
+        ...lastParams,
+        prompt: [
+          ...normalizePrompt(lastParams.prompt),
+          createUserMessage('Format: Intent: [INTENT] (confidence: [X]%)'),
+        ],
+      }),
     },
-  );
+  });
 
   for (const query of testQueries) {
     console.log(`\n🔍 Query: "${query}"`);
@@ -298,24 +295,21 @@ async function runWithGuardrails() {
 
       // Guarded specialist response
       const specialist = specialists[intent as keyof typeof specialists];
-      const guardedSpecialist = wrapWithOutputGuardrails(
-        model,
-        [specialist.guardrail],
-        {
-          retry: {
-            maxRetries: 2,
-            buildRetryParams: ({ lastParams }) => ({
-              ...lastParams,
-              prompt: [
-                ...normalizePrompt(lastParams.prompt),
-                createUserMessage(
-                  `Ensure your response demonstrates ${intent.toLowerCase()} expertise.`,
-                ),
-              ],
-            }),
-          },
+      const guardedSpecialist = withGuardrails(model, {
+        outputGuardrails: [specialist.guardrail],
+        retry: {
+          maxRetries: 2,
+          buildRetryParams: ({ lastParams }) => ({
+            ...lastParams,
+            prompt: [
+              ...normalizePrompt(lastParams.prompt),
+              createUserMessage(
+                `Ensure your response demonstrates ${intent.toLowerCase()} expertise.`,
+              ),
+            ],
+          }),
         },
-      );
+      });
 
       const response = await generateText({
         model: guardedSpecialist,
@@ -463,12 +457,12 @@ async function runCollaborativeRouting() {
   console.log(`🔍 Complex Query: "${complexQuery}"`);
 
   // Multi-agent classification
-  const technicalAgent = wrapWithOutputGuardrails(model, [
-    domainExpertise('technical'),
-  ]);
-  const legalAgent = wrapWithOutputGuardrails(model, [
-    domainExpertise('legal'),
-  ]);
+  const technicalAgent = withGuardrails(model, {
+    outputGuardrails: [domainExpertise('technical')],
+  });
+  const legalAgent = withGuardrails(model, {
+    outputGuardrails: [domainExpertise('legal')],
+  });
 
   // Each agent evaluates relevance to their domain
   const [techEval, legalEval] = await Promise.all([

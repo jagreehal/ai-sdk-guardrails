@@ -7,10 +7,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { extractContent } from '../src/guardrails/output';
 
 interface AdvancedQualityMetadata {
@@ -114,26 +111,23 @@ const qualityAssessmentGuardrail = defineOutputGuardrail({
 console.log('✨ Quality Assessment Example\n');
 
 // Create a model with quality assessment
-const qualityModel = wrapWithOutputGuardrails(
-  model,
-  [qualityAssessmentGuardrail],
-  {
-    throwOnBlocked: false, // Use warning mode to see issues
-    onOutputBlocked: (executionSummary) => {
-      console.log(
-        '📊 Quality Assessment:',
-        executionSummary.blockedResults[0]?.message,
-      );
-      const metadata = executionSummary.blockedResults[0]?.metadata;
-      if (metadata?.issues) {
-        console.log('   Issues found:');
-        for (const issue of metadata.issues) {
-          console.log(`   - ${issue}`);
-        }
+const qualityModel = withGuardrails(model, {
+  outputGuardrails: [qualityAssessmentGuardrail],
+  throwOnBlocked: false, // Use warning mode to see issues
+  onOutputBlocked: (executionSummary) => {
+    console.log(
+      '📊 Quality Assessment:',
+      executionSummary.blockedResults[0]?.message,
+    );
+    const metadata = executionSummary.blockedResults[0]?.metadata;
+    if (metadata?.issues) {
+      console.log('   Issues found:');
+      for (const issue of metadata.issues) {
+        console.log(`   - ${issue}`);
       }
-    },
+    }
   },
-);
+});
 
 // Test 1: Good quality response
 console.log('Test 1: Well-formed request (should pass quality checks)');
@@ -235,26 +229,21 @@ const advancedQualityGuardrail = defineOutputGuardrail({
   },
 });
 
-const advancedModel = wrapWithOutputGuardrails(
-  model,
-  [advancedQualityGuardrail],
-  {
-    throwOnBlocked: false,
-    onOutputBlocked: (executionSummary) => {
-      const metadata = executionSummary.blockedResults[0]?.metadata;
-      console.log('📊 Advanced Quality Metrics:');
-      console.log(`   Quality Score: ${metadata?.qualityScore}/100`);
-      console.log(
-        `   Avg Sentence Length: ${metadata?.avgSentenceLength} words`,
-      );
-      console.log(`   Word Variety: ${metadata?.wordVariety}%`);
-      console.log(`   Has Structure: ${metadata?.hasStructure ? 'Yes' : 'No'}`);
-      if (metadata?.issues && metadata.issues.length > 0) {
-        console.log(`   Issues: ${metadata?.issues?.join(', ')}`);
-      }
-    },
+const advancedModel = withGuardrails(model, {
+  outputGuardrails: [advancedQualityGuardrail],
+  throwOnBlocked: false,
+  onOutputBlocked: (executionSummary) => {
+    const metadata = executionSummary.blockedResults[0]?.metadata;
+    console.log('📊 Advanced Quality Metrics:');
+    console.log(`   Quality Score: ${metadata?.qualityScore}/100`);
+    console.log(`   Avg Sentence Length: ${metadata?.avgSentenceLength} words`);
+    console.log(`   Word Variety: ${metadata?.wordVariety}%`);
+    console.log(`   Has Structure: ${metadata?.hasStructure ? 'Yes' : 'No'}`);
+    if (metadata?.issues && metadata.issues.length > 0) {
+      console.log(`   Issues: ${metadata?.issues?.join(', ')}`);
+    }
   },
-);
+});
 
 try {
   await generateText({
@@ -315,19 +304,16 @@ const completenessGuardrail = defineOutputGuardrail({
   },
 });
 
-const completenessModel = wrapWithOutputGuardrails(
-  model,
-  [completenessGuardrail],
-  {
-    throwOnBlocked: false,
-    onOutputBlocked: (executionSummary) => {
-      console.log(
-        '⚠️  Completeness Check:',
-        executionSummary.blockedResults[0]?.message,
-      );
-    },
+const completenessModel = withGuardrails(model, {
+  outputGuardrails: [completenessGuardrail],
+  throwOnBlocked: false,
+  onOutputBlocked: (executionSummary) => {
+    console.log(
+      '⚠️  Completeness Check:',
+      executionSummary.blockedResults[0]?.message,
+    );
   },
-);
+});
 
 try {
   const result = await generateText({

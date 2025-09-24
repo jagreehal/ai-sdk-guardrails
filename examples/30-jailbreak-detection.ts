@@ -8,10 +8,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineInputGuardrail,
-  wrapWithInputGuardrails,
-} from '../src/guardrails';
+import { defineInputGuardrail, withGuardrails } from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 
 // Define jailbreak patterns and techniques
@@ -397,24 +394,21 @@ const jailbreakDetectionGuardrail = defineInputGuardrail<{
 console.log('🛡️  Jailbreak Detection Example\n');
 
 // Create a protected model with jailbreak detection
-const protectedModel = wrapWithInputGuardrails(
-  model,
-  [jailbreakDetectionGuardrail],
-  {
-    throwOnBlocked: true,
-    onInputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('❌ Jailbreak blocked:', result?.message);
-      if (result?.metadata) {
-        console.log('   Score:', result.metadata.jailbreakScore);
-        const metadata = result.metadata;
-        console.log('   Risk Level:', metadata.riskLevel);
-        console.log('   Patterns:', metadata.detectedPatterns?.join(', '));
-        console.log('   Safe Response:', metadata.safeResponse);
-      }
-    },
+const protectedModel = withGuardrails(model, {
+  inputGuardrails: [jailbreakDetectionGuardrail],
+  throwOnBlocked: true,
+  onInputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('❌ Jailbreak blocked:', result?.message);
+    if (result?.metadata) {
+      console.log('   Score:', result.metadata.jailbreakScore);
+      const metadata = result.metadata;
+      console.log('   Risk Level:', metadata.riskLevel);
+      console.log('   Patterns:', metadata.detectedPatterns?.join(', '));
+      console.log('   Safe Response:', metadata.safeResponse);
+    }
   },
-);
+});
 
 // Test 1: Normal, safe input
 console.log('Test 1: Normal input (should pass)');
@@ -547,22 +541,19 @@ try {
 
 // Test 11: Warning mode (doesn't throw, just logs)
 console.log('Test 11: Suspicious input with warning mode');
-const warningModel = wrapWithInputGuardrails(
-  model,
-  [jailbreakDetectionGuardrail],
-  {
-    throwOnBlocked: false, // Warning mode
-    onInputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('⚠️  Warning:', result?.message);
-      if (result?.metadata) {
-        console.log('   Score:', result.metadata.jailbreakScore);
-        console.log('   Risk Level:', result.metadata.riskLevel);
-        console.log('   Safe Response:', result.metadata.safeResponse);
-      }
-    },
+const warningModel = withGuardrails(model, {
+  inputGuardrails: [jailbreakDetectionGuardrail],
+  throwOnBlocked: false, // Warning mode
+  onInputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('⚠️  Warning:', result?.message);
+    if (result?.metadata) {
+      console.log('   Score:', result.metadata.jailbreakScore);
+      console.log('   Risk Level:', result.metadata.riskLevel);
+      console.log('   Safe Response:', result.metadata.safeResponse);
+    }
   },
-);
+});
 
 try {
   const result = await generateText({

@@ -11,7 +11,7 @@ import {
   defineInputGuardrail,
   defineOutputGuardrail,
   withGuardrails,
-} from '../src/guardrails';
+} from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
 
