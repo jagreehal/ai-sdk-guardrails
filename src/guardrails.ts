@@ -4,6 +4,12 @@ import {
   GuardrailsOutputError,
   GuardrailsInputError,
 } from './errors';
+
+// Performance optimization: conditional metadata tracking
+// Only track detailed metrics in development or when explicitly enabled
+const ENABLE_PERFORMANCE_TRACKING =
+  process.env.NODE_ENV === 'development' ||
+  process.env.GUARDRAILS_PERFORMANCE_TRACKING === 'true';
 // Enhanced retry integration temporarily disabled due to AI SDK type complexity
 import { extractContent } from './guardrails/output';
 import type {
@@ -43,7 +49,7 @@ export function defineInputGuardrail<
     tags: [],
     ...guardrail,
     execute: async (params, options) => {
-      const startTime = Date.now();
+      const startTime = ENABLE_PERFORMANCE_TRACKING ? Date.now() : 0;
       const originalExecute = guardrail.execute;
 
       try {
@@ -51,30 +57,32 @@ export function defineInputGuardrail<
           options === undefined
             ? await originalExecute(params)
             : await originalExecute(params, options);
-        const executionTime = Date.now() - startTime;
+        const executionTime = ENABLE_PERFORMANCE_TRACKING
+          ? Date.now() - startTime
+          : undefined;
 
         return {
           ...result,
-          context: {
-            guardrailName: guardrail.name,
-            guardrailVersion: guardrail.version,
-            executedAt: new Date(),
-            executionTimeMs: executionTime,
-            ...result.context,
-          },
+          context: createConditionalContext(
+            guardrail.name,
+            guardrail.version,
+            executionTime,
+            result.context,
+          ),
         };
       } catch (error) {
-        const executionTime = Date.now() - startTime;
+        const executionTime = ENABLE_PERFORMANCE_TRACKING
+          ? Date.now() - startTime
+          : undefined;
         return {
           tripwireTriggered: true,
           message: `Guardrail execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
           severity: 'critical',
-          context: {
-            guardrailName: guardrail.name,
-            guardrailVersion: guardrail.version,
-            executedAt: new Date(),
-            executionTimeMs: executionTime,
-          },
+          context: createConditionalContext(
+            guardrail.name,
+            guardrail.version,
+            executionTime,
+          ),
           metadata: {
             error: error instanceof Error ? error.message : String(error),
           } as unknown as M,
@@ -137,63 +145,32 @@ export async function executeInputGuardrails<
   const executeWithTimeout = async (
     guardrail: InputGuardrail<M>,
   ): Promise<GuardrailResult<M>> => {
-    const controller = new AbortController();
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    const timeoutPromise: Promise<never> = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => {
-        controller.abort();
-        reject(new GuardrailTimeoutError(guardrail.name, timeout));
-      }, timeout);
-    });
-
-    const executionPromise = guardrail.execute(
-      toNormalizedGuardrailContext(params),
-      {
-        signal: controller.signal,
-      },
-    );
-
-    return Promise.race([executionPromise, timeoutPromise]).finally(() => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+    return executeWithOptimizedTimeout(
+      async (signal) =>
+        await Promise.resolve(
+          guardrail.execute(toNormalizedGuardrailContext(params), { signal }),
+        ),
+      timeout,
+      `Guardrail ${guardrail.name} timed out after ${timeout}ms`,
+    ).catch((error) => {
+      if (error.message.includes('timed out')) {
+        throw new GuardrailTimeoutError(guardrail.name, timeout);
       }
+      throw error;
     });
   };
 
   if (parallel) {
-    // Execute all guardrails in parallel
-    const promises = enabledGuardrails.map(async (guardrail) => {
-      try {
-        const result = await executeWithTimeout(guardrail);
-
-        if (result.tripwireTriggered && logLevel !== 'none') {
-          logger.warn(
-            `Input guardrail "${guardrail.name}" triggered: ${result.message}`,
-          );
-        }
-
-        return result;
-      } catch (error) {
-        if (logLevel !== 'none') {
-          logger.error(
-            `Error executing input guardrail "${guardrail.name}":`,
-            error,
-          );
-        }
-
-        const err: GuardrailResult<M> = {
-          tripwireTriggered: true,
-          message: `Guardrail execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          severity: 'critical' as const,
-          metadata: {
-            error: error instanceof Error ? error.message : String(error),
-          } as unknown as M,
-        };
-        return err;
-      }
-    });
-
-    results.push(...(await Promise.all(promises)));
+    // Use optimized batch execution with shared timeout and context
+    const normalizedContext = toNormalizedGuardrailContext(params);
+    const batchResults = await executeBatchInputGuardrails<M>(
+      enabledGuardrails,
+      normalizedContext,
+      timeout,
+      logLevel,
+      logger,
+    );
+    results.push(...batchResults);
   } else {
     // Execute guardrails sequentially
     for (const guardrail of enabledGuardrails) {
@@ -254,7 +231,7 @@ export function defineOutputGuardrail<
     tags: [],
     ...guardrail,
     execute: async (params, options) => {
-      const startTime = Date.now();
+      const startTime = ENABLE_PERFORMANCE_TRACKING ? Date.now() : 0;
       const originalExecute = guardrail.execute;
 
       try {
@@ -262,30 +239,32 @@ export function defineOutputGuardrail<
           options === undefined
             ? await originalExecute(params)
             : await originalExecute(params, options);
-        const executionTime = Date.now() - startTime;
+        const executionTime = ENABLE_PERFORMANCE_TRACKING
+          ? Date.now() - startTime
+          : undefined;
 
         return {
           ...result,
-          context: {
-            guardrailName: guardrail.name,
-            guardrailVersion: guardrail.version,
-            executedAt: new Date(),
-            executionTimeMs: executionTime,
-            ...result.context,
-          },
+          context: createConditionalContext(
+            guardrail.name,
+            guardrail.version,
+            executionTime,
+            result.context,
+          ),
         };
       } catch (error) {
-        const executionTime = Date.now() - startTime;
+        const executionTime = ENABLE_PERFORMANCE_TRACKING
+          ? Date.now() - startTime
+          : undefined;
         return {
           tripwireTriggered: true,
           message: `Guardrail execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
           severity: 'critical',
-          context: {
-            guardrailName: guardrail.name,
-            guardrailVersion: guardrail.version,
-            executedAt: new Date(),
-            executionTimeMs: executionTime,
-          },
+          context: createConditionalContext(
+            guardrail.name,
+            guardrail.version,
+            executionTime,
+          ),
           metadata: {
             error: error instanceof Error ? error.message : String(error),
           } as unknown as M,
@@ -346,23 +325,16 @@ export async function executeOutputGuardrails<
   const executeWithTimeout = async (
     guardrail: OutputGuardrail<M>,
   ): Promise<GuardrailResult<M>> => {
-    const controller = new AbortController();
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    const timeoutPromise: Promise<never> = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => {
-        controller.abort();
-        reject(new GuardrailTimeoutError(guardrail.name, timeout));
-      }, timeout);
-    });
-
-    const executionPromise = guardrail.execute(params, undefined, {
-      signal: controller.signal,
-    });
-
-    return Promise.race([executionPromise, timeoutPromise]).finally(() => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+    return executeWithOptimizedTimeout(
+      async (signal) =>
+        await Promise.resolve(guardrail.execute(params, undefined, { signal })),
+      timeout,
+      `Guardrail ${guardrail.name} timed out after ${timeout}ms`,
+    ).catch((error) => {
+      if (error.message.includes('timed out')) {
+        throw new GuardrailTimeoutError(guardrail.name, timeout);
       }
+      throw error;
     });
   };
 
@@ -460,13 +432,201 @@ function extractTextFromContent(content: MessageContent): string {
     .join('');
 }
 
+// Context caching for performance optimization
+// WeakMap automatically garbage collects when params objects are no longer referenced
+const normalizedContextCache = new WeakMap<
+  LanguageModelV2CallOptions,
+  NormalizedGuardrailContext
+>();
+
+// Timeout controller pooling for performance optimization
+class TimeoutControllerPool {
+  private static controllers: AbortController[] = [];
+  private static readonly MAX_POOL_SIZE = 20;
+
+  static acquire(): AbortController {
+    const controller = this.controllers.pop();
+    if (controller && !controller.signal.aborted) {
+      return controller;
+    }
+    return new AbortController();
+  }
+
+  static release(controller: AbortController): void {
+    // Only pool non-aborted controllers and respect max pool size
+    if (
+      !controller.signal.aborted &&
+      this.controllers.length < this.MAX_POOL_SIZE
+    ) {
+      this.controllers.push(controller);
+    }
+  }
+
+  static clear(): void {
+    this.controllers = [];
+  }
+}
+
+/**
+ * Creates context metadata conditionally based on performance tracking settings
+ */
+function createConditionalContext(
+  guardrailName: string,
+  guardrailVersion?: string,
+  executionTimeMs?: number,
+  existingContext?: any,
+): any {
+  if (!ENABLE_PERFORMANCE_TRACKING) {
+    // In production, only include essential info
+    return {
+      guardrailName,
+      ...existingContext,
+    };
+  }
+
+  // In development, include full metrics
+  return {
+    guardrailName,
+    guardrailVersion,
+    executedAt: new Date(),
+    executionTimeMs,
+    ...existingContext,
+  };
+}
+
+/**
+ * Optimized timeout execution using pooled controllers
+ */
+async function executeWithOptimizedTimeout<T>(
+  execution: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  errorMessage: string,
+): Promise<T> {
+  const controller = TimeoutControllerPool.acquire();
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    const timeoutPromise: Promise<never> = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        controller.abort();
+        reject(new Error(errorMessage));
+      }, timeoutMs);
+    });
+
+    const result = await Promise.race([
+      execution(controller.signal),
+      timeoutPromise,
+    ]);
+
+    return result;
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    TimeoutControllerPool.release(controller);
+  }
+}
+
+/**
+ * Batch execute guardrails with shared timeout and optimized context handling
+ */
+async function executeBatchInputGuardrails<M extends Record<string, unknown>>(
+  guardrails: InputGuardrail<M>[],
+  normalizedContext: NormalizedGuardrailContext,
+  timeoutMs: number,
+  logLevel: 'none' | 'error' | 'warn' | 'info' | 'debug',
+  logger: Logger,
+): Promise<GuardrailResult<M>[]> {
+  if (guardrails.length === 0) return [];
+
+  return executeWithOptimizedTimeout(
+    async (signal) => {
+      const results = await Promise.allSettled(
+        guardrails.map(async (guardrail) => {
+          try {
+            return await Promise.resolve(
+              guardrail.execute(normalizedContext, { signal }),
+            );
+          } catch (error) {
+            if (logLevel !== 'none') {
+              logger.error(
+                `Error executing input guardrail "${guardrail.name}":`,
+                error,
+              );
+            }
+            return {
+              tripwireTriggered: true,
+              message: `Guardrail execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              severity: 'critical' as const,
+              metadata: {
+                error: error instanceof Error ? error.message : String(error),
+              } as unknown as M,
+            };
+          }
+        }),
+      );
+
+      return results.map((result, index) => {
+        const guardrail = guardrails[index]!;
+        if (result.status === 'fulfilled') {
+          const guardResult = result.value;
+          if (guardResult.tripwireTriggered && logLevel !== 'none') {
+            logger.warn(
+              `Input guardrail "${guardrail.name}" triggered: ${guardResult.message}`,
+            );
+          }
+          return guardResult;
+        } else {
+          if (logLevel !== 'none') {
+            logger.error(
+              `Input guardrail "${guardrail.name}" failed:`,
+              result.reason,
+            );
+          }
+          return {
+            tripwireTriggered: true,
+            message: `Guardrail execution failed: ${result.reason instanceof Error ? result.reason.message : 'Unknown error'}`,
+            severity: 'critical' as const,
+            metadata: {
+              error:
+                result.reason instanceof Error
+                  ? result.reason.message
+                  : String(result.reason),
+            } as unknown as M,
+          };
+        }
+      });
+    },
+    timeoutMs,
+    `Batch guardrail execution timed out after ${timeoutMs}ms`,
+  ).catch((error) => {
+    if (error.message.includes('timed out')) {
+      // Create timeout errors for all guardrails
+      return guardrails.map((guardrail) => ({
+        tripwireTriggered: true,
+        message: `Guardrail timed out after ${timeoutMs}ms`,
+        severity: 'critical' as const,
+        metadata: { timeout: true } as unknown as M,
+      }));
+    }
+    throw error;
+  });
+}
+
 /**
  * Normalizes AI SDK parameters into a consistent guardrail context
  * This improves type safety and reduces coupling to specific AI SDK parameter types
+ * Uses caching to avoid redundant processing of the same parameters
  */
 export function normalizeGuardrailContext(
   params: LanguageModelV2CallOptions,
 ): NormalizedGuardrailContext {
+  // Check cache first for performance optimization
+  const cached = normalizedContextCache.get(params);
+  if (cached) {
+    return cached;
+  }
+
   const promptMessages = Array.isArray(params.prompt) ? params.prompt : [];
   const systemMessage = promptMessages.find((msg) => msg.role === 'system');
   const system =
@@ -487,7 +647,7 @@ export function normalizeGuardrailContext(
       ? messages[0].content
       : messages.map((m) => m.content).join(' ');
 
-  return {
+  const normalized = {
     prompt,
     messages,
     system,
@@ -502,6 +662,10 @@ export function normalizeGuardrailContext(
       stopSequences: params.stopSequences,
     },
   };
+
+  // Cache the normalized result for future use
+  normalizedContextCache.set(params, normalized);
+  return normalized;
 }
 
 /**

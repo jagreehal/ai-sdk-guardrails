@@ -65,7 +65,7 @@
     "check-exports": "attw --pack . --ignore-rules false-esm no-resolution",
     "local-release": "pnpm build && pnpm format:check && pnpm check-exports && pnpm lint && pnpm test && changeset version && changeset publish",
     "release": "changeset publish",
-    "quality": "pnpm lint && pnpm format && pnpm format:check && pnpm type-check"
+    "quality": "pnpm lint && pnpm type-check && pnpm test && pnpm format && pnpm check-exports"
   },
   "dependencies": {
     "@ai-sdk/provider": "2.0.0",
@@ -73,6 +73,7 @@
     "zod": "^4.1.11"
   },
   "devDependencies": {
+    "@ai-sdk/groq": "^2.0.21",
     "@ai-sdk/mistral": "2.0.16",
     "@ai-sdk/openai": "2.0.34",
     "@arethetypeswrong/cli": "^0.18.2",

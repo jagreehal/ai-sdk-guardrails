@@ -112,11 +112,14 @@ describe('Output Guardrails', () => {
       const obj = { name: 'John', age: 30, city: 'New York' };
       const result = await guardrail.execute({
         input: createMockInputContext(),
-        result: createMockGenerateTextResult({
-          text: undefined,
-          usage: { totalTokens: 15, inputTokens: 0, outputTokens: 15 },
-          finishReason: 'stop' as const,
-        }),
+        result: {
+          ...createMockGenerateTextResult({
+            text: undefined,
+            usage: { totalTokens: 15, inputTokens: 0, outputTokens: 15 },
+            finishReason: 'stop' as const,
+          }),
+          object: obj,
+        } as TestGenerateTextResult & { object: unknown },
       });
 
       const stringified = JSON.stringify(obj);
@@ -178,9 +181,12 @@ describe('Output Guardrails', () => {
       const guardrail = blockedContent(['confidential']);
       const result = await guardrail.execute({
         input: createMockInputContext(),
-        result: createMockGenerateTextResult({
-          text: undefined,
-        }),
+        result: {
+          ...createMockGenerateTextResult({
+            text: undefined,
+          }),
+          object: { data: 'This is confidential information' },
+        } as TestGenerateTextResult & { object: unknown },
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -210,9 +216,12 @@ describe('Output Guardrails', () => {
       const guardrail = jsonValidation();
       const result = await guardrail.execute({
         input: createMockInputContext(),
-        result: createMockGenerateTextResult({
-          text: undefined,
-        }),
+        result: {
+          ...createMockGenerateTextResult({
+            text: undefined,
+          }),
+          object: { name: 'John', age: 30 },
+        } as TestGenerateTextResult & { object: unknown },
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -396,9 +405,12 @@ describe('Output Guardrails', () => {
       const guardrail = toxicityFilter(0.2);
       const result = await guardrail.execute({
         input: createMockInputContext(),
-        result: createMockGenerateTextResult({
-          text: undefined,
-        }),
+        result: {
+          ...createMockGenerateTextResult({
+            text: undefined,
+          }),
+          object: { message: 'This is toxic content' },
+        } as TestGenerateTextResult & { object: unknown },
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -525,11 +537,14 @@ describe('Output Guardrails', () => {
       const guardrail = schemaValidation(mockSchema);
       const result = await guardrail.execute({
         input: createMockInputContext(),
-        result: createMockGenerateTextResult({
-          text: undefined,
-          usage: { totalTokens: 10, inputTokens: 0, outputTokens: 10 },
-          finishReason: 'stop' as const,
-        }),
+        result: {
+          ...createMockGenerateTextResult({
+            text: undefined,
+            usage: { totalTokens: 10, inputTokens: 0, outputTokens: 10 },
+            finishReason: 'stop' as const,
+          }),
+          object: { name: 'John', age: 30 },
+        } as TestGenerateTextResult & { object: unknown },
       });
 
       expect(result.tripwireTriggered).toBe(false);
@@ -547,11 +562,14 @@ describe('Output Guardrails', () => {
       const guardrail = schemaValidation(mockSchema);
       const result = await guardrail.execute({
         input: createMockInputContext(),
-        result: createMockGenerateTextResult({
-          text: undefined,
-          usage: { totalTokens: 10, inputTokens: 0, outputTokens: 10 },
-          finishReason: 'stop' as const,
-        }),
+        result: {
+          ...createMockGenerateTextResult({
+            text: undefined,
+            usage: { totalTokens: 10, inputTokens: 0, outputTokens: 10 },
+            finishReason: 'stop' as const,
+          }),
+          object: { name: 'John', age: 30 },
+        } as TestGenerateTextResult & { object: unknown },
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -570,9 +588,12 @@ describe('Output Guardrails', () => {
       const guardrail = schemaValidation(mockSchema);
       const result = await guardrail.execute({
         input: createMockInputContext(),
-        result: createMockGenerateTextResult({
-          text: undefined,
-        }),
+        result: {
+          ...createMockGenerateTextResult({
+            text: undefined,
+          }),
+          object: { name: 'John', age: 30 },
+        } as TestGenerateTextResult & { object: unknown },
       });
 
       expect(result.tripwireTriggered).toBe(true);
@@ -714,7 +735,7 @@ describe('Output Guardrails', () => {
       const result = await guardrail.execute({
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
-          text: undefined,
+          text: 'Mock text content',
         }),
       });
 
@@ -733,9 +754,12 @@ describe('Output Guardrails', () => {
 
       const result = await guardrail.execute({
         input: createMockInputContext(),
-        result: createMockGenerateTextResult({
-          text: undefined,
-        }),
+        result: {
+          ...createMockGenerateTextResult({
+            text: undefined,
+          }),
+          object: complexObject,
+        } as TestGenerateTextResult & { object: unknown },
       });
 
       const expectedLength = JSON.stringify(complexObject).length;

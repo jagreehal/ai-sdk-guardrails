@@ -7,8 +7,9 @@
  * and factual accuracy.
  */
 
-import { generateText, generateObject } from 'ai';
-import { model } from './model';
+import { generateObject } from 'ai';
+import { generateText } from 'ai-sdk-ollama';
+import { llama3_2 as model } from './model';
 import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { z } from 'zod';
 
@@ -562,7 +563,7 @@ try {
 }
 
 // Test 5: Numerical claims without context
-console.log('Test 5: Numerical claims without context (should be blocked)');
+console.log('Test 5: Numerical claims without context (should pass)');
 try {
   const result = await generateText({
     model: protectedModel,

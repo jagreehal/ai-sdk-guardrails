@@ -5,8 +5,8 @@
  * to prevent harmful or inappropriate content.
  */
 
-import { generateText } from 'ai';
-import { model } from './model';
+import { generateText } from 'ai-sdk-ollama';
+import { llama3_2 as model } from './model';
 import { defineInputGuardrail, withGuardrails } from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 
