@@ -12,7 +12,7 @@ import {
 describe('backoff helpers', () => {
   describe('exponentialBackoff', () => {
     it('should generate exponential delays', () => {
-      const backoff = exponentialBackoff({ base: 100, max: 10000 });
+      const backoff = exponentialBackoff({ base: 100, max: 10_000 });
 
       expect(backoff(1)).toBe(100); // 100 * 2^0
       expect(backoff(2)).toBe(200); // 100 * 2^1
@@ -160,7 +160,7 @@ describe('backoff helpers', () => {
       expect(backoff(2)).toBe(2000);
       expect(backoff(3)).toBe(4000);
       expect(backoff(4)).toBe(8000);
-      expect(backoff(5)).toBe(16000); // Capped at max
+      expect(backoff(5)).toBe(16_000); // Capped at max
     });
 
     it('should provide slow preset', () => {

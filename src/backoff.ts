@@ -32,7 +32,7 @@ export interface BackoffOptions {
 export function exponentialBackoff(
   options: BackoffOptions = {},
 ): (attempt: number) => number {
-  const { base = 1000, max = 30000, jitter = 0, multiplier = 2 } = options;
+  const { base = 1000, max = 30_000, jitter = 0, multiplier = 2 } = options;
 
   return (attempt: number) => {
     // Calculate exponential delay: base * multiplier^(attempt-1)
@@ -69,7 +69,7 @@ export function exponentialBackoff(
 export function linearBackoff(
   options: BackoffOptions = {},
 ): (attempt: number) => number {
-  const { base = 1000, max = 30000, jitter = 0 } = options;
+  const { base = 1000, max = 30_000, jitter = 0 } = options;
 
   return (attempt: number) => {
     // Linear increase: base * attempt
@@ -166,7 +166,7 @@ export function compositeBackoff(
     }
 
     // Fallback to last strategy
-    const lastStrategy = strategies[strategies.length - 1];
+    const lastStrategy = strategies.at(-1);
     return lastStrategy ? lastStrategy.backoff(attempt) : 0;
   };
 }
@@ -187,14 +187,14 @@ export const presets = {
   fast: () => exponentialBackoff({ base: 500, max: 4000 }),
 
   /** Standard retry: 1s, 2s, 4s, 8s, 16s (max 16s) */
-  standard: () => exponentialBackoff({ base: 1000, max: 16000 }),
+  standard: () => exponentialBackoff({ base: 1000, max: 16_000 }),
 
   /** Slow retry: 2s, 4s, 8s, 16s, 32s (max 32s) */
-  slow: () => exponentialBackoff({ base: 2000, max: 32000 }),
+  slow: () => exponentialBackoff({ base: 2000, max: 32_000 }),
 
   /** Network resilient: jittered exponential with longer delays */
   networkResilient: () =>
-    jitteredExponentialBackoff({ base: 1000, max: 30000 }),
+    jitteredExponentialBackoff({ base: 1000, max: 30_000 }),
 
   /** Aggressive: very fast with short max delay for quick failures */
   aggressive: () => exponentialBackoff({ base: 200, max: 2000 }),

@@ -10,8 +10,9 @@ import { model } from './model';
 import {
   defineInputGuardrail,
   defineOutputGuardrail,
-  wrapWithGuardrails,
-} from '../src/guardrails';
+  withGuardrails,
+} from '../src/index';
+import type { InputGuardrail } from '../src/types';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
 
@@ -207,7 +208,7 @@ const demoBusinessHours = defineInputGuardrail({
   },
 });
 
-const businessHoursModel = wrapWithGuardrails(model, {
+const businessHoursModel = withGuardrails(model, {
   inputGuardrails: [demoBusinessHours],
   throwOnBlocked: false,
   onInputBlocked: (executionSummary) => {
@@ -235,7 +236,7 @@ try {
 console.log('Example 2: Professional Communication Standards');
 console.log('=============================================\n');
 
-const professionalModel = wrapWithGuardrails(model, {
+const professionalModel = withGuardrails(model, {
   outputGuardrails: [professionalToneGuardrail],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {
@@ -264,7 +265,7 @@ try {
 console.log('Example 3: Cost Control and Budget Management');
 console.log('============================================\n');
 
-const costControlModel = wrapWithGuardrails(model, {
+const costControlModel = withGuardrails(model, {
   inputGuardrails: [costControlGuardrail],
   throwOnBlocked: false,
   onInputBlocked: (executionSummary) => {
@@ -275,7 +276,7 @@ const costControlModel = wrapWithGuardrails(model, {
     const metadata = executionSummary.blockedResults[0]?.metadata;
     if (metadata) {
       console.log(`   Operation: ${metadata.expensiveOperation}`);
-      console.log(`   Estimated cost: $${metadata.estimatedCost}`);
+      console.log(`   Estimated cost: ${metadata.estimatedCost}`);
     }
   },
 });
@@ -296,12 +297,12 @@ try {
 console.log('Example 4: Combined Business Guardrails');
 console.log('======================================\n');
 
-const businessModel = wrapWithGuardrails(model, {
+const businessModel = withGuardrails(model, {
   inputGuardrails: [
     businessContentGuardrail,
     dataComplianceGuardrail,
     costControlGuardrail,
-  ],
+  ] as InputGuardrail<Record<string, unknown>>[],
   outputGuardrails: [professionalToneGuardrail],
   throwOnBlocked: false,
   onInputBlocked: (executionSummary) => {

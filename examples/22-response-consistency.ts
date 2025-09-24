@@ -8,10 +8,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { extractContent } from '../src/guardrails/output';
 
 // Define types for response consistency metadata
@@ -274,27 +271,24 @@ const consistencyValidationGuardrail =
 console.log('🔄 Response Consistency Validation Example\n');
 
 // Create a protected model with consistency validation
-const protectedModel = wrapWithOutputGuardrails(
-  model,
-  [consistencyValidationGuardrail],
-  {
-    throwOnBlocked: false, // Use warning mode to see all issues
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('⚠️  Consistency Warning:', result?.message);
-      if (result?.metadata) {
-        const metadata = result.metadata;
-        console.log('   Topic:', metadata.topic);
-        if (metadata.contradictions && metadata.contradictions.length > 0) {
-          console.log('   Contradictions found:');
-          for (const c of metadata.contradictions) {
-            console.log(`   - ${c}`);
-          }
+const protectedModel = withGuardrails(model, {
+  outputGuardrails: [consistencyValidationGuardrail],
+  throwOnBlocked: false, // Use warning mode to see all issues
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('⚠️  Consistency Warning:', result?.message);
+    if (result?.metadata) {
+      const metadata = result.metadata;
+      console.log('   Topic:', metadata.topic);
+      if (metadata.contradictions && metadata.contradictions.length > 0) {
+        console.log('   Contradictions found:');
+        for (const c of metadata.contradictions) {
+          console.log(`   - ${c}`);
         }
       }
-    },
+    }
   },
-);
+});
 
 // Test 1: First response (should pass, no history)
 console.log('Test 1: Initial response about AI');

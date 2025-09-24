@@ -12,9 +12,8 @@ import { model } from './model';
 import {
   defineInputGuardrail,
   defineOutputGuardrail,
-  wrapWithInputGuardrails,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+  withGuardrails,
+} from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
 
@@ -756,43 +755,39 @@ const loggingRedactionOutputGuardrail = defineOutputGuardrail<{
 console.log('🛡️  Logging Redaction Example\n');
 
 // Create a protected model with logging redaction
-const protectedModel = wrapWithOutputGuardrails(
-  wrapWithInputGuardrails(model, [loggingRedactionInputGuardrail], {
-    throwOnBlocked: false, // Don't throw, just redact
-    onInputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('⚠️  Input redaction applied for logging:', result?.message);
-      if (result?.metadata) {
-        const metadata = result.metadata;
-        console.log('   Redaction Count:', metadata.redactionCount);
-        console.log(
-          '   Detected Types:',
-          metadata.detectedTypes?.join(', ') || 'None',
-        );
-        console.log('   Original Length:', metadata.originalLength);
-        console.log('   Redacted Length:', metadata.redactedLength);
-      }
-    },
-  }),
-  [loggingRedactionOutputGuardrail],
-  {
-    throwOnBlocked: false, // Don't throw, just redact
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('⚠️  Output redaction applied for logging:', result?.message);
-      if (result?.metadata) {
-        const metadata = result.metadata;
-        console.log('   Redaction Count:', metadata.redactionCount);
-        console.log(
-          '   Detected Types:',
-          metadata.detectedTypes?.join(', ') || 'None',
-        );
-        console.log('   Original Length:', metadata.originalLength);
-        console.log('   Redacted Length:', metadata.redactedLength);
-      }
-    },
+const protectedModel = withGuardrails(model, {
+  inputGuardrails: [loggingRedactionInputGuardrail],
+  outputGuardrails: [loggingRedactionOutputGuardrail],
+  throwOnBlocked: false, // Don't throw, just redact
+  onInputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('⚠️  Input redaction applied for logging:', result?.message);
+    if (result?.metadata) {
+      const metadata = result.metadata;
+      console.log('   Redaction Count:', metadata.redactionCount);
+      console.log(
+        '   Detected Types:',
+        metadata.detectedTypes?.join(', ') || 'None',
+      );
+      console.log('   Original Length:', metadata.originalLength);
+      console.log('   Redacted Length:', metadata.redactedLength);
+    }
   },
-);
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('⚠️  Output redaction applied for logging:', result?.message);
+    if (result?.metadata) {
+      const metadata = result.metadata;
+      console.log('   Redaction Count:', metadata.redactionCount);
+      console.log(
+        '   Detected Types:',
+        metadata.detectedTypes?.join(', ') || 'None',
+      );
+      console.log('   Original Length:', metadata.originalLength);
+      console.log('   Redacted Length:', metadata.redactedLength);
+    }
+  },
+});
 
 // Test 1: No sensitive data (should pass)
 console.log('Test 1: No sensitive data (should pass)');

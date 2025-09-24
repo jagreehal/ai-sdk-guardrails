@@ -12,9 +12,8 @@ import { model } from './model';
 import {
   defineInputGuardrail,
   defineOutputGuardrail,
-  wrapWithInputGuardrails,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+  withGuardrails,
+} from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
 
@@ -651,57 +650,47 @@ const toxicityOutputGuardrail = defineOutputGuardrail<{
 console.log('🛡️  Toxicity & Harassment De-escalation Example\n');
 
 // Create a protected model with toxicity detection
-const protectedModel = wrapWithOutputGuardrails(
-  wrapWithInputGuardrails(model, [toxicityInputGuardrail], {
-    throwOnBlocked: false,
-    onInputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('⚠️  Toxicity detected:', result?.message);
-      if (result?.metadata) {
-        const metadata = result.metadata;
-        console.log('   Toxicity Score:', metadata.toxicityScore?.toFixed(2));
+const protectedModel = withGuardrails(model, {
+  inputGuardrails: [toxicityInputGuardrail],
+  outputGuardrails: [toxicityOutputGuardrail],
+  throwOnBlocked: false,
+  onInputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('⚠️  Toxicity detected:', result?.message);
+    if (result?.metadata) {
+      const metadata = result.metadata;
+      console.log('   Toxicity Score:', metadata.toxicityScore?.toFixed(2));
+      console.log('   Categories:', metadata.categories?.join(', ') || 'None');
+      console.log('   Severity:', metadata.overallSeverity);
+      console.log('   Strategy:', metadata.deEscalationStrategy);
+      console.log('   Escalation Level:', metadata.escalationLevel);
+      if (metadata.needsCooldown) {
         console.log(
-          '   Categories:',
-          metadata.categories?.join(', ') || 'None',
+          '   Cooldown Required:',
+          metadata.cooldownRemaining?.toFixed(0) + 's remaining',
         );
-        console.log('   Severity:', metadata.overallSeverity);
-        console.log('   Strategy:', metadata.deEscalationStrategy);
-        console.log('   Escalation Level:', metadata.escalationLevel);
-        if (metadata.needsCooldown) {
-          console.log(
-            '   Cooldown Required:',
-            metadata.cooldownRemaining?.toFixed(0) + 's remaining',
-          );
-        }
-        if (metadata.needsHumanReview) {
-          console.log('   Human Review Required');
-        }
-        if (metadata.shouldBlock) {
-          console.log('   User Should Be Blocked');
-        }
       }
-    },
-  }),
-  [toxicityOutputGuardrail],
-  {
-    throwOnBlocked: false,
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('⚠️  Output toxicity detected:', result?.message);
-      if (result?.metadata) {
-        const metadata = result.metadata;
-        console.log('   Toxicity Score:', metadata.toxicityScore?.toFixed(2));
-        console.log(
-          '   Categories:',
-          metadata.categories?.join(', ') || 'None',
-        );
-        console.log('   Severity:', metadata.overallSeverity);
-        console.log('   Strategy:', metadata.deEscalationStrategy);
-        console.log('   Escalation Level:', metadata.escalationLevel);
+      if (metadata.needsHumanReview) {
+        console.log('   Human Review Required');
       }
-    },
+      if (metadata.shouldBlock) {
+        console.log('   User Should Be Blocked');
+      }
+    }
   },
-);
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('⚠️  Output toxicity detected:', result?.message);
+    if (result?.metadata) {
+      const metadata = result.metadata;
+      console.log('   Toxicity Score:', metadata.toxicityScore?.toFixed(2));
+      console.log('   Categories:', metadata.categories?.join(', ') || 'None');
+      console.log('   Severity:', metadata.overallSeverity);
+      console.log('   Strategy:', metadata.deEscalationStrategy);
+      console.log('   Escalation Level:', metadata.escalationLevel);
+    }
+  },
+});
 
 // Test 1: Safe content (should pass)
 console.log('Test 1: Safe content (should pass)');

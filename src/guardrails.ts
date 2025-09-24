@@ -1,9 +1,15 @@
 import { wrapLanguageModel } from 'ai';
 import {
   GuardrailTimeoutError,
-  OutputBlockedError,
-  InputBlockedError,
+  GuardrailsOutputError,
+  GuardrailsInputError,
 } from './errors';
+
+// Performance optimization: conditional metadata tracking
+// Only track detailed metrics in development or when explicitly enabled
+const ENABLE_PERFORMANCE_TRACKING =
+  process.env.NODE_ENV === 'development' ||
+  process.env.GUARDRAILS_PERFORMANCE_TRACKING === 'true';
 // Enhanced retry integration temporarily disabled due to AI SDK type complexity
 import { extractContent } from './guardrails/output';
 import type {
@@ -43,7 +49,7 @@ export function defineInputGuardrail<
     tags: [],
     ...guardrail,
     execute: async (params, options) => {
-      const startTime = Date.now();
+      const startTime = ENABLE_PERFORMANCE_TRACKING ? Date.now() : 0;
       const originalExecute = guardrail.execute;
 
       try {
@@ -51,30 +57,32 @@ export function defineInputGuardrail<
           options === undefined
             ? await originalExecute(params)
             : await originalExecute(params, options);
-        const executionTime = Date.now() - startTime;
+        const executionTime = ENABLE_PERFORMANCE_TRACKING
+          ? Date.now() - startTime
+          : undefined;
 
         return {
           ...result,
-          context: {
-            guardrailName: guardrail.name,
-            guardrailVersion: guardrail.version,
-            executedAt: new Date(),
-            executionTimeMs: executionTime,
-            ...result.context,
-          },
+          context: createConditionalContext(
+            guardrail.name,
+            guardrail.version,
+            executionTime,
+            result.context,
+          ),
         };
       } catch (error) {
-        const executionTime = Date.now() - startTime;
+        const executionTime = ENABLE_PERFORMANCE_TRACKING
+          ? Date.now() - startTime
+          : undefined;
         return {
           tripwireTriggered: true,
           message: `Guardrail execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
           severity: 'critical',
-          context: {
-            guardrailName: guardrail.name,
-            guardrailVersion: guardrail.version,
-            executedAt: new Date(),
-            executionTimeMs: executionTime,
-          },
+          context: createConditionalContext(
+            guardrail.name,
+            guardrail.version,
+            executionTime,
+          ),
           metadata: {
             error: error instanceof Error ? error.message : String(error),
           } as unknown as M,
@@ -124,7 +132,7 @@ export async function executeInputGuardrails<
   // Filter enabled guardrails and sort by priority
   const enabledGuardrails = guardrails
     .filter((g) => g.enabled !== false)
-    .sort((a, b) => {
+    .toSorted((a, b) => {
       const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
       return (
         (priorityOrder[b.priority || 'medium'] || 2) -
@@ -137,61 +145,32 @@ export async function executeInputGuardrails<
   const executeWithTimeout = async (
     guardrail: InputGuardrail<M>,
   ): Promise<GuardrailResult<M>> => {
-    const controller = new AbortController();
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    const timeoutPromise: Promise<never> = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => {
-        controller.abort();
-        reject(new GuardrailTimeoutError(guardrail.name, timeout));
-      }, timeout);
-    });
-
-    const executionPromise = guardrail.execute(
-      toNormalizedGuardrailContext(params),
-      {
-        signal: controller.signal,
-      },
-    );
-
-    return Promise.race([executionPromise, timeoutPromise]).finally(() => {
-      if (timeoutId) clearTimeout(timeoutId);
+    return executeWithOptimizedTimeout(
+      async (signal) =>
+        await Promise.resolve(
+          guardrail.execute(toNormalizedGuardrailContext(params), { signal }),
+        ),
+      timeout,
+      `Guardrail ${guardrail.name} timed out after ${timeout}ms`,
+    ).catch((error) => {
+      if (error.message.includes('timed out')) {
+        throw new GuardrailTimeoutError(guardrail.name, timeout);
+      }
+      throw error;
     });
   };
 
   if (parallel) {
-    // Execute all guardrails in parallel
-    const promises = enabledGuardrails.map(async (guardrail) => {
-      try {
-        const result = await executeWithTimeout(guardrail);
-
-        if (result.tripwireTriggered && logLevel !== 'none') {
-          logger.warn(
-            `Input guardrail "${guardrail.name}" triggered: ${result.message}`,
-          );
-        }
-
-        return result;
-      } catch (error) {
-        if (logLevel !== 'none') {
-          logger.error(
-            `Error executing input guardrail "${guardrail.name}":`,
-            error,
-          );
-        }
-
-        const err: GuardrailResult<M> = {
-          tripwireTriggered: true,
-          message: `Guardrail execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          severity: 'critical' as const,
-          metadata: {
-            error: error instanceof Error ? error.message : String(error),
-          } as unknown as M,
-        };
-        return err;
-      }
-    });
-
-    results.push(...(await Promise.all(promises)));
+    // Use optimized batch execution with shared timeout and context
+    const normalizedContext = toNormalizedGuardrailContext(params);
+    const batchResults = await executeBatchInputGuardrails<M>(
+      enabledGuardrails,
+      normalizedContext,
+      timeout,
+      logLevel,
+      logger,
+    );
+    results.push(...batchResults);
   } else {
     // Execute guardrails sequentially
     for (const guardrail of enabledGuardrails) {
@@ -252,7 +231,7 @@ export function defineOutputGuardrail<
     tags: [],
     ...guardrail,
     execute: async (params, options) => {
-      const startTime = Date.now();
+      const startTime = ENABLE_PERFORMANCE_TRACKING ? Date.now() : 0;
       const originalExecute = guardrail.execute;
 
       try {
@@ -260,30 +239,32 @@ export function defineOutputGuardrail<
           options === undefined
             ? await originalExecute(params)
             : await originalExecute(params, options);
-        const executionTime = Date.now() - startTime;
+        const executionTime = ENABLE_PERFORMANCE_TRACKING
+          ? Date.now() - startTime
+          : undefined;
 
         return {
           ...result,
-          context: {
-            guardrailName: guardrail.name,
-            guardrailVersion: guardrail.version,
-            executedAt: new Date(),
-            executionTimeMs: executionTime,
-            ...result.context,
-          },
+          context: createConditionalContext(
+            guardrail.name,
+            guardrail.version,
+            executionTime,
+            result.context,
+          ),
         };
       } catch (error) {
-        const executionTime = Date.now() - startTime;
+        const executionTime = ENABLE_PERFORMANCE_TRACKING
+          ? Date.now() - startTime
+          : undefined;
         return {
           tripwireTriggered: true,
           message: `Guardrail execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
           severity: 'critical',
-          context: {
-            guardrailName: guardrail.name,
-            guardrailVersion: guardrail.version,
-            executedAt: new Date(),
-            executionTimeMs: executionTime,
-          },
+          context: createConditionalContext(
+            guardrail.name,
+            guardrail.version,
+            executionTime,
+          ),
           metadata: {
             error: error instanceof Error ? error.message : String(error),
           } as unknown as M,
@@ -331,7 +312,7 @@ export async function executeOutputGuardrails<
   // Filter enabled guardrails and sort by priority
   const enabledGuardrails = guardrails
     .filter((g) => g.enabled !== false)
-    .sort((a, b) => {
+    .toSorted((a, b) => {
       const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
       return (
         (priorityOrder[b.priority || 'medium'] || 2) -
@@ -344,21 +325,16 @@ export async function executeOutputGuardrails<
   const executeWithTimeout = async (
     guardrail: OutputGuardrail<M>,
   ): Promise<GuardrailResult<M>> => {
-    const controller = new AbortController();
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    const timeoutPromise: Promise<never> = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => {
-        controller.abort();
-        reject(new GuardrailTimeoutError(guardrail.name, timeout));
-      }, timeout);
-    });
-
-    const executionPromise = guardrail.execute(params, undefined, {
-      signal: controller.signal,
-    });
-
-    return Promise.race([executionPromise, timeoutPromise]).finally(() => {
-      if (timeoutId) clearTimeout(timeoutId);
+    return executeWithOptimizedTimeout(
+      async (signal) =>
+        await Promise.resolve(guardrail.execute(params, undefined, { signal })),
+      timeout,
+      `Guardrail ${guardrail.name} timed out after ${timeout}ms`,
+    ).catch((error) => {
+      if (error.message.includes('timed out')) {
+        throw new GuardrailTimeoutError(guardrail.name, timeout);
+      }
+      throw error;
     });
   };
 
@@ -456,13 +432,201 @@ function extractTextFromContent(content: MessageContent): string {
     .join('');
 }
 
+// Context caching for performance optimization
+// WeakMap automatically garbage collects when params objects are no longer referenced
+const normalizedContextCache = new WeakMap<
+  LanguageModelV2CallOptions,
+  NormalizedGuardrailContext
+>();
+
+// Timeout controller pooling for performance optimization
+class TimeoutControllerPool {
+  private static controllers: AbortController[] = [];
+  private static readonly MAX_POOL_SIZE = 20;
+
+  static acquire(): AbortController {
+    const controller = this.controllers.pop();
+    if (controller && !controller.signal.aborted) {
+      return controller;
+    }
+    return new AbortController();
+  }
+
+  static release(controller: AbortController): void {
+    // Only pool non-aborted controllers and respect max pool size
+    if (
+      !controller.signal.aborted &&
+      this.controllers.length < this.MAX_POOL_SIZE
+    ) {
+      this.controllers.push(controller);
+    }
+  }
+
+  static clear(): void {
+    this.controllers = [];
+  }
+}
+
+/**
+ * Creates context metadata conditionally based on performance tracking settings
+ */
+function createConditionalContext(
+  guardrailName: string,
+  guardrailVersion?: string,
+  executionTimeMs?: number,
+  existingContext?: any,
+): any {
+  if (!ENABLE_PERFORMANCE_TRACKING) {
+    // In production, only include essential info
+    return {
+      guardrailName,
+      ...existingContext,
+    };
+  }
+
+  // In development, include full metrics
+  return {
+    guardrailName,
+    guardrailVersion,
+    executedAt: new Date(),
+    executionTimeMs,
+    ...existingContext,
+  };
+}
+
+/**
+ * Optimized timeout execution using pooled controllers
+ */
+async function executeWithOptimizedTimeout<T>(
+  execution: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  errorMessage: string,
+): Promise<T> {
+  const controller = TimeoutControllerPool.acquire();
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    const timeoutPromise: Promise<never> = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        controller.abort();
+        reject(new Error(errorMessage));
+      }, timeoutMs);
+    });
+
+    const result = await Promise.race([
+      execution(controller.signal),
+      timeoutPromise,
+    ]);
+
+    return result;
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    TimeoutControllerPool.release(controller);
+  }
+}
+
+/**
+ * Batch execute guardrails with shared timeout and optimized context handling
+ */
+async function executeBatchInputGuardrails<M extends Record<string, unknown>>(
+  guardrails: InputGuardrail<M>[],
+  normalizedContext: NormalizedGuardrailContext,
+  timeoutMs: number,
+  logLevel: 'none' | 'error' | 'warn' | 'info' | 'debug',
+  logger: Logger,
+): Promise<GuardrailResult<M>[]> {
+  if (guardrails.length === 0) return [];
+
+  return executeWithOptimizedTimeout(
+    async (signal) => {
+      const results = await Promise.allSettled(
+        guardrails.map(async (guardrail) => {
+          try {
+            return await Promise.resolve(
+              guardrail.execute(normalizedContext, { signal }),
+            );
+          } catch (error) {
+            if (logLevel !== 'none') {
+              logger.error(
+                `Error executing input guardrail "${guardrail.name}":`,
+                error,
+              );
+            }
+            return {
+              tripwireTriggered: true,
+              message: `Guardrail execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              severity: 'critical' as const,
+              metadata: {
+                error: error instanceof Error ? error.message : String(error),
+              } as unknown as M,
+            };
+          }
+        }),
+      );
+
+      return results.map((result, index) => {
+        const guardrail = guardrails[index]!;
+        if (result.status === 'fulfilled') {
+          const guardResult = result.value;
+          if (guardResult.tripwireTriggered && logLevel !== 'none') {
+            logger.warn(
+              `Input guardrail "${guardrail.name}" triggered: ${guardResult.message}`,
+            );
+          }
+          return guardResult;
+        } else {
+          if (logLevel !== 'none') {
+            logger.error(
+              `Input guardrail "${guardrail.name}" failed:`,
+              result.reason,
+            );
+          }
+          return {
+            tripwireTriggered: true,
+            message: `Guardrail execution failed: ${result.reason instanceof Error ? result.reason.message : 'Unknown error'}`,
+            severity: 'critical' as const,
+            metadata: {
+              error:
+                result.reason instanceof Error
+                  ? result.reason.message
+                  : String(result.reason),
+            } as unknown as M,
+          };
+        }
+      });
+    },
+    timeoutMs,
+    `Batch guardrail execution timed out after ${timeoutMs}ms`,
+  ).catch((error) => {
+    if (error.message.includes('timed out')) {
+      // Create timeout errors for all guardrails
+      return guardrails.map((guardrail) => ({
+        tripwireTriggered: true,
+        message: `Guardrail timed out after ${timeoutMs}ms`,
+        severity: 'critical' as const,
+        metadata: { timeout: true } as unknown as M,
+      }));
+    }
+    throw error;
+  });
+}
+
 /**
  * Normalizes AI SDK parameters into a consistent guardrail context
  * This improves type safety and reduces coupling to specific AI SDK parameter types
+ * Uses caching to avoid redundant processing of the same parameters
  */
 export function normalizeGuardrailContext(
   params: LanguageModelV2CallOptions,
 ): NormalizedGuardrailContext {
+  // Check cache first for performance optimization
+  const cached = normalizedContextCache.get(params);
+  if (cached) {
+    return cached;
+  }
+
   const promptMessages = Array.isArray(params.prompt) ? params.prompt : [];
   const systemMessage = promptMessages.find((msg) => msg.role === 'system');
   const system =
@@ -483,7 +647,7 @@ export function normalizeGuardrailContext(
       ? messages[0].content
       : messages.map((m) => m.content).join(' ');
 
-  return {
+  const normalized = {
     prompt,
     messages,
     system,
@@ -498,6 +662,10 @@ export function normalizeGuardrailContext(
       stopSequences: params.stopSequences,
     },
   };
+
+  // Cache the normalized result for future use
+  normalizedContextCache.set(params, normalized);
+  return normalized;
 }
 
 /**
@@ -561,6 +729,9 @@ function createExecutionSummary<
 
 /**
  * Wraps a language model with input guardrails using AI SDK 5 patterns
+ *
+ * @deprecated Use `withGuardrails()` instead. This function will be removed in next major version.
+ *
  * @param model - The language model to wrap
  * @param guardrails - Array of input guardrails to apply
  * @param options - Optional configuration for guardrail execution
@@ -569,13 +740,12 @@ function createExecutionSummary<
  * @example
  * ```typescript
  * import { openai } from '@ai-sdk/openai';
- * import { wrapWithInputGuardrails } from 'ai-sdk-guardrails';
+ * import { withGuardrails } from 'ai-sdk-guardrails'; // Use this instead
  *
- * const guardedModel = wrapWithInputGuardrails(
- *   openai('gpt-4o'),
- *   [myInputGuardrail],
- *   { throwOnBlocked: true }
- * );
+ * const guardedModel = withGuardrails(openai('gpt-4o'), {
+ *   inputGuardrails: [myInputGuardrail],
+ *   throwOnBlocked: true
+ * });
  * ```
  */
 export function wrapWithInputGuardrails<
@@ -598,6 +768,9 @@ export function wrapWithInputGuardrails<
 
 /**
  * Wraps a language model with output guardrails using AI SDK 5 patterns
+ *
+ * @deprecated Use `withGuardrails()` instead. This function will be removed in next major version.
+ *
  * @param model - The language model to wrap
  * @param guardrails - Array of output guardrails to apply
  * @param options - Optional configuration for guardrail execution
@@ -606,13 +779,12 @@ export function wrapWithInputGuardrails<
  * @example
  * ```typescript
  * import { openai } from '@ai-sdk/openai';
- * import { wrapWithOutputGuardrails } from 'ai-sdk-guardrails';
+ * import { withGuardrails } from 'ai-sdk-guardrails'; // Use this instead
  *
- * const guardedModel = wrapWithOutputGuardrails(
- *   openai('gpt-4o'),
- *   [myOutputGuardrail],
- *   { throwOnBlocked: true }
- * );
+ * const guardedModel = withGuardrails(openai('gpt-4o'), {
+ *   outputGuardrails: [myOutputGuardrail],
+ *   throwOnBlocked: true
+ * });
  * ```
  *
  * @note For generateObject scenarios, consider using executeOutputGuardrails()
@@ -638,6 +810,9 @@ export function wrapWithOutputGuardrails<
 
 /**
  * Wraps a language model with both input and output guardrails using AI SDK 5 patterns
+ *
+ * @deprecated Use `withGuardrails()` instead. This function will be removed in next major version.
+ *
  * @param model - The language model to wrap
  * @param config - Configuration for both input and output guardrails
  * @returns Wrapped language model with both input and output guardrails
@@ -645,9 +820,9 @@ export function wrapWithOutputGuardrails<
  * @example
  * ```typescript
  * import { openai } from '@ai-sdk/openai';
- * import { wrapWithGuardrails } from 'ai-sdk-guardrails';
+ * import { withGuardrails } from 'ai-sdk-guardrails'; // Use this instead
  *
- * const guardedModel = wrapWithGuardrails(openai('gpt-4o'), {
+ * const guardedModel = withGuardrails(openai('gpt-4o'), {
  *   inputGuardrails: [myInputGuardrail],
  *   outputGuardrails: [myOutputGuardrail],
  *   throwOnBlocked: true
@@ -656,8 +831,8 @@ export function wrapWithOutputGuardrails<
  */
 // Overload for automatic type inference when no explicit types are provided
 export function wrapWithGuardrails(
-  model: LanguageModelV2,
-  config: {
+  _model: LanguageModelV2,
+  _config: {
     inputGuardrails?: InputGuardrail<Record<string, unknown>>[];
     outputGuardrails?: OutputGuardrail<Record<string, unknown>>[];
     throwOnBlocked?: boolean;
@@ -669,8 +844,8 @@ export function wrapWithGuardrails(
       continueOnFailure?: boolean;
       logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
     };
-    onInputBlocked?: (executionSummary: GuardrailExecutionSummary) => void;
-    onOutputBlocked?: (executionSummary: GuardrailExecutionSummary) => void;
+    onInputBlocked?: (_executionSummary: GuardrailExecutionSummary) => void;
+    onOutputBlocked?: (_executionSummary: GuardrailExecutionSummary) => void;
   },
 ): LanguageModelV2;
 
@@ -679,8 +854,8 @@ export function wrapWithGuardrails<
   MIn extends Record<string, unknown> = Record<string, unknown>,
   MOut extends Record<string, unknown> = Record<string, unknown>,
 >(
-  model: LanguageModelV2,
-  config: {
+  _model: LanguageModelV2,
+  _config: {
     inputGuardrails?: InputGuardrail<MIn>[];
     outputGuardrails?: OutputGuardrail<MOut>[];
     throwOnBlocked?: boolean;
@@ -713,8 +888,10 @@ export function wrapWithGuardrails(
           continueOnFailure?: boolean;
           logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
         };
-        onInputBlocked?: (executionSummary: GuardrailExecutionSummary) => void;
-        onOutputBlocked?: (executionSummary: GuardrailExecutionSummary) => void;
+        onInputBlocked?: (_executionSummary: GuardrailExecutionSummary) => void;
+        onOutputBlocked?: (
+          _executionSummary: GuardrailExecutionSummary,
+        ) => void;
       }
     | {
         inputGuardrails?: InputGuardrail<Record<string, unknown>>[];
@@ -783,6 +960,116 @@ export function wrapWithGuardrails(
 }
 
 // ============================================================================
+// PRIMARY API FUNCTIONS (RECOMMENDED)
+// ============================================================================
+
+/**
+ * Primary guardrails API - wraps a language model with input and/or output guardrails
+ *
+ * This is the main entry point for applying guardrails to AI models. Use this decorator-like
+ * function for most use cases.
+ *
+ * @param model - The language model to wrap
+ * @param config - Configuration for both input and output guardrails
+ * @returns Wrapped language model with guardrails applied
+ *
+ * @example
+ * ```typescript
+ * import { openai } from '@ai-sdk/openai';
+ * import { withGuardrails } from 'ai-sdk-guardrails';
+ * import { piiDetector } from 'ai-sdk-guardrails/guardrails/input';
+ * import { minLength } from 'ai-sdk-guardrails/guardrails/output';
+ *
+ * const guardedModel = withGuardrails(openai('gpt-4o'), {
+ *   inputGuardrails: [piiDetector()],
+ *   outputGuardrails: [minLength(100)],
+ *   throwOnBlocked: true
+ * });
+ * ```
+ */
+export function withGuardrails<
+  MIn extends Record<string, unknown> = Record<string, unknown>,
+  MOut extends Record<string, unknown> = Record<string, unknown>,
+>(
+  model: LanguageModelV2,
+  config: {
+    inputGuardrails?: InputGuardrail<MIn>[];
+    outputGuardrails?: OutputGuardrail<MOut>[];
+    throwOnBlocked?: boolean;
+    replaceOnBlocked?: boolean;
+    streamMode?: 'buffer' | 'progressive';
+    executionOptions?: {
+      parallel?: boolean;
+      timeout?: number;
+      continueOnFailure?: boolean;
+      logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
+    };
+    onInputBlocked?: InputGuardrailsMiddlewareConfig<MIn>['onInputBlocked'];
+    onOutputBlocked?: OutputGuardrailsMiddlewareConfig<MOut>['onOutputBlocked'];
+    retry?: OutputGuardrailsMiddlewareConfig<MOut>['retry'];
+  },
+): LanguageModelV2 {
+  return wrapWithGuardrails(model, config);
+}
+
+/**
+ * Creates a reusable guardrails configuration factory
+ *
+ * Use this factory when you want to apply the same guardrails configuration to multiple
+ * models, or when building composable guardrail systems.
+ *
+ * @param config - Configuration for both input and output guardrails
+ * @returns Function that accepts a model and returns a wrapped model
+ *
+ * @example
+ * ```typescript
+ * import { openai } from '@ai-sdk/openai';
+ * import { anthropic } from '@ai-sdk/anthropic';
+ * import { createGuardrails } from 'ai-sdk-guardrails';
+ * import { piiDetector } from 'ai-sdk-guardrails/guardrails/input';
+ * import { qualityCheck } from 'ai-sdk-guardrails/guardrails/output';
+ *
+ * // Create reusable guardrails configuration
+ * const productionGuards = createGuardrails({
+ *   inputGuardrails: [piiDetector()],
+ *   outputGuardrails: [qualityCheck()],
+ *   throwOnBlocked: true,
+ * });
+ *
+ * // Apply to multiple models
+ * const gpt4 = productionGuards(openai('gpt-4o'));
+ * const claude = productionGuards(anthropic('claude-3-sonnet'));
+ *
+ * // Compose multiple guardrail sets
+ * const strictLimits = createGuardrails({ inputGuardrails: [maxLength(500)] });
+ * const piiProtection = createGuardrails({ inputGuardrails: [piiDetector()] });
+ * const model = piiProtection(strictLimits(openai('gpt-4o')));
+ * ```
+ */
+export function createGuardrails<
+  MIn extends Record<string, unknown> = Record<string, unknown>,
+  MOut extends Record<string, unknown> = Record<string, unknown>,
+>(config: {
+  inputGuardrails?: InputGuardrail<MIn>[];
+  outputGuardrails?: OutputGuardrail<MOut>[];
+  throwOnBlocked?: boolean;
+  replaceOnBlocked?: boolean;
+  streamMode?: 'buffer' | 'progressive';
+  executionOptions?: {
+    parallel?: boolean;
+    timeout?: number;
+    continueOnFailure?: boolean;
+    logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
+  };
+  onInputBlocked?: InputGuardrailsMiddlewareConfig<MIn>['onInputBlocked'];
+  onOutputBlocked?: OutputGuardrailsMiddlewareConfig<MOut>['onOutputBlocked'];
+}) {
+  return (model: LanguageModelV2): LanguageModelV2 => {
+    return withGuardrails(model, config);
+  };
+}
+
+// ============================================================================
 // ADVANCED MIDDLEWARE FUNCTIONS (FOR FINE-GRAINED CONTROL)
 // ============================================================================
 
@@ -839,7 +1126,7 @@ export function createInputGuardrailsMiddleware<
             severity: r.severity || ('medium' as const),
           }));
 
-          throw new InputBlockedError(blockedGuardrails);
+          throw new GuardrailsInputError(blockedGuardrails);
         }
 
         // Store blocked results for later use by wrapGenerate/wrapStream
@@ -1008,7 +1295,7 @@ export function createOutputGuardrailsMiddleware<
               summary: executionSummary,
               originalParams: params,
               lastParams,
-              lastResult: lastResult as any,
+              lastResult: lastResult as AIResult,
             });
 
             // Call model with new params
@@ -1017,7 +1304,7 @@ export function createOutputGuardrailsMiddleware<
 
             const retryContext: OutputGuardrailContext = {
               input: normalizeGuardrailContext(nextParams),
-              result: retryResult as any,
+              result: retryResult as AIResult,
             };
             const retryStart = Date.now();
             const retryResults = await executeOutputGuardrails<M>(
@@ -1052,7 +1339,7 @@ export function createOutputGuardrailsMiddleware<
               severity: r.severity || ('medium' as const),
             }),
           );
-          throw new OutputBlockedError(blockedGuardrails);
+          throw new GuardrailsOutputError(blockedGuardrails);
         }
 
         // Replace output with blocked message if replaceOnBlocked is true (for generateText)
@@ -1147,7 +1434,7 @@ export function createOutputGuardrailsMiddleware<
                     summary: executionSummary,
                     originalParams: params,
                     lastParams,
-                    lastResult: lastResult as any,
+                    lastResult: lastResult as AIResult,
                   });
 
                   const retryResult = (await model.doGenerate(
@@ -1172,7 +1459,7 @@ export function createOutputGuardrailsMiddleware<
                   if (retrySummary.blockedResults.length === 0) {
                     // Emit the repaired text as a single delta and finish
                     const { text: repairedText } = extractContent(
-                      retryResult as any,
+                      retryResult as AIResult,
                     );
                     controller.enqueue({
                       type: 'text-delta',
@@ -1223,10 +1510,14 @@ export function createOutputGuardrailsMiddleware<
                   usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
                 });
               } else {
-                for (const chunk of blockedChunks) controller.enqueue(chunk);
+                for (const chunk of blockedChunks) {
+                  controller.enqueue(chunk);
+                }
               }
             } else {
-              for (const chunk of blockedChunks) controller.enqueue(chunk);
+              for (const chunk of blockedChunks) {
+                controller.enqueue(chunk);
+              }
             }
           },
         });
@@ -1242,7 +1533,9 @@ export function createOutputGuardrailsMiddleware<
         LanguageModelV2StreamPart
       >({
         async transform(chunk: LanguageModelV2StreamPart, controller) {
-          if (blocked) return;
+          if (blocked) {
+            return;
+          }
           if (chunk.type === 'text-delta') {
             const anyChunk = chunk as {
               type: string;
@@ -1268,10 +1561,11 @@ export function createOutputGuardrailsMiddleware<
             );
             if (executionSummary.blockedResults.length > 0) {
               blocked = true;
-              if (onOutputBlocked)
+              if (onOutputBlocked) {
                 onOutputBlocked(executionSummary, guardrailContext, {
                   text: accumulatedText,
                 });
+              }
               if (throwOnBlocked) {
                 controller.error(
                   new Error(
@@ -1311,4 +1605,7 @@ export function createOutputGuardrailsMiddleware<
 }
 
 // Re-export agent wrapper
-export { wrapAgentWithGuardrails } from './guardrails/agent';
+export {
+  withAgentGuardrails,
+  wrapAgentWithGuardrails,
+} from './guardrails/agent';

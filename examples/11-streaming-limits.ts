@@ -9,10 +9,7 @@
 
 import { streamText } from 'ai';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { extractContent } from '../src/guardrails/output';
 
 // Define types for streaming guardrail metadata
@@ -84,25 +81,22 @@ async function demonstrateStreamingWithLimits() {
   console.log('📊 Streaming with Length Limits');
   console.log('================================\n');
 
-  const limitedModel = wrapWithOutputGuardrails(
-    model,
-    [streamLengthGuardrail],
-    {
-      throwOnBlocked: false, // Use warning mode for streaming
-      onOutputBlocked: (executionSummary) => {
+  const limitedModel = withGuardrails(model, {
+    outputGuardrails: [streamLengthGuardrail],
+    throwOnBlocked: false, // Use warning mode for streaming
+    onOutputBlocked: (executionSummary) => {
+      console.log(
+        '\n⚠️  Stream limit warning:',
+        executionSummary.blockedResults[0]?.message,
+      );
+      const metadata = executionSummary.blockedResults[0]?.metadata;
+      if (metadata) {
         console.log(
-          '\n⚠️  Stream limit warning:',
-          executionSummary.blockedResults[0]?.message,
+          `   Exceeded by: ${metadata.excess || 'unknown'} characters`,
         );
-        const metadata = executionSummary.blockedResults[0]?.metadata;
-        if (metadata) {
-          console.log(
-            `   Exceeded by: ${metadata.excess || 'unknown'} characters`,
-          );
-        }
-      },
+      }
     },
-  );
+  });
 
   // Test 1: Short stream (within limits)
   console.log('Test 1: Short response (should stay within 200 char limit)');
@@ -147,7 +141,8 @@ async function demonstrateStreamingContentFilter() {
   console.log('🔍 Streaming Content Filtering');
   console.log('==============================\n');
 
-  const filteredModel = wrapWithOutputGuardrails(model, [streamContentFilter], {
+  const filteredModel = withGuardrails(model, {
+    outputGuardrails: [streamContentFilter],
     throwOnBlocked: false,
     onOutputBlocked: (executionSummary) => {
       console.log(
@@ -185,19 +180,16 @@ async function demonstrateBlockingMode() {
     'Note: Stream completes, then guardrails evaluate the full content\n',
   );
 
-  const blockingModel = wrapWithOutputGuardrails(
-    model,
-    [streamLengthGuardrail],
-    {
-      throwOnBlocked: true, // Blocking mode
-      onOutputBlocked: (executionSummary) => {
-        console.log(
-          '\n🚫 Stream blocked after completion:',
-          executionSummary.blockedResults[0]?.message,
-        );
-      },
+  const blockingModel = withGuardrails(model, {
+    outputGuardrails: [streamLengthGuardrail],
+    throwOnBlocked: true, // Blocking mode
+    onOutputBlocked: (executionSummary) => {
+      console.log(
+        '\n🚫 Stream blocked after completion:',
+        executionSummary.blockedResults[0]?.message,
+      );
     },
-  );
+  });
 
   console.log('Test: Long stream with blocking mode');
   try {

@@ -8,10 +8,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { extractContent } from '../src/guardrails/output';
 
 type JudgeMeta = {
@@ -64,7 +61,9 @@ const llmJudgeGuardrail = defineOutputGuardrail<JudgeMeta>({
       if (json) {
         parsed = JSON.parse(json);
       }
-    } catch {}
+    } catch {
+      // Ignore JSON parse errors, will use fallback heuristic
+    }
 
     // Fallback heuristic if parse failed
     if (!parsed) {
@@ -95,7 +94,8 @@ console.log('🛡️  LLM-as-Judge Auto-Retry Example');
 console.log('');
 let feedback = '';
 
-const judgedModel = wrapWithOutputGuardrails(model, [llmJudgeGuardrail], {
+const judgedModel = withGuardrails(model, {
+  outputGuardrails: [llmJudgeGuardrail],
   throwOnBlocked: false,
   replaceOnBlocked: false,
   retry: {

@@ -12,9 +12,8 @@ import { model } from './model';
 import {
   defineInputGuardrail,
   defineOutputGuardrail,
-  wrapWithInputGuardrails,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+  withGuardrails,
+} from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
 
@@ -470,41 +469,31 @@ const streamingOutputGuardrail = defineOutputGuardrail<{
 console.log('🔄 Streaming Early Termination Example\n');
 
 // Create a protected model with streaming termination
-const protectedModel = wrapWithOutputGuardrails(
-  wrapWithInputGuardrails(model, [streamingInputGuardrail], {
-    throwOnBlocked: false,
-    onInputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('⚠️  Input would terminate streaming:', result?.message);
-      if (result?.metadata) {
-        const metadata = result.metadata;
-        console.log(
-          '   Categories:',
-          metadata.categories?.join(', ') || 'None',
-        );
-        console.log('   Severity:', metadata.overallSeverity);
-        console.log('   Termination Reason:', metadata.terminationReason);
-      }
-    },
-  }),
-  [streamingOutputGuardrail],
-  {
-    throwOnBlocked: false,
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('⚠️  Output would terminate streaming:', result?.message);
-      if (result?.metadata) {
-        const metadata = result.metadata;
-        console.log(
-          '   Categories:',
-          metadata.categories?.join(', ') || 'None',
-        );
-        console.log('   Severity:', metadata.overallSeverity);
-        console.log('   Termination Reason:', metadata.terminationReason);
-      }
-    },
+const protectedModel = withGuardrails(model, {
+  inputGuardrails: [streamingInputGuardrail],
+  outputGuardrails: [streamingOutputGuardrail],
+  throwOnBlocked: false,
+  onInputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('⚠️  Input would terminate streaming:', result?.message);
+    if (result?.metadata) {
+      const metadata = result.metadata;
+      console.log('   Categories:', metadata.categories?.join(', ') || 'None');
+      console.log('   Severity:', metadata.overallSeverity);
+      console.log('   Termination Reason:', metadata.terminationReason);
+    }
   },
-);
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('⚠️  Output would terminate streaming:', result?.message);
+    if (result?.metadata) {
+      const metadata = result.metadata;
+      console.log('   Categories:', metadata.categories?.join(', ') || 'None');
+      console.log('   Severity:', metadata.overallSeverity);
+      console.log('   Termination Reason:', metadata.terminationReason);
+    }
+  },
+});
 
 // Test 1: Safe content (should pass)
 console.log('Test 1: Safe content (should pass)');

@@ -5,12 +5,15 @@ import {
   GuardrailExecutionError,
   GuardrailTimeoutError,
   GuardrailConfigurationError,
-  InputBlockedError,
-  OutputBlockedError,
+  GuardrailsInputError,
+  GuardrailsOutputError,
   MiddlewareError,
   isGuardrailsError,
   extractErrorInfo,
   type ValidationError,
+  // Test deprecated aliases still work
+  InputBlockedError,
+  OutputBlockedError,
 } from './errors';
 
 describe('Error System', () => {
@@ -131,7 +134,7 @@ describe('Error System', () => {
     });
   });
 
-  describe('InputBlockedError', () => {
+  describe('GuardrailsInputError', () => {
     it('should create input blocked error', () => {
       const blockedGuardrails = [
         {
@@ -146,11 +149,11 @@ describe('Error System', () => {
         },
       ];
 
-      const error = new InputBlockedError(blockedGuardrails, {
+      const error = new GuardrailsInputError(blockedGuardrails, {
         requestId: 'req123',
       });
 
-      expect(error.name).toBe('InputBlockedError');
+      expect(error.name).toBe('GuardrailsInputError');
       expect(error.code).toBe('INPUT_BLOCKED');
       expect(error.blockedGuardrails).toEqual(blockedGuardrails);
       expect(error.message).toContain('content-filter, length-check');
@@ -162,14 +165,14 @@ describe('Error System', () => {
         { name: 'single-check', message: 'Failed', severity: 'low' as const },
       ];
 
-      const error = new InputBlockedError(blockedGuardrails);
+      const error = new GuardrailsInputError(blockedGuardrails);
 
       expect(error.message).toContain('guardrail:'); // singular
       expect(error.message).toContain('single-check');
     });
   });
 
-  describe('OutputBlockedError', () => {
+  describe('GuardrailsOutputError', () => {
     it('should create output blocked error', () => {
       const blockedGuardrails = [
         {
@@ -179,11 +182,11 @@ describe('Error System', () => {
         },
       ];
 
-      const error = new OutputBlockedError(blockedGuardrails, {
+      const error = new GuardrailsOutputError(blockedGuardrails, {
         responseId: 'res456',
       });
 
-      expect(error.name).toBe('OutputBlockedError');
+      expect(error.name).toBe('GuardrailsOutputError');
       expect(error.code).toBe('OUTPUT_BLOCKED');
       expect(error.blockedGuardrails).toEqual(blockedGuardrails);
       expect(error.message).toContain('pii-filter');
@@ -277,12 +280,28 @@ describe('Error System', () => {
     });
 
     it('should have correct prototype chain', () => {
+      const error = new GuardrailsInputError([]);
+
+      expect(error.constructor.name).toBe('GuardrailsInputError');
+      expect(Object.getPrototypeOf(error).constructor.name).toBe(
+        'GuardrailsInputError',
+      );
+    });
+
+    it('should support deprecated InputBlockedError alias', () => {
       const error = new InputBlockedError([]);
 
-      expect(error.constructor.name).toBe('InputBlockedError');
-      expect(Object.getPrototypeOf(error).constructor.name).toBe(
-        'InputBlockedError',
-      );
+      // Should be instance of the new class
+      expect(error).toBeInstanceOf(GuardrailsInputError);
+      expect(error.name).toBe('GuardrailsInputError');
+    });
+
+    it('should support deprecated OutputBlockedError alias', () => {
+      const error = new OutputBlockedError([]);
+
+      // Should be instance of the new class
+      expect(error).toBeInstanceOf(GuardrailsOutputError);
+      expect(error.name).toBe('GuardrailsOutputError');
     });
   });
 
@@ -295,9 +314,7 @@ describe('Error System', () => {
       expect(error.timestamp.getTime()).toBeGreaterThanOrEqual(
         before.getTime() - 100,
       );
-      expect(error.timestamp.getTime()).toBeLessThanOrEqual(
-        new Date().getTime(),
-      );
+      expect(error.timestamp.getTime()).toBeLessThanOrEqual(Date.now());
     });
 
     it('should merge metadata correctly', () => {
@@ -337,7 +354,7 @@ describe('Error System', () => {
         func: () => 'test', // functions should be handled gracefully
       };
 
-      const error = new InputBlockedError([], complexMetadata);
+      const error = new GuardrailsInputError([], complexMetadata);
       const json = error.toJSON();
 
       expect(json.metadata.array).toEqual([1, 2, 3]);

@@ -8,7 +8,7 @@
 import { generateText } from 'ai';
 import { z } from 'zod';
 import { model } from './model';
-import { wrapWithOutputGuardrails } from '../src/guardrails';
+import { withGuardrails } from '../src/index';
 import { expectedToolUse } from '../src/guardrails/tools';
 
 // Use the new built-in guardrail for the best DX
@@ -33,44 +33,41 @@ const calculatorTool = {
     },
   },
 };
-const toolGuarded = wrapWithOutputGuardrails(
-  model,
-  [expectedToolUse({ tools: expectedTool })],
-  {
-    replaceOnBlocked: false,
-    throwOnBlocked: false,
-    retry: {
-      maxRetries: 2,
-      buildRetryParams: ({ summary, lastParams, originalParams }) => {
-        const blocked = summary.blockedResults.find(
-          (r) => r.context?.guardrailName === 'expected-tool-use',
-        );
-        const meta = blocked?.metadata as
-          | { expectedTools?: string[] }
-          | undefined;
-        const tool = meta?.expectedTools?.[0] ?? expectedTool;
-        const instruction = `You must use the ${tool} tool to solve this problem. Don't just calculate manually - use the available tool.`;
+const toolGuarded = withGuardrails(model, {
+  outputGuardrails: [expectedToolUse({ tools: expectedTool })],
+  replaceOnBlocked: false,
+  throwOnBlocked: false,
+  retry: {
+    maxRetries: 2,
+    buildRetryParams: ({ summary, lastParams, originalParams }) => {
+      const blocked = summary.blockedResults.find(
+        (r) => r.context?.guardrailName === 'expected-tool-use',
+      );
+      const meta = blocked?.metadata as
+        | { expectedTools?: string[] }
+        | undefined;
+      const tool = meta?.expectedTools?.[0] ?? expectedTool;
+      const instruction = `You must use the ${tool} tool to solve this problem. Don't just calculate manually - use the available tool.`;
 
-        return {
-          ...lastParams,
-          // Encourage the model with a stronger hint on retry
-          temperature: Math.max(0.2, (lastParams.temperature ?? 0.7) - 0.1),
-          prompt: [
-            ...(Array.isArray(lastParams.prompt)
-              ? lastParams.prompt
-              : Array.isArray(originalParams.prompt)
-                ? originalParams.prompt
-                : []),
-            {
-              role: 'user' as const,
-              content: [{ type: 'text' as const, text: instruction }],
-            },
-          ],
-        };
-      },
+      return {
+        ...lastParams,
+        // Encourage the model with a stronger hint on retry
+        temperature: Math.max(0.2, (lastParams.temperature ?? 0.7) - 0.1),
+        prompt: [
+          ...(Array.isArray(lastParams.prompt)
+            ? lastParams.prompt
+            : Array.isArray(originalParams.prompt)
+              ? originalParams.prompt
+              : []),
+          {
+            role: 'user' as const,
+            content: [{ type: 'text' as const, text: instruction }],
+          },
+        ],
+      };
     },
   },
-);
+});
 
 const { text } = await generateText({
   model: toolGuarded,

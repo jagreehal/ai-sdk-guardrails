@@ -8,10 +8,7 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 
 // Define parameter schemas for allowed functions
 const FUNCTION_SCHEMAS = {
@@ -136,20 +133,17 @@ const parameterValidationGuardrail = defineOutputGuardrail<{
 console.log('📋 Tool Parameter Validation Example\n');
 
 // Create a protected model
-const protectedModel = wrapWithOutputGuardrails(
-  model,
-  [parameterValidationGuardrail],
-  {
-    throwOnBlocked: true,
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('❌ Parameter validation failed:', result?.message);
-      if (result?.metadata?.errors) {
-        console.log('   Errors:', result.metadata.errors.join(', '));
-      }
-    },
+const protectedModel = withGuardrails(model, {
+  outputGuardrails: [parameterValidationGuardrail],
+  throwOnBlocked: true,
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('❌ Parameter validation failed:', result?.message);
+    if (result?.metadata?.errors) {
+      console.log('   Errors:', result.metadata.errors.join(', '));
+    }
   },
-);
+});
 
 // Test 1: Valid parameters
 console.log('Test 1: Valid parameters (should pass)');

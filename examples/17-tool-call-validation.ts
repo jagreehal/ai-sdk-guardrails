@@ -8,10 +8,7 @@
 
 import { generateObject } from 'ai';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { z } from 'zod';
 
 // Define types for tool call validation metadata
@@ -509,27 +506,24 @@ const toolCallValidationGuardrail =
 console.log('🛡️  Tool Call Validation Example\n');
 
 // Create a protected model with tool call validation
-const protectedModel = wrapWithOutputGuardrails(
-  model,
-  [toolCallValidationGuardrail],
-  {
-    throwOnBlocked: true,
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('❌ Tool call blocked:', result?.message);
-      if (result?.metadata) {
-        console.log('   Total tool calls:', result.metadata.totalToolCalls);
-        console.log('   Invalid calls:', result.metadata.invalidCalls);
-        if (result.metadata.errors) {
-          console.log('   Errors:', result.metadata.errors);
-        }
-        if (result.metadata.warnings) {
-          console.log('   Warnings:', result.metadata.warnings);
-        }
+const protectedModel = withGuardrails(model, {
+  outputGuardrails: [toolCallValidationGuardrail],
+  throwOnBlocked: true,
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('❌ Tool call blocked:', result?.message);
+    if (result?.metadata) {
+      console.log('   Total tool calls:', result.metadata.totalToolCalls);
+      console.log('   Invalid calls:', result.metadata.invalidCalls);
+      if (result.metadata.errors) {
+        console.log('   Errors:', result.metadata.errors);
       }
-    },
+      if (result.metadata.warnings) {
+        console.log('   Warnings:', result.metadata.warnings);
+      }
+    }
   },
-);
+});
 
 // Test 1: Valid tool call
 console.log('Test 1: Valid tool call (should pass)');
@@ -662,20 +656,17 @@ try {
 
 // Test 7: Warning mode (doesn't throw, just logs)
 console.log('Test 7: Valid tool calls with warning mode');
-const warningModel = wrapWithOutputGuardrails(
-  model,
-  [toolCallValidationGuardrail],
-  {
-    throwOnBlocked: false, // Warning mode
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('⚠️  Warning:', result?.message);
-      if (result?.metadata?.warnings) {
-        console.log('   Warnings:', result.metadata.warnings);
-      }
-    },
+const warningModel = withGuardrails(model, {
+  outputGuardrails: [toolCallValidationGuardrail],
+  throwOnBlocked: false, // Warning mode
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('⚠️  Warning:', result?.message);
+    if (result?.metadata?.warnings) {
+      console.log('   Warnings:', result.metadata.warnings);
+    }
   },
-);
+});
 
 try {
   const result = await generateObject({

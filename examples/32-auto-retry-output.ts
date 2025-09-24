@@ -7,10 +7,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { extractContent } from '../src/guardrails/output';
 
 // Simple output guardrail: flag answers shorter than minChars (dynamically set to output length + 1)
@@ -41,7 +38,8 @@ const minLengthGuardrail = defineOutputGuardrail<{ minChars: number }>({
 console.log('🛡️  Auto Retry Output Example\n');
 
 // Create a model with output guardrail and auto-retry enabled
-const guarded = wrapWithOutputGuardrails(model, [minLengthGuardrail], {
+const guarded = withGuardrails(model, {
+  outputGuardrails: [minLengthGuardrail],
   replaceOnBlocked: false, // let retry work first, then fallback if needed
   retry: {
     maxRetries: 1,

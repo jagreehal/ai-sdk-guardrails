@@ -9,10 +9,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineInputGuardrail,
-  wrapWithInputGuardrails,
-} from '../src/guardrails';
+import { defineInputGuardrail, withGuardrails } from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 
 // Define patterns for common prompt injection techniques
@@ -285,27 +282,24 @@ const promptInjectionGuardrail = defineInputGuardrail({
 console.log('🛡️  Prompt Injection Detection Example\n');
 
 // Create a protected model with injection detection
-const protectedModel = wrapWithInputGuardrails(
-  model,
-  [promptInjectionGuardrail],
-  {
-    throwOnBlocked: true,
-    onInputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('❌ Injection blocked:', result?.message);
-      if (result?.metadata) {
-        const metadata = result.metadata as {
-          injectionScore: number;
-          riskLevel: string;
-          detectedPatterns?: string[];
-        };
-        console.log('   Score:', metadata.injectionScore);
-        console.log('   Risk Level:', metadata.riskLevel);
-        console.log('   Patterns:', metadata.detectedPatterns?.join(', '));
-      }
-    },
+const protectedModel = withGuardrails(model, {
+  inputGuardrails: [promptInjectionGuardrail],
+  throwOnBlocked: true,
+  onInputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('❌ Injection blocked:', result?.message);
+    if (result?.metadata) {
+      const metadata = result.metadata as {
+        injectionScore: number;
+        riskLevel: string;
+        detectedPatterns?: string[];
+      };
+      console.log('   Score:', metadata.injectionScore);
+      console.log('   Risk Level:', metadata.riskLevel);
+      console.log('   Patterns:', metadata.detectedPatterns?.join(', '));
+    }
   },
-);
+});
 
 // Test 1: Normal, safe input
 console.log('Test 1: Normal input (should pass)');
@@ -398,21 +392,18 @@ try {
 
 // Test 8: Warning mode (doesn't throw, just logs)
 console.log('Test 8: Suspicious input with warning mode');
-const warningModel = wrapWithInputGuardrails(
-  model,
-  [promptInjectionGuardrail],
-  {
-    throwOnBlocked: false, // Warning mode
-    onInputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('⚠️  Warning:', result?.message);
-      if (result?.metadata) {
-        console.log('   Score:', result.metadata.injectionScore);
-        console.log('   Risk Level:', result.metadata.riskLevel);
-      }
-    },
+const warningModel = withGuardrails(model, {
+  inputGuardrails: [promptInjectionGuardrail],
+  throwOnBlocked: false, // Warning mode
+  onInputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('⚠️  Warning:', result?.message);
+    if (result?.metadata) {
+      console.log('   Score:', result.metadata.injectionScore);
+      console.log('   Risk Level:', result.metadata.riskLevel);
+    }
   },
-);
+});
 
 try {
   const result = await generateText({

@@ -5,10 +5,7 @@
  * directly without calling a model.
  */
 
-import {
-  defineOutputGuardrail,
-  executeOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, executeOutputGuardrails } from '../src/index';
 import type { OutputGuardrailContext, AIResult } from '../src/types';
 import { extractContent } from '../src/guardrails/output';
 

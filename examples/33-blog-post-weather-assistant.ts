@@ -17,10 +17,8 @@ import { model } from './model';
 import {
   defineInputGuardrail,
   defineOutputGuardrail,
-  wrapWithGuardrails,
-  wrapWithInputGuardrails,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+  withGuardrails,
+} from '../src/index';
 import { isGuardrailsError } from '../src';
 import { extractTextContent } from '../src/guardrails/input';
 import { extractContent } from '../src/guardrails/output';
@@ -322,7 +320,7 @@ const weatherResponseValidator = defineOutputGuardrail({
 // =============================================================================
 
 // Create the protected weather assistant
-const weatherAssistant = wrapWithGuardrails(model, {
+const weatherAssistant = withGuardrails(model, {
   inputGuardrails: [
     lengthLimit, // Fast check first
     injectionDetector, // Security check
@@ -353,40 +351,39 @@ const weatherAssistant = wrapWithGuardrails(model, {
 });
 
 // Auto-retry version for demonstration (output-level retry)
-const weatherAssistantWithRetry = wrapWithOutputGuardrails(
-  wrapWithInputGuardrails(model, [
+const weatherAssistantWithRetry = withGuardrails(model, {
+  inputGuardrails: [
     lengthLimit,
     injectionDetector,
     piiDetector,
     weatherTopicGuard,
-  ]),
-  [sensitiveDataFilter, qualityGuard, weatherResponseValidator],
-  {
-    throwOnBlocked: false,
-    retry: {
-      maxRetries: 1,
-      buildRetryParams: ({ summary, lastParams }) => ({
-        ...lastParams,
-        maxOutputTokens: Math.max(
-          300,
-          (lastParams.maxOutputTokens ?? 150) + 100,
-        ),
-        prompt: [
-          ...(Array.isArray(lastParams.prompt) ? lastParams.prompt : []),
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `Note: ${summary.blockedResults[0]?.message}. Please provide a more detailed, helpful weather-related response.`,
-              },
-            ],
-          },
-        ],
-      }),
-    },
+  ],
+  outputGuardrails: [
+    sensitiveDataFilter,
+    qualityGuard,
+    weatherResponseValidator,
+  ],
+  throwOnBlocked: false,
+  retry: {
+    maxRetries: 1,
+    buildRetryParams: ({ summary, lastParams }) => ({
+      ...lastParams,
+      maxOutputTokens: Math.max(300, (lastParams.maxOutputTokens ?? 150) + 100),
+      prompt: [
+        ...(Array.isArray(lastParams.prompt) ? lastParams.prompt : []),
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `Note: ${summary.blockedResults[0]?.message}. Please provide a more detailed, helpful weather-related response.`,
+            },
+          ],
+        },
+      ],
+    }),
   },
-);
+});
 
 // Helper function with error handling
 async function askWeatherAssistant(

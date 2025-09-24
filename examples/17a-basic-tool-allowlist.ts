@@ -8,10 +8,7 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 
 // Simple allowlist of safe functions
 const ALLOWED_FUNCTIONS = ['calculate', 'formatDate', 'getWeather'];
@@ -80,20 +77,17 @@ const toolAllowlistGuardrail = defineOutputGuardrail<{
 console.log('🛡️  Basic Tool Allowlist Example\n');
 
 // Create a protected model with tool allowlist
-const protectedModel = wrapWithOutputGuardrails(
-  model,
-  [toolAllowlistGuardrail],
-  {
-    throwOnBlocked: true,
-    onOutputBlocked: (executionSummary) => {
-      const result = executionSummary.blockedResults[0];
-      console.log('❌ Tool call blocked:', result?.message);
-      if (result?.metadata?.blockedFunction) {
-        console.log(`   Blocked function: ${result.metadata.blockedFunction}`);
-      }
-    },
+const protectedModel = withGuardrails(model, {
+  outputGuardrails: [toolAllowlistGuardrail],
+  throwOnBlocked: true,
+  onOutputBlocked: (executionSummary) => {
+    const result = executionSummary.blockedResults[0];
+    console.log('❌ Tool call blocked:', result?.message);
+    if (result?.metadata?.blockedFunction) {
+      console.log(`   Blocked function: ${result.metadata.blockedFunction}`);
+    }
   },
-);
+});
 
 // Test 1: Valid function call
 console.log('Test 1: Valid function call (should pass)');

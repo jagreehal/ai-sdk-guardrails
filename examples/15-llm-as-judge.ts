@@ -7,10 +7,7 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import {
-  defineOutputGuardrail,
-  wrapWithOutputGuardrails,
-} from '../src/guardrails';
+import { defineOutputGuardrail, withGuardrails } from '../src/index';
 import { extractContent } from '../src/guardrails/output';
 
 // Define types for LLM judge metadata
@@ -346,30 +343,33 @@ console.log(
 console.log('Example 1: LLM Quality Judge');
 console.log('============================\n');
 
-const judgedModel = wrapWithOutputGuardrails<LLMJudgmentMetadata>(
-  model,
-  [llmJudgeGuardrail],
-  {
-    throwOnBlocked: false,
-    onOutputBlocked: (executionSummary) => {
-      console.log(
-        '⚖️ LLM Judge evaluation:',
-        executionSummary.blockedResults[0]?.message,
-      );
-      const metadata = executionSummary.blockedResults[0]?.metadata;
-      if (metadata?.llmJudgment) {
-        console.log(`   Quality score: ${metadata.llmJudgment.score}/10`);
-        console.log(`   Quality level: ${metadata.llmJudgment.quality}`);
-        if (
-          metadata.llmJudgment.issues &&
-          metadata.llmJudgment.issues.length > 0
-        ) {
-          console.log(`   Issues: ${metadata.llmJudgment.issues.join(', ')}`);
-        }
+const judgedModel = withGuardrails<LLMJudgmentMetadata>(model, {
+  outputGuardrails: [llmJudgeGuardrail],
+  throwOnBlocked: false,
+  onOutputBlocked: (executionSummary) => {
+    console.log(
+      '⚖️ LLM Judge evaluation:',
+      executionSummary.blockedResults[0]?.message,
+    );
+    const metadata = executionSummary.blockedResults[0]?.metadata as {
+      llmJudgment?: {
+        score: number;
+        quality: string;
+        issues: string[];
+      };
+    };
+    if (metadata?.llmJudgment) {
+      console.log(`   Quality score: ${metadata.llmJudgment.score}/10`);
+      console.log(`   Quality level: ${metadata.llmJudgment.quality}`);
+      if (
+        metadata.llmJudgment.issues &&
+        metadata.llmJudgment.issues.length > 0
+      ) {
+        console.log(`   Issues: ${metadata.llmJudgment.issues.join(', ')}`);
       }
-    },
+    }
   },
-);
+});
 
 console.log('Test 1: Good quality request');
 try {
@@ -400,24 +400,26 @@ try {
 console.log('Example 2: Factual Accuracy Verification');
 console.log('=========================================\n');
 
-const factCheckedModel = wrapWithOutputGuardrails<FactCheckMetadata>(
-  model,
-  [factualAccuracyJudge],
-  {
-    throwOnBlocked: false,
-    onOutputBlocked: (executionSummary) => {
-      console.log(
-        '📊 Fact-check issue:',
-        executionSummary.blockedResults[0]?.message,
-      );
-      const metadata = executionSummary.blockedResults[0]?.metadata;
-      if (metadata?.factCheck) {
-        console.log(`   Confidence: ${metadata.factCheck.confidenceLevel}`);
-        console.log(`   Recommendation: ${metadata.factCheck.recommendation}`);
-      }
-    },
+const factCheckedModel = withGuardrails<FactCheckMetadata>(model, {
+  outputGuardrails: [factualAccuracyJudge],
+  throwOnBlocked: false,
+  onOutputBlocked: (executionSummary) => {
+    console.log(
+      '📊 Fact-check issue:',
+      executionSummary.blockedResults[0]?.message,
+    );
+    const metadata = executionSummary.blockedResults[0]?.metadata as {
+      factCheck?: {
+        confidenceLevel: string;
+        recommendation: string;
+      };
+    };
+    if (metadata?.factCheck) {
+      console.log(`   Confidence: ${metadata.factCheck.confidenceLevel}`);
+      console.log(`   Recommendation: ${metadata.factCheck.recommendation}`);
+    }
   },
-);
+});
 
 try {
   const result = await generateText({
@@ -434,26 +436,26 @@ try {
 console.log('Example 3: Bias Detection');
 console.log('=========================\n');
 
-const biasCheckedModel = wrapWithOutputGuardrails<BiasCheckMetadata>(
-  model,
-  [biasDetectionJudge],
-  {
-    throwOnBlocked: false,
-    onOutputBlocked: (executionSummary) => {
-      console.log(
-        '⚠️ Bias detected:',
-        executionSummary.blockedResults[0]?.message,
-      );
-      const metadata = executionSummary.blockedResults[0]?.metadata;
-      if (metadata?.biasCheck) {
-        console.log(
-          `   Bias types: ${metadata.biasCheck.biasTypes.join(', ')}`,
-        );
-        console.log(`   Severity: ${metadata.biasCheck.severity}`);
-      }
-    },
+const biasCheckedModel = withGuardrails<BiasCheckMetadata>(model, {
+  outputGuardrails: [biasDetectionJudge],
+  throwOnBlocked: false,
+  onOutputBlocked: (executionSummary) => {
+    console.log(
+      '⚠️ Bias detected:',
+      executionSummary.blockedResults[0]?.message,
+    );
+    const metadata = executionSummary.blockedResults[0]?.metadata as {
+      biasCheck?: {
+        biasTypes: string[];
+        severity: string;
+      };
+    };
+    if (metadata?.biasCheck) {
+      console.log(`   Bias types: ${metadata.biasCheck.biasTypes.join(', ')}`);
+      console.log(`   Severity: ${metadata.biasCheck.severity}`);
+    }
   },
-);
+});
 
 try {
   const result = await generateText({
@@ -470,19 +472,20 @@ try {
 console.log('Example 4: Multiple LLM Judges');
 console.log('==============================\n');
 
-const multiJudgeModel = wrapWithOutputGuardrails(
-  model,
-  [llmJudgeGuardrail, factualAccuracyJudge, biasDetectionJudge],
-  {
-    throwOnBlocked: false,
-    onOutputBlocked: (executionSummary) => {
-      console.log('🏛️ Multi-judge evaluation:');
-      for (const result of executionSummary.blockedResults) {
-        console.log(`   ${result.context?.guardrailName}: ${result.message}`);
-      }
-    },
+const multiJudgeModel = withGuardrails(model, {
+  outputGuardrails: [
+    llmJudgeGuardrail,
+    factualAccuracyJudge,
+    biasDetectionJudge,
+  ],
+  throwOnBlocked: false,
+  onOutputBlocked: (executionSummary) => {
+    console.log('🏛️ Multi-judge evaluation:');
+    for (const result of executionSummary.blockedResults) {
+      console.log(`   ${result.context?.guardrailName}: ${result.message}`);
+    }
   },
-);
+});
 
 try {
   const result = await generateText({

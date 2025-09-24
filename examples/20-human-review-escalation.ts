@@ -12,8 +12,8 @@ import { model } from './model';
 import {
   defineInputGuardrail,
   defineOutputGuardrail,
-  wrapWithGuardrails,
-} from '../src/guardrails';
+  withGuardrails,
+} from '../src/index';
 import { extractTextContent } from '../src/guardrails/input';
 
 // Define escalation categories and their detection patterns
@@ -581,7 +581,7 @@ const humanReviewOutputGuardrail = defineOutputGuardrail({
 console.log('👥 Human Review Escalation Example\n');
 
 // Create a protected model with human review escalation
-const protectedModel = wrapWithGuardrails(model, {
+const protectedModel = withGuardrails(model, {
   inputGuardrails: [humanReviewInputGuardrail],
   outputGuardrails: [humanReviewOutputGuardrail],
   throwOnBlocked: false,
