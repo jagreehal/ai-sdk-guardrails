@@ -75,7 +75,7 @@
   "devDependencies": {
     "@ai-sdk/groq": "^2.0.21",
     "@ai-sdk/mistral": "2.0.16",
-    "@ai-sdk/openai": "2.0.34",
+    "@ai-sdk/openai": "2.0.35",
     "@arethetypeswrong/cli": "^0.18.2",
     "@changesets/cli": "^2.29.7",
     "@eslint/js": "^9.36.0",
