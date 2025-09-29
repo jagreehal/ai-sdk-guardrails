@@ -1,5 +1,11 @@
 # ai-sdk-guardrails
 
+## 5.0.1
+
+### Patch Changes
+
+- 5c86ba3: Update README heading to be more accurate - changed "Add Guardrails in one line of code" to "Drop-in Guardrails for any AI model" to better reflect the actual implementation approach.
+
 ## 5.0.0
 
 ### Major Changes
