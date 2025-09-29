@@ -79,8 +79,8 @@ importers:
         specifier: ^14.8.0
         version: 14.8.0
       ollama:
-        specifier: ^0.5.18
-        version: 0.5.18
+        specifier: ^0.6.0
+        version: 0.6.0
       openai:
         specifier: ^5.23.0
         version: 5.23.1(zod@4.1.11)
@@ -1613,6 +1613,9 @@ packages:
 
   ollama@0.5.18:
     resolution: {integrity: sha512-lTFqTf9bo7Cd3hpF6CviBe/DEhewjoZYd9N/uCe7O20qYTvGqrNOFOBDj3lbZgFWHUgDv5EeyusYxsZSLS8nvg==}
+
+  ollama@0.6.0:
+    resolution: {integrity: sha512-FHjdU2Ok5x2HZsxPui/MBJZ5J+HzmxoWYa/p9wk736eT+uAhS8nvIICar5YgwlG5MFNjDR6UA5F3RSKq+JseOA==}
 
   openai@4.104.0:
     resolution: {integrity: sha512-p99EFNsA/yX6UhVO93f5kJsDRLAg+CTA2RBqdHK4RtK8u5IJw32Hyb2dTGKbnnFmnuoBv5r7Z2CURI9sGZpSuA==}
@@ -3759,6 +3762,10 @@ snapshots:
   object-assign@4.1.1: {}
 
   ollama@0.5.18:
+    dependencies:
+      whatwg-fetch: 3.6.20
+
+  ollama@0.6.0:
     dependencies:
       whatwg-fetch: 3.6.20
 
