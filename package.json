@@ -69,7 +69,7 @@
   },
   "dependencies": {
     "@ai-sdk/provider": "2.0.0",
-    "ai": "5.0.57",
+    "ai": "5.0.59",
     "zod": "^4.1.11"
   },
   "devDependencies": {
