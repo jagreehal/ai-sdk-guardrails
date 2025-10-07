@@ -13,20 +13,20 @@ importers:
         version: 2.0.0
       ai:
         specifier: 5.0.60
-        version: 5.0.60(zod@4.1.11)
+        version: 5.0.60(zod@4.1.12)
       zod:
         specifier: ^4.1.11
-        version: 4.1.11
+        version: 4.1.12
     devDependencies:
       '@ai-sdk/groq':
         specifier: ^2.0.22
-        version: 2.0.22(zod@4.1.11)
+        version: 2.0.22(zod@4.1.12)
       '@ai-sdk/mistral':
         specifier: 2.0.17
-        version: 2.0.17(zod@4.1.11)
+        version: 2.0.17(zod@4.1.12)
       '@ai-sdk/openai':
         specifier: 2.0.42
-        version: 2.0.42(zod@4.1.11)
+        version: 2.0.42(zod@4.1.12)
       '@arethetypeswrong/cli':
         specifier: ^0.18.2
         version: 0.18.2
@@ -56,7 +56,7 @@ importers:
         version: 8.45.0(eslint@9.37.0)(typescript@5.9.3)
       ai-sdk-ollama:
         specifier: ^0.11.0
-        version: 0.11.0(ai@5.0.60(zod@4.1.11))(zod@4.1.11)
+        version: 0.11.0(ai@5.0.60(zod@4.1.12))(zod@4.1.12)
       autoevals:
         specifier: ^0.0.131
         version: 0.0.131
@@ -83,7 +83,7 @@ importers:
         version: 0.6.0
       openai:
         specifier: ^6.0.0
-        version: 6.1.0(zod@4.1.11)
+        version: 6.1.0(zod@4.1.12)
       prettier:
         specifier: ^3.6.2
         version: 3.6.2
@@ -567,10 +567,6 @@ packages:
 
   '@eslint/eslintrc@3.3.1':
     resolution: {integrity: sha512-gtF186CXhIl1p4pJNGZw8Yc6RlshoePRvE0X91oPGb3vZ8pM3qOS9W9NGPat9LziaBV7XrJWGylNQXkGcnM3IQ==}
-    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-
-  '@eslint/js@9.36.0':
-    resolution: {integrity: sha512-uhCbYtYynH30iZErszX78U+nR3pJU3RHGQ57NXy5QupD4SBVwDeU8TNBy+MjMngc1UyIW9noKqsRqfjQTBU2dw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@eslint/js@9.37.0':
@@ -2390,42 +2386,42 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
-  zod@4.1.11:
-    resolution: {integrity: sha512-WPsqwxITS2tzx1bzhIKsEs19ABD5vmCVa4xBo2tq/SrV4RNZtfws1EnCWQXM6yh8bD08a1idvkB5MZSBiZsjwg==}
+  zod@4.1.12:
+    resolution: {integrity: sha512-JInaHOamG8pt5+Ey8kGmdcAcg3OL9reK8ltczgHTAwNhMys/6ThXHityHxVV2p3fkw/c+MAvBHFVYHFZDmjMCQ==}
 
 snapshots:
 
-  '@ai-sdk/gateway@1.0.33(zod@4.1.11)':
+  '@ai-sdk/gateway@1.0.33(zod@4.1.12)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.10(zod@4.1.11)
+      '@ai-sdk/provider-utils': 3.0.10(zod@4.1.12)
       '@vercel/oidc': 3.0.1
-      zod: 4.1.11
+      zod: 4.1.12
 
-  '@ai-sdk/groq@2.0.22(zod@4.1.11)':
+  '@ai-sdk/groq@2.0.22(zod@4.1.12)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.10(zod@4.1.11)
-      zod: 4.1.11
+      '@ai-sdk/provider-utils': 3.0.10(zod@4.1.12)
+      zod: 4.1.12
 
-  '@ai-sdk/mistral@2.0.17(zod@4.1.11)':
+  '@ai-sdk/mistral@2.0.17(zod@4.1.12)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.10(zod@4.1.11)
-      zod: 4.1.11
+      '@ai-sdk/provider-utils': 3.0.10(zod@4.1.12)
+      zod: 4.1.12
 
-  '@ai-sdk/openai@2.0.42(zod@4.1.11)':
+  '@ai-sdk/openai@2.0.42(zod@4.1.12)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.10(zod@4.1.11)
-      zod: 4.1.11
+      '@ai-sdk/provider-utils': 3.0.10(zod@4.1.12)
+      zod: 4.1.12
 
-  '@ai-sdk/provider-utils@3.0.10(zod@4.1.11)':
+  '@ai-sdk/provider-utils@3.0.10(zod@4.1.12)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
       '@standard-schema/spec': 1.0.0
       eventsource-parser: 3.0.6
-      zod: 4.1.11
+      zod: 4.1.12
 
   '@ai-sdk/provider@2.0.0':
     dependencies:
@@ -2809,8 +2805,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@eslint/js@9.36.0': {}
-
   '@eslint/js@9.37.0': {}
 
   '@eslint/object-schema@2.1.6': {}
@@ -3149,22 +3143,22 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
 
-  ai-sdk-ollama@0.11.0(ai@5.0.60(zod@4.1.11))(zod@4.1.11):
+  ai-sdk-ollama@0.11.0(ai@5.0.60(zod@4.1.12))(zod@4.1.12):
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.10(zod@4.1.11)
-      ai: 5.0.60(zod@4.1.11)
+      '@ai-sdk/provider-utils': 3.0.10(zod@4.1.12)
+      ai: 5.0.60(zod@4.1.12)
       ollama: 0.6.0
     transitivePeerDependencies:
       - zod
 
-  ai@5.0.60(zod@4.1.11):
+  ai@5.0.60(zod@4.1.12):
     dependencies:
-      '@ai-sdk/gateway': 1.0.33(zod@4.1.11)
+      '@ai-sdk/gateway': 1.0.33(zod@4.1.12)
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.10(zod@4.1.11)
+      '@ai-sdk/provider-utils': 3.0.10(zod@4.1.12)
       '@opentelemetry/api': 1.9.0
-      zod: 4.1.11
+      zod: 4.1.12
 
   ajv@6.12.6:
     dependencies:
@@ -4069,9 +4063,9 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  openai@6.1.0(zod@4.1.11):
+  openai@6.1.0(zod@4.1.12):
     optionalDependencies:
-      zod: 4.1.11
+      zod: 4.1.12
 
   optionator@0.9.4:
     dependencies:
@@ -4597,4 +4591,4 @@ snapshots:
 
   zod@3.25.76: {}
 
-  zod@4.1.11: {}
+  zod@4.1.12: {}
