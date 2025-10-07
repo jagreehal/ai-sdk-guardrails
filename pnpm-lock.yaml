@@ -55,8 +55,8 @@ importers:
         specifier: ^8.45.0
         version: 8.46.0(eslint@9.37.0)(typescript@5.9.3)
       ai-sdk-ollama:
-        specifier: ^0.11.0
-        version: 0.11.0(ai@5.0.60(zod@4.1.12))(zod@4.1.12)
+        specifier: ^0.12.0
+        version: 0.12.0(ai@5.0.60(zod@4.1.12))(zod@4.1.12)
       autoevals:
         specifier: ^0.0.131
         version: 0.0.131
@@ -958,11 +958,11 @@ packages:
     resolution: {integrity: sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ==}
     engines: {node: '>= 8.0.0'}
 
-  ai-sdk-ollama@0.11.0:
-    resolution: {integrity: sha512-0Voos7y9oXx4uG3oGtLj+iVuadw9qIPdVY1jdPVxcqk3blFdq2tVdbvIVTEHXZCudq9LvNYK3967XacpNS0+XA==}
+  ai-sdk-ollama@0.12.0:
+    resolution: {integrity: sha512-EEKIfIpkyAavrlEKlZ7nZCxTUPq4yBThBLLU3kTD4l7htpdqMjhOEyqm5DlKdQvLEW0MgCMsptw7yXbevRSfIQ==}
     engines: {node: '>=22'}
     peerDependencies:
-      ai: ^5.0.0
+      ai: ^5.0.60
 
   ai@5.0.60:
     resolution: {integrity: sha512-80U/3kmdBW6g+JkLXpz/P2EwkyEaWlPlYtuLUpx/JYK9F7WZh9NnkYoh1KvUi1Sbpo0NyurBTvX0a2AG9mmbDA==}
@@ -3276,7 +3276,7 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
 
-  ai-sdk-ollama@0.11.0(ai@5.0.60(zod@4.1.12))(zod@4.1.12):
+  ai-sdk-ollama@0.12.0(ai@5.0.60(zod@4.1.12))(zod@4.1.12):
     dependencies:
       '@ai-sdk/provider': 2.0.0
       '@ai-sdk/provider-utils': 3.0.10(zod@4.1.12)
