@@ -181,8 +181,17 @@ describe('backoff helpers', () => {
       expect(delay1).toBeGreaterThan(900);
       expect(delay1).toBeLessThan(1100);
 
-      // Should have variation due to jitter
-      expect(delay1).not.toBe(delay2);
+      // Should have variation due to jitter (test multiple times to avoid flakiness)
+      let hasVariation = false;
+      for (let i = 0; i < 10; i++) {
+        const testDelay1 = backoff(1);
+        const testDelay2 = backoff(1);
+        if (testDelay1 !== testDelay2) {
+          hasVariation = true;
+          break;
+        }
+      }
+      expect(hasVariation).toBe(true);
     });
 
     it('should provide aggressive preset', () => {

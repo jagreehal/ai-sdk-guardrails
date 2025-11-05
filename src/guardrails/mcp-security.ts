@@ -212,7 +212,7 @@ function createExfiltrationPatterns(customDomains: string[] = []): RegExp[] {
 
   return [
     // Suspicious domains commonly used for exfiltration
-    new RegExp(`https?:\\/\\/(?:[^/\\s]*\\.)?(?:${domainPattern})`, 'i'),
+    new RegExp(String.raw`https?:\/\/(?:[^/\s]*\.)?(?:${domainPattern})`, 'i'),
     // URLs with suspicious query parameters
     /https?:\/\/[^\s]*[?&](?:data|secret|info|token|key|pass|auth)=/i,
     // URLs with encoded data
@@ -632,7 +632,7 @@ export const mcpResponseSanitizer = (): OutputGuardrail => {
       );
       sanitizedText = sanitizedText.replaceAll(
         new RegExp(
-          `https?:\\/\\/(?:[^/\\s]*\\.)?(?:${domainPattern}|evil\\.com)[^\\s]*`,
+          String.raw`https?:\/\/(?:[^/\s]*\.)?(?:${domainPattern}|evil\.com)[^\s]*`,
           'gi',
         ),
         '[REDACTED_SUSPICIOUS_URL]',

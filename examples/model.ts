@@ -18,7 +18,7 @@ export const groqModel = groq('openai/gpt-oss-20b');
 export const mistralModel = mistral('mistral-small-latest');
 
 // Default model for text generation
-export const model = mistralModel;
+export const model = llama3_2;
 
 export async function getEmbedding(input: string) {
   const { embedding } = await embed({
