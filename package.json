@@ -54,6 +54,7 @@
   "type": "module",
   "scripts": {
     "prepare": "tsup",
+    "prepublishOnly": "pnpm build",
     "build": "tsup",
     "ci": "pnpm build && pnpm format:check && pnpm check-exports && pnpm lint && pnpm test",
     "lint": "eslint src/**/*.ts examples/**/*.ts",
