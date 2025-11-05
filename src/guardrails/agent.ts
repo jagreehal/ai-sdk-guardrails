@@ -8,6 +8,7 @@ import {
   type UIMessage,
   type InferUITools,
   type LanguageModelUsage,
+  type StopCondition,
 } from 'ai';
 import { extractContent } from './output';
 import { extractTextContent } from './input';
@@ -110,6 +111,75 @@ export interface AgentGuardrailsConfig<MIn = AnyRecord, MOut = AnyRecord> {
     context: NormalizedGuardrailContext,
     stepIndex: number,
   ) => void;
+  /**
+   * Enable automatic early termination when guardrails are violated.
+   * When enabled, adds stopWhen conditions to halt agent execution on:
+   * - Critical severity violations
+   * - Repeated guardrail violations (configurable threshold)
+   * - Specific guardrail patterns
+   *
+   * Can be:
+   * - boolean: true enables default behavior (stop on 3 violations or critical)
+   * - number: stop after N violations
+   * - function: custom stop condition based on guardrail history
+   */
+  stopOnGuardrailViolation?:
+    | boolean
+    | number
+    | ((
+        violations: Array<{ step: number; summary: GuardrailExecutionSummary }>,
+      ) => boolean);
+}
+
+/**
+ * Builds a stopWhen condition that integrates guardrail violations with user-defined stop conditions
+ */
+function buildGuardrailStopCondition<TOOLS extends ToolSet>(
+  userStopWhen: StopCondition<TOOLS> | Array<StopCondition<TOOLS>> | undefined,
+  stopOnViolation: AgentGuardrailsConfig['stopOnGuardrailViolation'],
+  violationHistory: Array<{ step: number; summary: GuardrailExecutionSummary }>,
+): StopCondition<TOOLS> | Array<StopCondition<TOOLS>> | undefined {
+  if (!stopOnViolation) {
+    return userStopWhen;
+  }
+
+  // Create guardrail-based stop condition
+  const guardrailStopCondition: StopCondition<TOOLS> = () => {
+    // Default behavior: stop on 3 violations or any critical
+    if (stopOnViolation === true) {
+      const criticalViolations = violationHistory.filter((v) =>
+        v.summary.blockedResults.some(
+          (r) => (r.severity ?? 'medium') === 'critical',
+        ),
+      );
+      return violationHistory.length >= 3 || criticalViolations.length > 0;
+    }
+
+    // Number threshold: stop after N violations
+    if (typeof stopOnViolation === 'number') {
+      return violationHistory.length >= stopOnViolation;
+    }
+
+    // Custom function: user-defined logic
+    if (typeof stopOnViolation === 'function') {
+      return stopOnViolation(violationHistory);
+    }
+
+    return false;
+  };
+
+  // Combine with user's stopWhen if provided
+  if (!userStopWhen) {
+    return guardrailStopCondition;
+  }
+
+  // If user provided an array, add our condition to it
+  if (Array.isArray(userStopWhen)) {
+    return [...userStopWhen, guardrailStopCondition];
+  }
+
+  // User provided a single condition, create array with both
+  return [userStopWhen, guardrailStopCondition];
 }
 
 function toNormalizedContextFromAgent(
@@ -223,7 +293,14 @@ export function withAgentGuardrails<
     executionOptions,
     onInputBlocked,
     onOutputBlocked,
+    stopOnGuardrailViolation,
   } = config;
+
+  // Track guardrail violations across agent execution for stopWhen integration
+  const violationHistory: Array<{
+    step: number;
+    summary: GuardrailExecutionSummary;
+  }> = [];
 
   // Wrap tools to validate tool calls before/after execution
   const wrappedTools = Object.fromEntries(
@@ -258,10 +335,18 @@ export function withAgentGuardrails<
     }),
   ) as unknown as TOOLS;
 
-  // Create the underlying agent
+  // Build stopWhen condition if guardrail-based early termination is enabled
+  const enhancedStopWhen = buildGuardrailStopCondition(
+    settings.stopWhen,
+    stopOnGuardrailViolation,
+    violationHistory,
+  );
+
+  // Create the underlying agent with enhanced stopWhen
   const baseAgent = new Agent<TOOLS, OUTPUT, OUTPUT_PARTIAL>({
     ...settings,
     tools: wrappedTools,
+    ...(enhancedStopWhen ? { stopWhen: enhancedStopWhen } : {}),
   });
 
   async function checkInputGuardrails(normalized: NormalizedGuardrailContext) {
@@ -436,6 +521,9 @@ export function withAgentGuardrails<
           const blockedSummary = await validateStepContent(step, normalized, i);
 
           if (blockedSummary) {
+            // Track violation for stopWhen integration
+            violationHistory.push({ step: i, summary: blockedSummary });
+
             // Retry if configured
             if (retry && attempts < (retry.maxRetries ?? 0)) {
               attempts += 1;

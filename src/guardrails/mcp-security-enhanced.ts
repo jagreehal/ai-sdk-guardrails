@@ -397,8 +397,9 @@ function performBehavioralAnalysis(content: string): {
   for (const match of toolMatches) {
     const tool = match[1];
     if (tool) {
-      const frequency = (content.match(new RegExp(`\\b${tool}\\b`, 'gi')) || [])
-        .length;
+      const frequency = (
+        content.match(new RegExp(String.raw`\b${tool}\b`, 'gi')) || []
+      ).length;
       const suspiciousness = frequency > 3 ? 0.8 : frequency > 1 ? 0.4 : 0.1;
 
       toolUsagePatterns.push({ tool, frequency, suspiciousness });

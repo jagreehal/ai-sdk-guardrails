@@ -201,7 +201,10 @@ function checkDomainAllowlist(hostname: string): {
   if (SECURITY_THRESHOLDS.allowSubdomains) {
     for (const pattern of DOMAIN_PATTERNS.allowedDomains) {
       const basePattern = pattern.source.replaceAll(/^\^|\$/g, '');
-      const subdomainPattern = new RegExp(`^[^.]+\\.${basePattern}$`, 'i');
+      const subdomainPattern = new RegExp(
+        String.raw`^[^.]+\.${basePattern}$`,
+        'i',
+      );
       if (subdomainPattern.test(hostname)) {
         return {
           isAllowed: true,

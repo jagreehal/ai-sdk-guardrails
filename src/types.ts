@@ -6,6 +6,7 @@ import {
   embed,
 } from 'ai';
 import type { LanguageModelV2CallOptions as LMCallOptions } from '@ai-sdk/provider';
+import type { GuardrailTelemetrySettings } from './telemetry/types';
 
 // Type inference utilities for automatic metadata type extraction
 
@@ -449,6 +450,31 @@ export interface InputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
      * ```
      */
     logger?: Logger;
+
+    /**
+     * OpenTelemetry configuration for observability.
+     *
+     * Configure distributed tracing to monitor guardrail execution
+     * in production. Automatically inherits from AI SDK's experimental_telemetry
+     * when available.
+     *
+     * @example
+     * ```typescript
+     * import { trace } from '@opentelemetry/api';
+     *
+     * const guardedModel = withGuardrails(model, {
+     *   inputGuardrails: [piiDetector()],
+     *   executionOptions: {
+     *     telemetry: {
+     *       isEnabled: true,
+     *       tracer: trace.getTracer('my-app'),
+     *       recordInputs: false, // Don't record sensitive inputs
+     *     }
+     *   }
+     * });
+     * ```
+     */
+    telemetry?: GuardrailTelemetrySettings;
   };
   /**
    * Callback for when input is blocked - receives comprehensive execution analytics.
@@ -567,6 +593,31 @@ export interface OutputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
      * ```
      */
     logger?: Logger;
+
+    /**
+     * OpenTelemetry configuration for observability.
+     *
+     * Configure distributed tracing to monitor guardrail execution
+     * in production. Automatically inherits from AI SDK's experimental_telemetry
+     * when available.
+     *
+     * @example
+     * ```typescript
+     * import { trace } from '@opentelemetry/api';
+     *
+     * const guardedModel = withGuardrails(model, {
+     *   outputGuardrails: [minLength(100)],
+     *   executionOptions: {
+     *     telemetry: {
+     *       isEnabled: true,
+     *       tracer: trace.getTracer('my-app'),
+     *       recordOutputs: false, // Don't record sensitive outputs
+     *     }
+     *   }
+     * });
+     * ```
+     */
+    telemetry?: GuardrailTelemetrySettings;
   };
   /**
    * Callback for when output is blocked - receives comprehensive execution analytics.
@@ -634,6 +685,39 @@ export interface OutputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
    * - 'progressive': evaluate progressively and stop early when blocked
    */
   streamMode?: 'buffer' | 'progressive';
+
+  /**
+   * Enable automatic early termination when guardrails are violated during streaming.
+   * Only applies when streamMode is 'progressive'.
+   *
+   * When enabled, the stream will be terminated early based on:
+   * - Critical severity violations (immediate termination)
+   * - Repeated guardrail violations (configurable threshold)
+   * - Custom violation patterns
+   *
+   * Can be:
+   * - boolean: true enables default behavior (stop on 2 violations or any critical)
+   * - number: stop after N violations
+   * - function: custom stop condition based on violation history during streaming
+   *
+   * @example
+   * ```typescript
+   * const model = withGuardrails(openai('gpt-4o'), {
+   *   outputGuardrails: [piiGuardrail, toxicityGuardrail],
+   *   streamMode: 'progressive',
+   *   stopOnGuardrailViolation: true, // Stop on 2 violations or critical
+   * });
+   * ```
+   */
+  stopOnGuardrailViolation?:
+    | boolean
+    | number
+    | ((
+        violations: Array<{
+          chunkIndex: number;
+          summary: GuardrailExecutionSummary<M>;
+        }>,
+      ) => boolean);
 
   /**
    * Optional automatic retry when output guardrails block a result.

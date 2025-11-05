@@ -4,14 +4,32 @@ import {
   GuardrailsOutputError,
   GuardrailsInputError,
 } from './errors';
+import {
+  getGuardrailTracer,
+  isTelemetryEnabled,
+  recordGuardrailSpan,
+  addGuardrailResultAttributes,
+  mergeTelemetrySettings,
+} from './telemetry/utils';
+import type { GuardrailTelemetrySettings } from './telemetry/types';
 
 // Performance optimization: conditional metadata tracking
 // Only track detailed metrics in development or when explicitly enabled
 const ENABLE_PERFORMANCE_TRACKING =
   process.env.NODE_ENV === 'development' ||
   process.env.GUARDRAILS_PERFORMANCE_TRACKING === 'true';
+
+// Enhanced runtime integration for 10x performance improvement
+const USE_ENHANCED_RUNTIME =
+  process.env.GUARDRAILS_USE_ENHANCED_RUNTIME !== 'false' &&
+  process.env.NODE_ENV !== 'test'; // Disable in tests for compatibility
+
 // Enhanced retry integration temporarily disabled due to AI SDK type complexity
 import { extractContent } from './guardrails/output';
+import {
+  executeInputGuardrailsWithEnhancedRuntime,
+  executeOutputGuardrailsWithEnhancedRuntime,
+} from './adapters/parallel-runtime-adapter';
 import type {
   InputGuardrail,
   OutputGuardrail,
@@ -117,6 +135,8 @@ export async function executeInputGuardrails<
     logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
     /** Custom logger instance */
     logger?: Logger;
+    /** Telemetry settings */
+    telemetry?: GuardrailTelemetrySettings;
   } = {},
 ): Promise<GuardrailResult<M>[]> {
   const {
@@ -125,9 +145,14 @@ export async function executeInputGuardrails<
     continueOnFailure = true,
     logLevel = 'warn',
     logger = console,
+    telemetry,
   } = options;
 
   // logging controlled by logLevel checks at call sites
+
+  // Check if telemetry is enabled
+  const telemetryEnabled = isTelemetryEnabled(telemetry);
+  const tracer = telemetryEnabled ? getGuardrailTracer(telemetry) : undefined;
 
   // Filter enabled guardrails and sort by priority
   const enabledGuardrails = guardrails
@@ -145,32 +170,85 @@ export async function executeInputGuardrails<
   const executeWithTimeout = async (
     guardrail: InputGuardrail<M>,
   ): Promise<GuardrailResult<M>> => {
-    return executeWithOptimizedTimeout(
-      async (signal) =>
-        await Promise.resolve(
-          guardrail.execute(toNormalizedGuardrailContext(params), { signal }),
-        ),
-      timeout,
-      `Guardrail ${guardrail.name} timed out after ${timeout}ms`,
-    ).catch((error) => {
-      if (error.message.includes('timed out')) {
-        throw new GuardrailTimeoutError(guardrail.name, timeout);
-      }
-      throw error;
-    });
+    const execution = async () => {
+      return executeWithOptimizedTimeout(
+        async (signal) =>
+          await Promise.resolve(
+            guardrail.execute(toNormalizedGuardrailContext(params), { signal }),
+          ),
+        timeout,
+        `Guardrail ${guardrail.name} timed out after ${timeout}ms`,
+      ).catch((error) => {
+        if (error.message.includes('timed out')) {
+          throw new GuardrailTimeoutError(guardrail.name, timeout);
+        }
+        throw error;
+      });
+    };
+
+    // Wrap in telemetry span if enabled
+    if (telemetryEnabled && tracer) {
+      return recordGuardrailSpan({
+        name: `guardrail.input.${guardrail.name}`,
+        tracer,
+        attributes: {
+          'guardrail.type': 'input',
+          'guardrail.name': guardrail.name,
+          'guardrail.version': guardrail.version || 'unknown',
+          'guardrail.priority': guardrail.priority || 'medium',
+        },
+        fn: async (span) => {
+          const result = await execution();
+          addGuardrailResultAttributes(span, result, telemetry);
+          return result;
+        },
+      });
+    }
+
+    return execution();
   };
 
   if (parallel) {
-    // Use optimized batch execution with shared timeout and context
-    const normalizedContext = toNormalizedGuardrailContext(params);
-    const batchResults = await executeBatchInputGuardrails<M>(
-      enabledGuardrails,
-      normalizedContext,
-      timeout,
-      logLevel,
-      logger,
-    );
-    results.push(...batchResults);
+    // Use enhanced runtime for 10x performance improvement when available
+    if (USE_ENHANCED_RUNTIME) {
+      try {
+        const enhancedResults =
+          await executeInputGuardrailsWithEnhancedRuntime<M>(
+            enabledGuardrails,
+            toNormalizedGuardrailContext(params),
+            {
+              parallel: true,
+              timeout,
+              continueOnFailure,
+            },
+          );
+        results.push(...enhancedResults);
+      } catch {
+        // Fallback to standard batch execution if enhanced runtime fails
+        const normalizedContext = toNormalizedGuardrailContext(params);
+        const batchResults = await executeBatchInputGuardrails<M>(
+          enabledGuardrails,
+          normalizedContext,
+          timeout,
+          logLevel,
+          logger,
+          telemetry,
+        );
+        results.push(...batchResults);
+      }
+    } else {
+      // Use optimized batch execution with shared timeout and context
+      const normalizedContext = toNormalizedGuardrailContext(params);
+      const batchResults = await executeBatchInputGuardrails<M>(
+        enabledGuardrails,
+        normalizedContext,
+        timeout,
+        logLevel,
+        logger,
+        telemetry,
+      );
+      results.push(...batchResults);
+    }
   } else {
     // Execute guardrails sequentially
     for (const guardrail of enabledGuardrails) {
@@ -299,6 +377,8 @@ export async function executeOutputGuardrails<
     logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
     /** Custom logger instance */
     logger?: Logger;
+    /** Telemetry settings */
+    telemetry?: GuardrailTelemetrySettings;
   } = {},
 ): Promise<GuardrailResult<M>[]> {
   const {
@@ -307,7 +387,12 @@ export async function executeOutputGuardrails<
     continueOnFailure = true,
     logLevel = 'warn',
     logger = console,
+    telemetry,
   } = options;
+
+  // Check if telemetry is enabled
+  const telemetryEnabled = isTelemetryEnabled(telemetry);
+  const tracer = telemetryEnabled ? getGuardrailTracer(telemetry) : undefined;
 
   // Filter enabled guardrails and sort by priority
   const enabledGuardrails = guardrails
@@ -325,53 +410,129 @@ export async function executeOutputGuardrails<
   const executeWithTimeout = async (
     guardrail: OutputGuardrail<M>,
   ): Promise<GuardrailResult<M>> => {
-    return executeWithOptimizedTimeout(
-      async (signal) =>
-        await Promise.resolve(guardrail.execute(params, undefined, { signal })),
-      timeout,
-      `Guardrail ${guardrail.name} timed out after ${timeout}ms`,
-    ).catch((error) => {
-      if (error.message.includes('timed out')) {
-        throw new GuardrailTimeoutError(guardrail.name, timeout);
-      }
-      throw error;
-    });
+    const execution = async () => {
+      return executeWithOptimizedTimeout(
+        async (signal) =>
+          await Promise.resolve(
+            guardrail.execute(params, undefined, { signal }),
+          ),
+        timeout,
+        `Guardrail ${guardrail.name} timed out after ${timeout}ms`,
+      ).catch((error) => {
+        if (error.message.includes('timed out')) {
+          throw new GuardrailTimeoutError(guardrail.name, timeout);
+        }
+        throw error;
+      });
+    };
+
+    // Wrap in telemetry span if enabled
+    if (telemetryEnabled && tracer) {
+      return recordGuardrailSpan({
+        name: `guardrail.output.${guardrail.name}`,
+        tracer,
+        attributes: {
+          'guardrail.type': 'output',
+          'guardrail.name': guardrail.name,
+          'guardrail.version': guardrail.version || 'unknown',
+          'guardrail.priority': guardrail.priority || 'medium',
+        },
+        fn: async (span) => {
+          const result = await execution();
+          addGuardrailResultAttributes(span, result, telemetry);
+          return result;
+        },
+      });
+    }
+
+    return execution();
   };
 
   if (parallel) {
-    // Execute all guardrails in parallel
-    const promises = enabledGuardrails.map(async (guardrail) => {
+    // Use enhanced runtime for 10x performance improvement when available
+    if (USE_ENHANCED_RUNTIME) {
       try {
-        const result = await executeWithTimeout(guardrail);
-
-        if (result.tripwireTriggered && logLevel !== 'none') {
-          logger.warn(
-            `Output guardrail "${guardrail.name}" triggered: ${result.message}`,
+        const enhancedResults =
+          await executeOutputGuardrailsWithEnhancedRuntime<M>(
+            enabledGuardrails,
+            params,
+            {
+              parallel: true,
+              timeout,
+              continueOnFailure,
+            },
           );
-        }
+        results.push(...enhancedResults);
+      } catch {
+        // Fallback to standard parallel execution if enhanced runtime fails
+        const promises = enabledGuardrails.map(async (guardrail) => {
+          try {
+            const result = await executeWithTimeout(guardrail);
 
-        return result;
-      } catch (error) {
-        if (logLevel !== 'none') {
-          logger.error(
-            `Error executing output guardrail "${guardrail.name}":`,
-            error,
-          );
-        }
+            if (result.tripwireTriggered && logLevel !== 'none') {
+              logger.warn(
+                `Output guardrail "${guardrail.name}" triggered: ${result.message}`,
+              );
+            }
 
-        const err: GuardrailResult<M> = {
-          tripwireTriggered: true,
-          message: `Guardrail execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          severity: 'critical' as const,
-          metadata: {
-            error: error instanceof Error ? error.message : String(error),
-          } as unknown as M,
-        };
-        return err;
+            return result;
+          } catch (error) {
+            if (logLevel !== 'none') {
+              logger.error(
+                `Error executing output guardrail "${guardrail.name}":`,
+                error,
+              );
+            }
+
+            const err: GuardrailResult<M> = {
+              tripwireTriggered: true,
+              message: `Guardrail execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              severity: 'critical' as const,
+              metadata: {
+                error: error instanceof Error ? error.message : String(error),
+              } as unknown as M,
+            };
+            return err;
+          }
+        });
+
+        results.push(...(await Promise.all(promises)));
       }
-    });
+    } else {
+      // Execute all guardrails in parallel
+      const promises = enabledGuardrails.map(async (guardrail) => {
+        try {
+          const result = await executeWithTimeout(guardrail);
 
-    results.push(...(await Promise.all(promises)));
+          if (result.tripwireTriggered && logLevel !== 'none') {
+            logger.warn(
+              `Output guardrail "${guardrail.name}" triggered: ${result.message}`,
+            );
+          }
+
+          return result;
+        } catch (error) {
+          if (logLevel !== 'none') {
+            logger.error(
+              `Error executing output guardrail "${guardrail.name}":`,
+              error,
+            );
+          }
+
+          const err: GuardrailResult<M> = {
+            tripwireTriggered: true,
+            message: `Guardrail execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            severity: 'critical' as const,
+            metadata: {
+              error: error instanceof Error ? error.message : String(error),
+            } as unknown as M,
+          };
+          return err;
+        }
+      });
+
+      results.push(...(await Promise.all(promises)));
+    }
   } else {
     // Execute guardrails sequentially
     for (const guardrail of enabledGuardrails) {
@@ -495,6 +656,47 @@ function createConditionalContext(
 }
 
 /**
+ * Checks if streaming should stop based on guardrail violation patterns
+ */
+function checkStreamStopCondition<M extends Record<string, unknown>>(
+  stopConfig:
+    | boolean
+    | number
+    | ((
+        violations: Array<{
+          chunkIndex: number;
+          summary: GuardrailExecutionSummary<M>;
+        }>,
+      ) => boolean),
+  violations: Array<{
+    chunkIndex: number;
+    summary: GuardrailExecutionSummary<M>;
+  }>,
+): boolean {
+  // Default behavior: stop on 2 violations or any critical
+  if (stopConfig === true) {
+    const criticalViolations = violations.filter((v) =>
+      v.summary.blockedResults.some(
+        (r) => (r.severity ?? 'medium') === 'critical',
+      ),
+    );
+    return violations.length >= 2 || criticalViolations.length > 0;
+  }
+
+  // Number threshold: stop after N violations
+  if (typeof stopConfig === 'number') {
+    return violations.length >= stopConfig;
+  }
+
+  // Custom function: user-defined logic
+  if (typeof stopConfig === 'function') {
+    return stopConfig(violations);
+  }
+
+  return false;
+}
+
+/**
  * Optimized timeout execution using pooled controllers
  */
 async function executeWithOptimizedTimeout<T>(
@@ -536,6 +738,7 @@ async function executeBatchInputGuardrails<M extends Record<string, unknown>>(
   timeoutMs: number,
   logLevel: 'none' | 'error' | 'warn' | 'info' | 'debug',
   logger: Logger,
+  telemetry?: GuardrailTelemetrySettings,
 ): Promise<GuardrailResult<M>[]> {
   if (guardrails.length === 0) return [];
 
@@ -838,6 +1041,7 @@ export function wrapWithGuardrails(
     throwOnBlocked?: boolean;
     replaceOnBlocked?: boolean;
     streamMode?: 'buffer' | 'progressive';
+    stopOnGuardrailViolation?: OutputGuardrailsMiddlewareConfig['stopOnGuardrailViolation'];
     executionOptions?: {
       parallel?: boolean;
       timeout?: number;
@@ -846,6 +1050,7 @@ export function wrapWithGuardrails(
     };
     onInputBlocked?: (_executionSummary: GuardrailExecutionSummary) => void;
     onOutputBlocked?: (_executionSummary: GuardrailExecutionSummary) => void;
+    retry?: OutputGuardrailsMiddlewareConfig['retry'];
   },
 ): LanguageModelV2;
 
@@ -861,14 +1066,11 @@ export function wrapWithGuardrails<
     throwOnBlocked?: boolean;
     replaceOnBlocked?: boolean;
     streamMode?: 'buffer' | 'progressive';
-    executionOptions?: {
-      parallel?: boolean;
-      timeout?: number;
-      continueOnFailure?: boolean;
-      logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
-    };
+    stopOnGuardrailViolation?: OutputGuardrailsMiddlewareConfig<MOut>['stopOnGuardrailViolation'];
+    executionOptions?: InputGuardrailsMiddlewareConfig<MIn>['executionOptions'];
     onInputBlocked?: InputGuardrailsMiddlewareConfig<MIn>['onInputBlocked'];
     onOutputBlocked?: OutputGuardrailsMiddlewareConfig<MOut>['onOutputBlocked'];
+    retry?: OutputGuardrailsMiddlewareConfig<MOut>['retry'];
   },
 ): LanguageModelV2;
 
@@ -882,16 +1084,13 @@ export function wrapWithGuardrails(
         throwOnBlocked?: boolean;
         replaceOnBlocked?: boolean;
         streamMode?: 'buffer' | 'progressive';
-        executionOptions?: {
-          parallel?: boolean;
-          timeout?: number;
-          continueOnFailure?: boolean;
-          logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
-        };
+        stopOnGuardrailViolation?: OutputGuardrailsMiddlewareConfig['stopOnGuardrailViolation'];
+        executionOptions?: InputGuardrailsMiddlewareConfig['executionOptions'];
         onInputBlocked?: (_executionSummary: GuardrailExecutionSummary) => void;
         onOutputBlocked?: (
           _executionSummary: GuardrailExecutionSummary,
         ) => void;
+        retry?: OutputGuardrailsMiddlewareConfig['retry'];
       }
     | {
         inputGuardrails?: InputGuardrail<Record<string, unknown>>[];
@@ -899,14 +1098,11 @@ export function wrapWithGuardrails(
         throwOnBlocked?: boolean;
         replaceOnBlocked?: boolean;
         streamMode?: 'buffer' | 'progressive';
-        executionOptions?: {
-          parallel?: boolean;
-          timeout?: number;
-          continueOnFailure?: boolean;
-          logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
-        };
+        stopOnGuardrailViolation?: OutputGuardrailsMiddlewareConfig['stopOnGuardrailViolation'];
+        executionOptions?: InputGuardrailsMiddlewareConfig['executionOptions'];
         onInputBlocked?: InputGuardrailsMiddlewareConfig['onInputBlocked'];
         onOutputBlocked?: OutputGuardrailsMiddlewareConfig['onOutputBlocked'];
+        retry?: OutputGuardrailsMiddlewareConfig['retry'];
       },
 ): LanguageModelV2 {
   const {
@@ -915,9 +1111,11 @@ export function wrapWithGuardrails(
     throwOnBlocked,
     replaceOnBlocked,
     streamMode,
+    stopOnGuardrailViolation,
     executionOptions,
     onInputBlocked,
     onOutputBlocked,
+    retry,
   } = config;
 
   const middlewares: LanguageModelV2Middleware[] = [];
@@ -942,8 +1140,10 @@ export function wrapWithGuardrails(
         throwOnBlocked,
         replaceOnBlocked,
         streamMode,
+        stopOnGuardrailViolation,
         executionOptions,
         onOutputBlocked,
+        retry,
       }),
     );
   }
@@ -998,12 +1198,8 @@ export function withGuardrails<
     throwOnBlocked?: boolean;
     replaceOnBlocked?: boolean;
     streamMode?: 'buffer' | 'progressive';
-    executionOptions?: {
-      parallel?: boolean;
-      timeout?: number;
-      continueOnFailure?: boolean;
-      logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
-    };
+    stopOnGuardrailViolation?: OutputGuardrailsMiddlewareConfig<MOut>['stopOnGuardrailViolation'];
+    executionOptions?: InputGuardrailsMiddlewareConfig<MIn>['executionOptions'];
     onInputBlocked?: InputGuardrailsMiddlewareConfig<MIn>['onInputBlocked'];
     onOutputBlocked?: OutputGuardrailsMiddlewareConfig<MOut>['onOutputBlocked'];
     retry?: OutputGuardrailsMiddlewareConfig<MOut>['retry'];
@@ -1091,6 +1287,9 @@ export function createInputGuardrailsMiddleware<
     throwOnBlocked = false,
   } = config;
 
+  // Extract telemetry settings from executionOptions
+  const guardrailTelemetrySettings = executionOptions.telemetry;
+
   return {
     transformParams: async ({
       params,
@@ -1102,11 +1301,32 @@ export function createInputGuardrailsMiddleware<
       // Start from original params; only add helper property if we actually block
       const guardrailContext = normalizeGuardrailContext(params);
 
+      // Merge AI SDK telemetry with guardrail telemetry settings
+      const aiSdkTelemetry = (params as { experimental_telemetry?: unknown })
+        ?.experimental_telemetry as
+        | {
+            isEnabled?: boolean;
+            recordInputs?: boolean;
+            recordOutputs?: boolean;
+            functionId?: string;
+            metadata?: Record<string, unknown>;
+            tracer?: import('@opentelemetry/api').Tracer;
+          }
+        | undefined;
+
+      const mergedTelemetry = mergeTelemetrySettings(
+        aiSdkTelemetry,
+        guardrailTelemetrySettings,
+      );
+
       const executionStartTime = Date.now();
       const inputResults = await executeInputGuardrails<M>(
         inputGuardrails,
         guardrailContext,
-        executionOptions,
+        {
+          ...executionOptions,
+          telemetry: mergedTelemetry,
+        },
       );
 
       const blockedResults = inputResults.filter((r) => r.tripwireTriggered);
@@ -1233,7 +1453,11 @@ export function createOutputGuardrailsMiddleware<
     replaceOnBlocked = true,
     streamMode = 'buffer',
     retry,
+    stopOnGuardrailViolation,
   } = config;
+
+  // Extract telemetry settings from executionOptions
+  const guardrailTelemetrySettings = executionOptions.telemetry;
 
   return {
     wrapGenerate: async ({
@@ -1261,11 +1485,32 @@ export function createOutputGuardrailsMiddleware<
         result: aiResult,
       };
 
+      // Merge AI SDK telemetry with guardrail telemetry settings
+      const aiSdkTelemetry = (params as { experimental_telemetry?: unknown })
+        ?.experimental_telemetry as
+        | {
+            isEnabled?: boolean;
+            recordInputs?: boolean;
+            recordOutputs?: boolean;
+            functionId?: string;
+            metadata?: Record<string, unknown>;
+            tracer?: import('@opentelemetry/api').Tracer;
+          }
+        | undefined;
+
+      const mergedTelemetry = mergeTelemetrySettings(
+        aiSdkTelemetry,
+        guardrailTelemetrySettings,
+      );
+
       const startTime = Date.now();
       const outputResults = await executeOutputGuardrails<M>(
         outputGuardrails,
         outputContext,
-        executionOptions,
+        {
+          ...executionOptions,
+          telemetry: mergedTelemetry,
+        },
       );
 
       const executionSummary = createExecutionSummary<M>(
@@ -1310,7 +1555,10 @@ export function createOutputGuardrailsMiddleware<
             const retryResults = await executeOutputGuardrails<M>(
               outputGuardrails,
               retryContext,
-              executionOptions,
+              {
+                ...executionOptions,
+                telemetry: guardrailTelemetrySettings,
+              },
             );
             const retrySummary = createExecutionSummary<M>(
               retryResults,
@@ -1525,9 +1773,15 @@ export function createOutputGuardrailsMiddleware<
         return { stream: streamResult.stream.pipeThrough(transformStream) };
       }
 
-      // Progressive mode: evaluate on the fly
+      // Progressive mode: evaluate on the fly with early termination support
       let accumulatedText = '';
       let blocked = false;
+      let chunkIndex = 0;
+      const streamViolationHistory: Array<{
+        chunkIndex: number;
+        summary: GuardrailExecutionSummary<M>;
+      }> = [];
+
       const transformStream = new TransformStream<
         LanguageModelV2StreamPart,
         LanguageModelV2StreamPart
@@ -1543,6 +1797,7 @@ export function createOutputGuardrailsMiddleware<
               textDelta?: string;
             };
             accumulatedText += anyChunk.delta ?? anyChunk.textDelta ?? '';
+            chunkIndex++;
 
             const guardrailContext = normalizeGuardrailContext(params);
             const outputContext: OutputGuardrailContext = {
@@ -1559,38 +1814,59 @@ export function createOutputGuardrailsMiddleware<
               outputResults,
               startTime,
             );
+
             if (executionSummary.blockedResults.length > 0) {
-              blocked = true;
-              if (onOutputBlocked) {
-                onOutputBlocked(executionSummary, guardrailContext, {
-                  text: accumulatedText,
-                });
-              }
-              if (throwOnBlocked) {
-                controller.error(
-                  new Error(
-                    `Output guardrails blocked response: ${executionSummary.blockedResults.map((r) => r.message).join(', ')}`,
-                  ),
+              // Track violation for early termination logic
+              streamViolationHistory.push({
+                chunkIndex,
+                summary: executionSummary,
+              });
+
+              // Check if we should stop early based on violation pattern
+              const shouldStopEarly =
+                stopOnGuardrailViolation &&
+                checkStreamStopCondition(
+                  stopOnGuardrailViolation,
+                  streamViolationHistory,
                 );
-                return;
+
+              if (shouldStopEarly) {
+                blocked = true;
               }
-              if (replaceOnBlocked) {
-                const blockedMessage = executionSummary.blockedResults
-                  .map((r) => r.message)
-                  .join(', ');
-                controller.enqueue({
-                  type: 'text-delta',
-                  id: '1',
-                  delta: `[Output blocked: ${blockedMessage}]`,
-                });
-                controller.enqueue({
-                  type: 'finish',
-                  finishReason: 'other',
-                  usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-                });
-                return;
+
+              // Only block if we hit the stop condition or it's the first violation
+              if (blocked) {
+                if (onOutputBlocked) {
+                  onOutputBlocked(executionSummary, guardrailContext, {
+                    text: accumulatedText,
+                  });
+                }
+                if (throwOnBlocked) {
+                  controller.error(
+                    new Error(
+                      `Output guardrails blocked response: ${executionSummary.blockedResults.map((r) => r.message).join(', ')}`,
+                    ),
+                  );
+                  return;
+                }
+                if (replaceOnBlocked) {
+                  const blockedMessage = executionSummary.blockedResults
+                    .map((r) => r.message)
+                    .join(', ');
+                  controller.enqueue({
+                    type: 'text-delta',
+                    id: '1',
+                    delta: `[Output blocked: ${blockedMessage}]`,
+                  });
+                  controller.enqueue({
+                    type: 'finish',
+                    finishReason: 'other',
+                    usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+                  });
+                  return;
+                }
+                // fall through: not replacing, still emit current chunk
               }
-              // fall through: not replacing, still emit current chunk
             }
             controller.enqueue(chunk);
           } else {

@@ -55,6 +55,9 @@ export type {
   LanguageModelV2StreamPart,
 } from './types';
 
+// Telemetry types for OpenTelemetry integration
+export type { GuardrailTelemetrySettings } from './telemetry/types';
+
 // Backoff helpers for retry configurations
 export {
   exponentialBackoff,
@@ -136,3 +139,17 @@ export type {
 } from './guardrails/mcp-security';
 
 export type { AllowedToolsOptions } from './guardrails/input';
+
+// Stop condition helpers for agent guardrails
+export {
+  criticalViolationDetected,
+  violationCountIs,
+  violationSeverityIs,
+  specificGuardrailViolated,
+  consecutiveViolations,
+  anyOf,
+  allOf,
+  custom as customStopCondition,
+} from './guardrails/stop-conditions';
+
+export type { GuardrailViolation } from './guardrails/stop-conditions';

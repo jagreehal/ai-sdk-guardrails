@@ -402,7 +402,7 @@ export function toolEgressPolicy(
           // Note: In a real implementation, you'd need access to actual tool parameters
           // This is a simplified check based on text content
           const toolMention = text.match(
-            new RegExp(`${tool}.*?(?=\\n|$)`, 'i'),
+            new RegExp(String.raw`${tool}.*?(?=\n|$)`, 'i'),
           );
           if (toolMention && toolMention[0].length > rules.maxParamLength) {
             violations.push(`Tool '${tool}' parameter length exceeds limit`);
