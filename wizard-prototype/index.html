@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🧙‍♂️ AI SDK Guardrails Wizard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .step {
+        animation: fadeIn 0.5s ease-in;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen py-5 px-4"
+  >
+    <div
+      class="max-w-6xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden"
+    >
+      <!-- Header -->
+      <div
+        class="bg-gradient-to-r from-blue-600 to-teal-600 text-white py-12 px-8 text-center"
+      >
+        <h1 class="text-4xl md:text-5xl font-bold mb-3">
+          🧙‍♂️ AI SDK Guardrails Wizard
+        </h1>
+        <p class="text-xl opacity-95">
+          Configure AI safety guardrails without writing code
+        </p>
+      </div>
+
+      <div class="p-8 md:p-12">
+        <!-- Progress Indicator -->
+        <div class="flex items-center justify-center mb-10">
+          <div class="flex items-center">
+            <div
+              class="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold shadow-md transition-all duration-300"
+              id="step1-indicator"
+            >
+              1
+            </div>
+            <div
+              class="w-16 h-0.5 bg-gray-300 mx-2 transition-all duration-300"
+              id="line1"
+            ></div>
+            <div
+              class="w-12 h-12 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-semibold transition-all duration-300"
+              id="step2-indicator"
+            >
+              2
+            </div>
+            <div
+              class="w-16 h-0.5 bg-gray-300 mx-2 transition-all duration-300"
+              id="line2"
+            ></div>
+            <div
+              class="w-12 h-12 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-semibold transition-all duration-300"
+              id="step3-indicator"
+            >
+              3
+            </div>
+            <div
+              class="w-16 h-0.5 bg-gray-300 mx-2 transition-all duration-300"
+              id="line3"
+            ></div>
+            <div
+              class="w-12 h-12 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-semibold transition-all duration-300"
+              id="step4-indicator"
+            >
+              4
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 1: Use Case Selection -->
+        <div class="step active" id="step1">
+          <h2 class="text-3xl font-bold text-gray-800 mb-8">
+            Choose Your Use Case
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div
+              class="use-case border-2 border-gray-200 rounded-xl p-6 cursor-pointer transition-all duration-300 hover:border-blue-500 hover:shadow-lg hover:-translate-y-1 bg-white"
+              data-use-case="content-moderation"
+            >
+              <div class="text-5xl mb-4">🛡️</div>
+              <h3 class="text-xl font-semibold mb-3 text-gray-800">
+                Content Moderation
+              </h3>
+              <p class="text-gray-600 leading-relaxed">
+                Block inappropriate content and ensure brand safety for
+                user-generated content, chatbots, and content generation.
+              </p>
+            </div>
+            <div
+              class="use-case border-2 border-gray-200 rounded-xl p-6 cursor-pointer transition-all duration-300 hover:border-blue-500 hover:shadow-lg hover:-translate-y-1 bg-white"
+              data-use-case="data-protection"
+            >
+              <div class="text-5xl mb-4">🔒</div>
+              <h3 class="text-xl font-semibold mb-3 text-gray-800">
+                Data Protection
+              </h3>
+              <p class="text-gray-600 leading-relaxed">
+                Prevent PII leakage and protect sensitive data in customer
+                service, data processing, and compliance scenarios.
+              </p>
+            </div>
+            <div
+              class="use-case border-2 border-gray-200 rounded-xl p-6 cursor-pointer transition-all duration-300 hover:border-blue-500 hover:shadow-lg hover:-translate-y-1 bg-white"
+              data-use-case="quality-assurance"
+            >
+              <div class="text-5xl mb-4">⭐</div>
+              <h3 class="text-xl font-semibold mb-3 text-gray-800">
+                Quality Assurance
+              </h3>
+              <p class="text-gray-600 leading-relaxed">
+                Ensure high-quality responses and prevent hallucinations in
+                content generation, Q&A systems, and research tools.
+              </p>
+            </div>
+            <div
+              class="use-case border-2 border-gray-200 rounded-xl p-6 cursor-pointer transition-all duration-300 hover:border-blue-500 hover:shadow-lg hover:-translate-y-1 bg-white"
+              data-use-case="security"
+            >
+              <div class="text-5xl mb-4">🔐</div>
+              <h3 class="text-xl font-semibold mb-3 text-gray-800">Security</h3>
+              <p class="text-gray-600 leading-relaxed">
+                Detect prompt injection, jailbreak attempts, and malicious
+                inputs in AI applications and API endpoints.
+              </p>
+            </div>
+          </div>
+          <div class="flex justify-center mt-8">
+            <button
+              class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
+              onclick="nextStep()"
+            >
+              Next: Select Guardrails
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: Guardrail Selection -->
+        <div class="step hidden" id="step2">
+          <h2 class="text-3xl font-bold text-gray-800 mb-8">
+            Select Guardrails
+          </h2>
+          <div
+            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8"
+            id="guardrails-container"
+          >
+            <!-- Guardrails will be populated based on use case -->
+          </div>
+          <div class="flex justify-center gap-4 mt-8">
+            <button
+              class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-8 rounded-lg transition-all duration-300"
+              onclick="prevStep()"
+            >
+              Back
+            </button>
+            <button
+              class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
+              onclick="nextStep()"
+            >
+              Next: Configure Settings
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 3: Configuration -->
+        <div class="step hidden" id="step3">
+          <h2 class="text-3xl font-bold text-gray-800 mb-8">
+            Configure Settings
+          </h2>
+          <div class="space-y-6 mb-8" id="parameters-container">
+            <!-- Parameters will be populated based on selected guardrails -->
+          </div>
+          <div class="flex justify-center gap-4 mt-8">
+            <button
+              class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-8 rounded-lg transition-all duration-300"
+              onclick="prevStep()"
+            >
+              Back
+            </button>
+            <button
+              class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
+              onclick="nextStep()"
+            >
+              Next: Preview & Generate
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 4: Code Generation -->
+        <div class="step hidden" id="step4">
+          <h2 class="text-3xl font-bold text-gray-800 mb-8">
+            Your Guardrails Configuration
+          </h2>
+          <div
+            class="bg-green-50 border-l-4 border-green-500 p-6 rounded-lg mb-6"
+          >
+            <h3 class="text-lg font-semibold text-green-800 mb-3">
+              📋 How to Use This Code
+            </h3>
+            <ol class="list-decimal list-inside space-y-2 text-green-800">
+              <li>
+                <strong>Copy the code below</strong> to a new file (e.g.,
+                <code class="bg-green-100 px-2 py-1 rounded">guardrails.ts</code
+                >)
+              </li>
+              <li>
+                <strong>Install dependencies:</strong>
+                <code class="bg-green-100 px-2 py-1 rounded"
+                  >npm install ai-sdk-guardrails @ai-sdk/openai</code
+                >
+              </li>
+              <li>
+                <strong>Import and use</strong> the
+                <code class="bg-green-100 px-2 py-1 rounded">guardedModel</code>
+                in your application
+              </li>
+              <li>
+                <strong>Test with your prompts</strong> to ensure it works as
+                expected
+              </li>
+            </ol>
+          </div>
+          <div
+            class="bg-gray-900 text-gray-100 p-6 rounded-lg font-mono text-sm overflow-x-auto mb-6"
+            id="code-preview"
+          >
+            <!-- Generated code will appear here -->
+          </div>
+          <div class="flex justify-center gap-4 mt-8">
+            <button
+              class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-8 rounded-lg transition-all duration-300"
+              onclick="prevStep()"
+            >
+              Back
+            </button>
+            <button
+              class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
+              onclick="copyCode()"
+            >
+              📋 Copy Code
+            </button>
+            <button
+              class="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
+              onclick="downloadCode()"
+            >
+              💾 Download
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let currentStep = 1;
+      let selectedUseCase = null;
+      let selectedGuardrails = [];
+      let configuration = {};
+
+      const guardrailDatabase = {
+        'content-moderation': [
+          {
+            id: 'toxicity-detector',
+            name: 'Toxicity Detection',
+            description:
+              'Detect and block toxic, harmful, or offensive content',
+            parameters: [
+              {
+                name: 'threshold',
+                type: 'range',
+                label: 'Sensitivity',
+                min: 0.1,
+                max: 1.0,
+                step: 0.1,
+                default: 0.7,
+              },
+              {
+                name: 'blockHarassment',
+                type: 'boolean',
+                label: 'Block Harassment',
+                default: true,
+              },
+              {
+                name: 'blockHate',
+                type: 'boolean',
+                label: 'Block Hate Speech',
+                default: true,
+              },
+            ],
+          },
+          {
+            id: 'profanity-filter',
+            name: 'Profanity Filter',
+            description: 'Filter out profane and inappropriate language',
+            parameters: [
+              {
+                name: 'strictness',
+                type: 'select',
+                label: 'Strictness Level',
+                options: [
+                  { value: 'low', label: 'Low - Only obvious profanity' },
+                  { value: 'medium', label: 'Medium - Common profanity' },
+                  { value: 'high', label: 'High - All inappropriate language' },
+                ],
+                default: 'medium',
+              },
+            ],
+          },
+          {
+            id: 'jailbreak-detector',
+            name: 'Jailbreak Detection',
+            description: 'Detect attempts to bypass AI safety measures',
+            parameters: [
+              {
+                name: 'confidence',
+                type: 'range',
+                label: 'Detection Confidence',
+                min: 0.1,
+                max: 1.0,
+                step: 0.1,
+                default: 0.8,
+              },
+            ],
+          },
+        ],
+        'data-protection': [
+          {
+            id: 'pii-detector',
+            name: 'PII Detection',
+            description: 'Detect and block personal identifiable information',
+            parameters: [
+              {
+                name: 'detectEmails',
+                type: 'boolean',
+                label: 'Detect Email Addresses',
+                default: true,
+              },
+              {
+                name: 'detectPhones',
+                type: 'boolean',
+                label: 'Detect Phone Numbers',
+                default: true,
+              },
+              {
+                name: 'detectSSNs',
+                type: 'boolean',
+                label: 'Detect SSNs',
+                default: true,
+              },
+              {
+                name: 'sensitivity',
+                type: 'select',
+                label: 'Sensitivity Level',
+                options: [
+                  { value: 'low', label: 'Low - Only obvious PII' },
+                  { value: 'medium', label: 'Medium - Common patterns' },
+                  { value: 'high', label: 'High - All patterns' },
+                ],
+                default: 'medium',
+              },
+            ],
+          },
+          {
+            id: 'secret-leakage',
+            name: 'Secret Leakage Prevention',
+            description:
+              'Prevent API keys, passwords, and secrets from being exposed',
+            parameters: [
+              {
+                name: 'blockApiKeys',
+                type: 'boolean',
+                label: 'Block API Keys',
+                default: true,
+              },
+              {
+                name: 'blockPasswords',
+                type: 'boolean',
+                label: 'Block Passwords',
+                default: true,
+              },
+              {
+                name: 'blockTokens',
+                type: 'boolean',
+                label: 'Block Tokens',
+                default: true,
+              },
+            ],
+          },
+        ],
+        'quality-assurance': [
+          {
+            id: 'hallucination-detector',
+            name: 'Hallucination Detection',
+            description: 'Detect potentially false or made-up information',
+            parameters: [
+              {
+                name: 'confidence',
+                type: 'range',
+                label: 'Detection Confidence',
+                min: 0.1,
+                max: 1.0,
+                step: 0.1,
+                default: 0.7,
+              },
+              {
+                name: 'requireCitations',
+                type: 'boolean',
+                label: 'Require Citations',
+                default: false,
+              },
+            ],
+          },
+          {
+            id: 'quality-check',
+            name: 'Quality Assessment',
+            description: 'Ensure responses meet quality standards',
+            parameters: [
+              {
+                name: 'minLength',
+                type: 'number',
+                label: 'Minimum Length',
+                default: 20,
+              },
+              {
+                name: 'checkStructure',
+                type: 'boolean',
+                label: 'Check Structure',
+                default: true,
+              },
+              {
+                name: 'checkClarity',
+                type: 'boolean',
+                label: 'Check Clarity',
+                default: true,
+              },
+            ],
+          },
+        ],
+        security: [
+          {
+            id: 'prompt-injection',
+            name: 'Prompt Injection Detection',
+            description: 'Detect attempts to manipulate AI behavior',
+            parameters: [
+              {
+                name: 'confidence',
+                type: 'range',
+                label: 'Detection Confidence',
+                min: 0.1,
+                max: 1.0,
+                step: 0.1,
+                default: 0.8,
+              },
+              {
+                name: 'enableIncremental',
+                type: 'boolean',
+                label: 'Enable Incremental Checking',
+                default: true,
+              },
+            ],
+          },
+          {
+            id: 'rate-limiting',
+            name: 'Rate Limiting',
+            description: 'Prevent abuse with request rate limits',
+            parameters: [
+              {
+                name: 'requestsPerMinute',
+                type: 'number',
+                label: 'Requests per Minute',
+                default: 60,
+              },
+              {
+                name: 'requestsPerHour',
+                type: 'number',
+                label: 'Requests per Hour',
+                default: 1000,
+              },
+            ],
+          },
+        ],
+      };
+
+      function updateProgress() {
+        for (let i = 1; i <= 4; i++) {
+          const indicator = document.getElementById(`step${i}-indicator`);
+          const line = document.getElementById(`line${i}`);
+
+          if (i < currentStep) {
+            indicator.className =
+              'w-12 h-12 rounded-full bg-green-500 text-white flex items-center justify-center font-semibold shadow-md transition-all duration-300';
+            if (line)
+              line.className =
+                'w-16 h-0.5 bg-green-500 mx-2 transition-all duration-300';
+          } else if (i === currentStep) {
+            indicator.className =
+              'w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold shadow-md transition-all duration-300';
+            if (line)
+              line.className =
+                'w-16 h-0.5 bg-gray-300 mx-2 transition-all duration-300';
+          } else {
+            indicator.className =
+              'w-12 h-12 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-semibold transition-all duration-300';
+            if (line)
+              line.className =
+                'w-16 h-0.5 bg-gray-300 mx-2 transition-all duration-300';
+          }
+        }
+      }
+
+      function nextStep() {
+        if (currentStep < 4) {
+          document.getElementById(`step${currentStep}`).classList.add('hidden');
+          currentStep++;
+          document
+            .getElementById(`step${currentStep}`)
+            .classList.remove('hidden');
+          updateProgress();
+
+          if (currentStep === 2) {
+            loadGuardrails();
+          } else if (currentStep === 3) {
+            loadParameters();
+          } else if (currentStep === 4) {
+            generateCode();
+          }
+        }
+      }
+
+      function prevStep() {
+        if (currentStep > 1) {
+          document.getElementById(`step${currentStep}`).classList.add('hidden');
+          currentStep--;
+          document
+            .getElementById(`step${currentStep}`)
+            .classList.remove('hidden');
+          updateProgress();
+        }
+      }
+
+      function loadGuardrails() {
+        const container = document.getElementById('guardrails-container');
+        const useCase =
+          document.querySelector('.use-case.selected')?.dataset.useCase;
+        if (!useCase) {
+          alert('Please select a use case first');
+          prevStep();
+          return;
+        }
+        selectedUseCase = useCase;
+
+        const guardrails = guardrailDatabase[useCase] || [];
+
+        container.innerHTML = guardrails
+          .map(
+            (guardrail) => `
+                <div class="guardrail border border-gray-200 rounded-lg p-5 cursor-pointer transition-all duration-300 hover:border-blue-500 hover:bg-blue-50 bg-white" data-guardrail-id="${guardrail.id}">
+                    <h4 class="font-semibold text-gray-800 mb-2">${guardrail.name}</h4>
+                    <p class="text-sm text-gray-600">${guardrail.description}</p>
+                </div>
+            `,
+          )
+          .join('');
+
+        // Add click handlers
+        container.querySelectorAll('.guardrail').forEach((el) => {
+          el.addEventListener('click', () => {
+            el.classList.toggle('border-blue-500');
+            el.classList.toggle('bg-blue-50');
+            el.classList.toggle('bg-white');
+            const id = el.dataset.guardrailId;
+            if (el.classList.contains('border-blue-500')) {
+              if (!selectedGuardrails.includes(id)) {
+                selectedGuardrails.push(id);
+              }
+            } else {
+              selectedGuardrails = selectedGuardrails.filter((g) => g !== id);
+            }
+          });
+        });
+      }
+
+      function loadParameters() {
+        const container = document.getElementById('parameters-container');
+        const useCase = selectedUseCase;
+        const guardrails = guardrailDatabase[useCase] || [];
+        const selected = guardrails.filter((g) =>
+          selectedGuardrails.includes(g.id),
+        );
+
+        if (selected.length === 0) {
+          container.innerHTML =
+            '<p class="text-gray-600 text-center py-8">Please select at least one guardrail first.</p>';
+          return;
+        }
+
+        container.innerHTML = selected
+          .map(
+            (guardrail) => `
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">${guardrail.name}</h3>
+                    <div class="space-y-4">
+                        ${guardrail.parameters
+                          .map((param) => {
+                            if (param.type === 'boolean') {
+                              return `
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500" data-guardrail="${guardrail.id}" data-param="${param.name}" ${param.default ? 'checked' : ''}>
+                                        <label class="ml-3 text-gray-700 font-medium">${param.label}</label>
+                                    </div>
+                                `;
+                            } else if (param.type === 'range') {
+                              return `
+                                    <div>
+                                        <label class="block text-gray-700 font-medium mb-2">${param.label}: <span class="text-blue-600 font-semibold" id="${guardrail.id}-${param.name}-value">${param.default}</span></label>
+                                        <input type="range" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" data-guardrail="${guardrail.id}" data-param="${param.name}" 
+                                               min="${param.min}" max="${param.max}" step="${param.step}" value="${param.default}">
+                                    </div>
+                                `;
+                            } else if (param.type === 'select') {
+                              return `
+                                    <div>
+                                        <label class="block text-gray-700 font-medium mb-2">${param.label}</label>
+                                        <select class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" data-guardrail="${guardrail.id}" data-param="${param.name}">
+                                            ${param.options
+                                              .map(
+                                                (opt) =>
+                                                  `<option value="${opt.value}" ${opt.value === param.default ? 'selected' : ''}>${opt.label}</option>`,
+                                              )
+                                              .join('')}
+                                        </select>
+                                    </div>
+                                `;
+                            } else if (param.type === 'number') {
+                              return `
+                                    <div>
+                                        <label class="block text-gray-700 font-medium mb-2">${param.label}</label>
+                                        <input type="number" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" data-guardrail="${guardrail.id}" data-param="${param.name}" value="${param.default}">
+                                    </div>
+                                `;
+                            }
+                          })
+                          .join('')}
+                    </div>
+                </div>
+            `,
+          )
+          .join('');
+
+        // Add event listeners for sliders
+        container.querySelectorAll('input[type="range"]').forEach((slider) => {
+          slider.addEventListener('input', (e) => {
+            const valueSpan = document.getElementById(
+              `${e.target.dataset.guardrail}-${e.target.dataset.param}-value`,
+            );
+            if (valueSpan) {
+              valueSpan.textContent = e.target.value;
+            }
+          });
+        });
+      }
+
+      function generateCode() {
+        const container = document.getElementById('code-preview');
+        const useCase = selectedUseCase;
+        const guardrails = guardrailDatabase[useCase] || [];
+        const selected = guardrails.filter((g) =>
+          selectedGuardrails.includes(g.id),
+        );
+
+        if (selected.length === 0) {
+          container.textContent =
+            '// Please select at least one guardrail to generate code.';
+          return;
+        }
+
+        // Collect configuration
+        configuration = {};
+        selected.forEach((guardrail) => {
+          configuration[guardrail.id] = {};
+          guardrail.parameters.forEach((param) => {
+            const element = document.querySelector(
+              `[data-guardrail="${guardrail.id}"][data-param="${param.name}"]`,
+            );
+            if (element) {
+              if (param.type === 'boolean') {
+                configuration[guardrail.id][param.name] = element.checked;
+              } else if (param.type === 'range') {
+                configuration[guardrail.id][param.name] = parseFloat(
+                  element.value,
+                );
+              } else if (param.type === 'number') {
+                configuration[guardrail.id][param.name] = parseInt(
+                  element.value,
+                );
+              } else {
+                configuration[guardrail.id][param.name] = element.value;
+              }
+            }
+          });
+        });
+
+        // Generate code
+        const code = generateTypeScriptCode(selected, configuration);
+        container.textContent = code;
+      }
+
+      function generateTypeScriptCode(guardrails, config) {
+        // Get unique imports based on selected guardrails
+        const importMap = {
+          'pii-detector': 'piiDetector',
+          'prompt-injection': 'promptInjectionDetector',
+          'toxicity-detector': 'toxicityDetector',
+          'profanity-filter': 'profanityFilter',
+          'hallucination-detector': 'hallucinationDetector',
+          'rate-limiting': 'rateLimiting',
+        };
+
+        const selectedImports = guardrails
+          .filter((g) => importMap[g.id])
+          .map((g) => importMap[g.id])
+          .join(',\n  ');
+
+        const imports = [
+          '// Generated by AI SDK Guardrails Wizard',
+          '// Copy this code to your project and install dependencies:',
+          '// npm install ai-sdk-guardrails @ai-sdk/openai',
+          '',
+          "import { generateText, streamText } from 'ai';",
+          "import { openai } from '@ai-sdk/openai';",
+          "import { withGuardrails } from 'ai-sdk-guardrails';",
+          'import {',
+          `  ${selectedImports}`,
+          "} from 'ai-sdk-guardrails';",
+          '',
+        ].join('\n');
+
+        const guardrailInstances = guardrails
+          .map((guardrail) => {
+            const configStr = Object.entries(config[guardrail.id] || {})
+              .map(([key, value]) => {
+                if (typeof value === 'string') {
+                  return `  ${key}: '${value}'`;
+                } else {
+                  return `  ${key}: ${value}`;
+                }
+              })
+              .join(',\n');
+
+            const instanceName = guardrail.id.replace('-', '');
+            const functionName = importMap[guardrail.id] || guardrail.id;
+
+            return `// ${guardrail.name}\nconst ${instanceName} = ${functionName}(${configStr ? `{\n${configStr}\n}` : ''});`;
+          })
+          .join('\n\n');
+
+        // Separate input and output guardrails
+        const inputGuardrails = guardrails.filter((g) =>
+          ['pii-detector', 'prompt-injection', 'rate-limiting'].includes(g.id),
+        );
+        const outputGuardrails = guardrails.filter((g) =>
+          [
+            'toxicity-detector',
+            'profanity-filter',
+            'hallucination-detector',
+          ].includes(g.id),
+        );
+
+        const usage = `// Create guarded model
+const guardedModel = withGuardrails(openai('gpt-4o'), {
+  ${
+    inputGuardrails.length > 0
+      ? `inputGuardrails: [
+    ${inputGuardrails.map((g) => g.id.replace('-', '')).join(',\n    ')}
+  ],`
+      : ''
+  }
+  ${
+    outputGuardrails.length > 0
+      ? `outputGuardrails: [
+    ${outputGuardrails.map((g) => g.id.replace('-', '')).join(',\n    ')}
+  ],`
+      : ''
+  }
+  throwOnBlocked: true,
+  streamMode: 'progressive',
+  stopOnGuardrailViolation: true
+});
+
+// Example usage with generateText
+async function generateSafeText(prompt: string) {
+  try {
+    const result = await generateText({
+      model: guardedModel,
+      prompt: prompt
+    });
+    return result.text;
+  } catch (error) {
+    console.error('Content blocked by guardrails:', error.message);
+    throw error;
+  }
+}
+
+// Example usage with streaming
+async function streamSafeText(prompt: string) {
+  try {
+    const stream = await streamText({
+      model: guardedModel,
+      prompt: prompt
+    });
+
+    for await (const chunk of stream.textStream) {
+      process.stdout.write(chunk);
+    }
+  } catch (error) {
+    console.error('Content blocked by guardrails:', error.message);
+    throw error;
+  }
+}
+
+// Test your configuration
+if (typeof require !== 'undefined' && require.main === module) {
+  generateSafeText('Test prompt').catch(console.error);
+}`;
+
+        return `${imports}
+
+${guardrailInstances}
+
+${usage}`;
+      }
+
+      function copyCode() {
+        const code = document.getElementById('code-preview').textContent;
+        navigator.clipboard.writeText(code).then(() => {
+          alert('✅ Code copied to clipboard!');
+        });
+      }
+
+      function downloadCode() {
+        const code = document.getElementById('code-preview').textContent;
+        const blob = new Blob([code], { type: 'text/typescript' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'guardrails-config.ts';
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      // Initialize use case selection
+      document.querySelectorAll('.use-case').forEach((el) => {
+        el.addEventListener('click', () => {
+          document.querySelectorAll('.use-case').forEach((u) => {
+            u.classList.remove('border-blue-500', 'bg-blue-50');
+            u.classList.add('border-gray-200', 'bg-white');
+          });
+          el.classList.remove('border-gray-200', 'bg-white');
+          el.classList.add('border-blue-500', 'bg-blue-50');
+        });
+      });
+
+      // Initialize progress indicator
+      updateProgress();
+    </script>
+  </body>
+</html>

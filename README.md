@@ -1,6 +1,6 @@
 # AI SDK Guardrails
 
-**Safety and quality controls for Vercel AI SDK**
+## Safety and quality controls for Vercel AI SDK
 
 Add guardrails to your AI applications in one line of code. Block PII, prevent prompt injection, enforce output quality - while keeping your existing telemetry and observability stack intact.
 
@@ -34,6 +34,25 @@ await generateText({ model: safeModel, prompt: '...' });
 ```bash
 npm install ai-sdk-guardrails
 ```
+
+## 🧙‍♂️ No-Code Wizard (New!)
+
+**Don't want to write code?** Use our visual wizard to configure guardrails:
+
+1. **Open the wizard**: [wizard-prototype/index.html](./wizard-prototype/index.html)
+2. **Choose your use case**: Content moderation, data protection, quality assurance, or security
+3. **Select guardrails**: Pick from 40+ built-in guardrails
+4. **Configure settings**: Adjust thresholds and parameters with sliders and toggles
+5. **Copy generated code**: Get production-ready TypeScript code instantly
+
+**Perfect for:**
+
+- 🎯 **Non-technical users** who need AI safety
+- 🚀 **Quick prototyping** of guardrail configurations
+- 📚 **Learning** how to use the library
+- 👥 **Team onboarding** and training
+
+The wizard generates code that works out of the box - just copy, paste, and run!
 
 ## Why Guardrails Matter
 
@@ -540,7 +559,7 @@ See source for all built-in guardrails:
 
 ## Examples
 
-Browse 48+ runnable examples: [examples/README.md](./examples/README.md)
+Browse 48+ runnable examples: [examples/README.md](./examples/README.md) |
 
 ### Quick Starts
 
@@ -622,6 +641,10 @@ Changes:
 **Developer experience**: One line to add safety. Progressive complexity - start simple, add advanced features when needed.
 
 **Type-safe**: Rich TypeScript types and inference throughout.
+
+**Comprehensive**: 40+ built-in guardrails covering security, quality, compliance, and performance.
+
+**Advanced features**: Early detection, parallel execution, enhanced prompt injection detection, MCP security, and more.
 
 ## Contributing
 
