@@ -71,7 +71,7 @@
   },
   "dependencies": {
     "@ai-sdk/provider": "2.0.0",
-    "ai": "5.0.87",
+    "ai": "5.0.89",
     "zod": "^4.1.12"
   },
   "peerDependencies": {
