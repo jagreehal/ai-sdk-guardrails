@@ -412,8 +412,11 @@ async function askWeatherAssistant(
       console.log('🛡️ Guardrail response:', message);
       return message;
     } else {
-      console.error('❌ Unexpected error:', (error as Error).message);
-      return 'Sorry, I encountered an error. Please try again.';
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('❌ Unexpected error:', message);
+      throw error instanceof Error
+        ? error
+        : new Error(`Unexpected error: ${message}`);
     }
   }
 }

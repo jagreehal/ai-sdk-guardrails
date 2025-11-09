@@ -637,6 +637,7 @@ try {
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 2: High-risk content (should be flagged for critical review)
@@ -654,6 +655,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 3: Sensitive content (should be flagged for high priority review)
@@ -671,6 +673,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 4: Problematic content (should be flagged for standard review)
@@ -688,6 +691,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 5: Quality issues (should be flagged for quality review)
@@ -703,6 +707,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 6: Compliance content (should be flagged for compliance review)
@@ -720,6 +725,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 7: Multiple escalation categories
@@ -736,6 +742,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 8: High confidence escalation
@@ -751,6 +758,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 9: Review queue statistics

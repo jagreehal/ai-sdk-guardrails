@@ -386,6 +386,191 @@ const agent = withAgentGuardrails(
 const result = await agent.generate({ prompt: '...' });
 ```
 
+## Advanced Stopping Mechanisms
+
+Control exactly **when and how** guardrails stop execution with powerful, composable stopping mechanisms:
+
+### 1. AbortSignal-Based Stopping
+
+Clean, standard API for canceling AI operations:
+
+```ts
+import { createGuardrailAbortController } from 'ai-sdk-guardrails';
+
+const { signal, abortOnViolation } = createGuardrailAbortController();
+
+const model = withGuardrails(openai('gpt-4o'), {
+  outputGuardrails: [toxicityFilter()],
+  onOutputBlocked: abortOnViolation('critical'), // Abort on critical violations
+});
+
+// Signal will be aborted if critical violation detected
+await streamText({ model, prompt: '...', abortSignal: signal });
+```
+
+**Features:**
+
+- Standard AbortController API
+- Severity-based abortion (`'low' | 'medium' | 'high' | 'critical'`)
+- Custom abort conditions
+- Manual abortion support
+
+### 2. Stream Transform with Source-Level Stopping
+
+Stop streaming at the **source** (most efficient):
+
+```ts
+import { createGuardrailStreamTransform } from 'ai-sdk-guardrails';
+
+const result = streamText({
+  model,
+  prompt: 'Tell me a story',
+  experimental_transform: createGuardrailStreamTransform(
+    [toxicityFilter(), piiDetector()],
+    {
+      stopOnSeverity: 'high', // Stop on high/critical
+      checkInterval: 1, // Check every chunk
+      onViolation: (summary) => {
+        // Violation callback
+        console.log('Stopped:', summary);
+      },
+    },
+  ),
+});
+```
+
+**Modes:**
+
+- `createGuardrailStreamTransform` - Progressive checking (each chunk)
+- `createGuardrailStreamTransformBuffered` - Buffered checking (on flush)
+
+### 3. Token-Level Control
+
+Reduce overhead with smart token-based checking:
+
+```ts
+import {
+  createTokenBudgetTransform,
+  createTokenAwareGuardrailTransform,
+} from 'ai-sdk-guardrails';
+
+experimental_transform: [
+  // Hard token limit
+  createTokenBudgetTransform({
+    maxTokens: 1000,
+    onBudgetExceeded: (info) => console.log(info),
+  }),
+
+  // Check guardrails every N tokens (not every chunk!)
+  createTokenAwareGuardrailTransform([toxicityFilter()], {
+    checkEveryTokens: 50, // Check every 50 tokens
+    maxTokens: 1000, // Combined with budget
+    stopOnSeverity: 'high',
+  }),
+];
+```
+
+**Benefits:**
+
+- Reduce guardrail overhead by 80%+
+- Cost control with token budgets
+- Custom tokenizer support
+
+### 4. Adaptive Multi-Step Execution
+
+Self-correcting behavior across multi-step agent execution:
+
+```ts
+import {
+  createAdaptivePrepareStep,
+  type GuardrailViolation,
+} from 'ai-sdk-guardrails';
+
+const violations: GuardrailViolation[] = [];
+
+const agent = new Agent({
+  model,
+  tools: { search: searchTool },
+  prepareStep: createAdaptivePrepareStep({
+    violations,
+    escalateAfter: 3, // Stop after 3 violations
+    strategy: (violations) => ({
+      temperature: Math.max(0.1, 0.7 - violations.length * 0.1),
+      system: `${violations.length} violations detected. Be careful.`,
+    }),
+  }),
+});
+
+// Track violations
+withAgentGuardrails(agent, {
+  outputGuardrails: [toxicityFilter()],
+  onOutputBlocked: (summary, context, step) => {
+    violations.push({ step, summary });
+  },
+});
+```
+
+**Features:**
+
+- Progressive temperature reduction
+- Custom adaptive strategies
+- Escalation to auto-stop
+- Lookback window configuration
+
+### 5. Tool Execution Abortion
+
+Prevent dangerous tool execution before or during execution:
+
+```ts
+import { wrapToolWithAbortion } from 'ai-sdk-guardrails';
+
+const safeTool = wrapToolWithAbortion(
+  dangerousApiTool,
+  [urlValidator, paramValidator],
+  {
+    checkBefore: true, // Validate before execution
+    monitorDuring: true, // Monitor during execution
+    monitorInterval: 1000, // Check every second
+    checkInputDelta: true, // Monitor streaming inputs
+    abortOnSeverity: 'critical',
+  },
+);
+```
+
+**Protection:**
+
+- Pre-execution validation
+- Real-time monitoring
+- Streaming input checking
+- Manual abortion control
+
+### 6. Finish Reason & Metadata
+
+Better observability with proper finish reasons and metadata:
+
+```ts
+import { createFinishReasonEnhancement } from 'ai-sdk-guardrails';
+
+// Automatically set in middleware, or manually:
+const enhanced = createFinishReasonEnhancement(summary, result);
+
+console.log(enhanced.finishReason); // 'content_filter' for blocks
+console.log(enhanced.providerMetadata.guardrails);
+// {
+//   blocked: true,
+//   violations: [{ message: '...', severity: 'high', ... }],
+//   executionTime: 50,
+//   stats: { passed: 2, blocked: 1, failed: 0 }
+// }
+```
+
+**Features:**
+
+- Standard `content_filter` finish reason
+- Structured violation metadata
+- Execution statistics
+- Custom metadata preservation
+
 ## MCP Security Guardrails (Advanced)
 
 **Production-Ready**: Protect against the ["lethal trifecta" vulnerability](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/) when using Model Context Protocol (MCP) tools.

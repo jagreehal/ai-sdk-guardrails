@@ -702,6 +702,7 @@ try {
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 2: Hate speech (should be de-escalated)
@@ -718,6 +719,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 3: Harassment (should be de-escalated)
@@ -733,6 +735,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 4: Threats (should trigger safety response)
@@ -748,6 +751,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 5: Sexual harassment (should set boundaries)
@@ -763,6 +767,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 6: Trolling (should be ignored)
@@ -778,6 +783,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 7: Aggressive language (should be calmed)
@@ -793,6 +799,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 8: Manipulation (should validate)
@@ -809,6 +816,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 9: Spam (should redirect)
@@ -824,6 +832,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 10: Escalation tracking

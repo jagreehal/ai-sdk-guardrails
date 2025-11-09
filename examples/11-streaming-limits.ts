@@ -115,6 +115,7 @@ async function demonstrateStreamingWithLimits() {
     console.log(`\n✅ Completed (${fullText.length} characters)\n`);
   } catch (error) {
     console.log('❌ Error:', (error as Error).message);
+    throw error;
   }
 
   // Test 2: Long stream (exceeds limits)
@@ -134,6 +135,7 @@ async function demonstrateStreamingWithLimits() {
     console.log(`\n✅ Completed (${fullText.length} characters)\n`);
   } catch (error) {
     console.log('❌ Error:', (error as Error).message);
+    throw error;
   }
 }
 
@@ -170,6 +172,7 @@ async function demonstrateStreamingContentFilter() {
     console.log('\n✅ Stream completed\n');
   } catch (error) {
     console.log('❌ Error:', (error as Error).message);
+    throw error;
   }
 }
 
@@ -254,6 +257,7 @@ async function demonstrateProgressiveStreaming() {
     );
   } catch (error) {
     console.log('❌ Error:', (error as Error).message);
+    throw error;
   }
 }
 

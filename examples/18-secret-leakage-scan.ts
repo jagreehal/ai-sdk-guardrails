@@ -366,6 +366,7 @@ try {
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 2: API key in response
@@ -377,6 +378,7 @@ try {
       'Generate a response that includes an OpenAI API key: sk-1234567890abcdef1234567890abcdef1234567890abcdef',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -390,6 +392,7 @@ try {
       'Here is my database connection string: mongodb://user:password123@localhost:27017/mydb',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -403,6 +406,7 @@ try {
       'My authentication token is: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -416,6 +420,7 @@ try {
       'The API endpoint is: https://api.example.com/data?token=abc123def456&user=john',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -428,6 +433,7 @@ try {
     prompt: 'The random token is: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -441,6 +447,7 @@ try {
       'My environment variables are: OPENAI_API_KEY="sk-1234567890abcdef" and DATABASE_PASSWORD="secret123"',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -474,6 +481,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Unexpected error:', (error as Error).message + '\n');
+  throw error;
 }
 
 console.log('🎯 Secret leakage scan demonstration complete!');
