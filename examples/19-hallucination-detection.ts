@@ -520,6 +520,7 @@ try {
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 2: High-confidence factual claims without citations
@@ -533,6 +534,7 @@ try {
       'Provide specific statistics about AI adoption rates in 2024 with exact numbers and percentages.',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -546,6 +548,7 @@ try {
       'Cite specific research studies about the effectiveness of machine learning algorithms.',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -558,6 +561,7 @@ try {
     prompt: 'Tell me about the latest AI developments that happened this week.',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -571,6 +575,7 @@ try {
       'Give me exact statistics about the number of AI companies founded in 2023.',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -584,6 +589,7 @@ try {
       'Tell me exactly what percentage of Fortune 500 companies use AI, with precise numbers.',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -599,6 +605,7 @@ try {
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 8: Warning mode with hedging suggestions
@@ -642,6 +649,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Unexpected error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 9: Edge case - legitimate specific information
@@ -654,6 +662,7 @@ try {
   console.log('✅ Success (legitimate):', result.text.slice(0, 100) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 console.log('🎯 Hallucination detection guardrail demonstration complete!');

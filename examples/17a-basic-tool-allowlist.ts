@@ -107,6 +107,7 @@ try {
   console.log('✅ Success:', JSON.stringify(result.object, null, 2) + '\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 2: Invalid function call
@@ -125,6 +126,7 @@ try {
     }),
   });
   console.log('✅ Success:', JSON.stringify(result.object, null, 2) + '\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -153,6 +155,7 @@ try {
   console.log('✅ Success:', JSON.stringify(result.object, null, 2) + '\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 console.log('🎯 Summary:');
