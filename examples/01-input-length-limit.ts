@@ -59,6 +59,7 @@ try {
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 2: Input that exceeds limit
@@ -74,6 +75,7 @@ try {
     prompt: longPrompt,
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -99,4 +101,5 @@ try {
   );
 } catch (error) {
   console.log('❌ Unexpected error:', (error as Error).message + '\n');
+  throw error;
 }

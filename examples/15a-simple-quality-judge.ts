@@ -118,6 +118,7 @@ try {
   console.log(`Response: ${result.text.slice(0, 150)}...\n`);
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 2: Request for brief response (might get low quality score)
@@ -131,6 +132,7 @@ try {
   console.log(`Response: "${result.text}"\n`);
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 3: Normal informational request
@@ -144,6 +146,7 @@ try {
   console.log(`Response: ${result.text.slice(0, 150)}...\n`);
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 console.log('🎯 Summary:');

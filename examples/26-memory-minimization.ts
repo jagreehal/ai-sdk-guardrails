@@ -604,6 +604,7 @@ try {
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 2: PII data in input (should be redacted)
@@ -620,6 +621,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 3: Financial data in input (should be redacted)
@@ -636,6 +638,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 4: Authentication data in input (should be redacted)
@@ -652,6 +655,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 5: Business data in input (should be redacted)
@@ -668,6 +672,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 6: Medical data in input (should be redacted)
@@ -684,6 +689,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 7: Multiple sensitive data types (should be redacted)
@@ -700,6 +706,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 8: Credit card information (should be redacted)
@@ -716,6 +723,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 9: Address information (should be redacted)
@@ -732,6 +740,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 10: Complex sensitive data scenario
@@ -748,6 +757,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 console.log('🎯 Memory minimization guardrail demonstration complete!');

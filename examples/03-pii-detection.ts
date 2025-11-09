@@ -111,6 +111,7 @@ try {
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 2: Prompt with email address
@@ -121,6 +122,7 @@ try {
     prompt: 'Send a message to john.doe@example.com about the meeting',
   });
   console.log('✅ Success:', result.text + '\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -133,6 +135,7 @@ try {
     prompt: 'My SSN is 123-45-6789, can you help me?',
   });
   console.log('✅ Success:', result.text + '\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -145,6 +148,7 @@ try {
     prompt: 'Call me at (555) 123-4567 when ready',
   });
   console.log('✅ Success:', result.text + '\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -157,6 +161,7 @@ try {
     prompt: 'Email john@example.com or call 555-123-4567',
   });
   console.log('✅ Success:', result.text + '\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -211,4 +216,5 @@ try {
   console.log('✅ Processed with redaction\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }

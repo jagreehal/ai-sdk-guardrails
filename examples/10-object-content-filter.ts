@@ -227,6 +227,7 @@ try {
   console.log('✅ Message generated:', JSON.stringify(result.object, null, 2));
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
+  throw error;
 }
 
 // Test 2: Spammy message
@@ -244,6 +245,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
+  throw error;
 }
 
 // Example 2: Social media content filtering
@@ -262,6 +264,7 @@ try {
   console.log('✅ Post generated:', JSON.stringify(result.object, null, 2));
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
+  throw error;
 }
 
 // Test 2: Over-hashtagged post
@@ -279,6 +282,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
+  throw error;
 }
 
 console.log('\n📊 Summary:');

@@ -172,6 +172,7 @@ for (let i = 1; i <= 4; i++) {
     console.log(`✅ Completed: ${result.text.slice(0, 50)}...\n`);
   } catch (error) {
     console.log(`❌ Error: ${(error as Error).message}\n`);
+    throw error;
   }
 
   await new Promise((resolve) => setTimeout(resolve, 100));
@@ -265,6 +266,7 @@ for (const [i, testPrompt] of testPrompts.entries()) {
     console.log('✅ Processed successfully\n');
   } catch (error) {
     console.log(`❌ Error: ${(error as Error).message}\n`);
+    throw error;
   }
 }
 
@@ -361,6 +363,7 @@ for (let i = 1; i <= 7; i++) {
     console.log(`✅ Success: ${result.text.slice(0, 30)}...\n`);
   } catch (error) {
     console.log(`❌ Error: ${(error as Error).message}\n`);
+    throw error;
   }
 }
 
@@ -376,6 +379,7 @@ try {
   console.log(`✅ Success after refill: ${result.text.slice(0, 50)}...\n`);
 } catch (error) {
   console.log(`❌ Error: ${(error as Error).message}\n`);
+  throw error;
 }
 
 console.log('📊 Summary:');

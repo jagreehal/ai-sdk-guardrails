@@ -110,6 +110,7 @@ async function example1BasicTelemetry() {
     console.log('\n📊 Check your tracing UI for guardrail spans!');
   } catch (error) {
     console.error('❌ Error:', error);
+    throw error;
   }
 }
 

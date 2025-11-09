@@ -230,6 +230,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Example 2: Professional tone enforcement
@@ -259,6 +260,7 @@ try {
   console.log('✅ Professional response:', result.text.slice(0, 150) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Example 3: Cost control
@@ -291,6 +293,7 @@ try {
   console.log('✅ Cost-controlled request processed\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Example 4: Combined business rules
@@ -337,6 +340,7 @@ for (const [i, request] of testRequests.entries()) {
     console.log('✅ Request approved and processed\n');
   } catch (error) {
     console.log(`❌ Error: ${(error as Error).message}\n`);
+    throw error;
   }
 }
 

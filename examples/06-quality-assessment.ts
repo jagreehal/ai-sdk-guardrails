@@ -140,6 +140,7 @@ try {
   console.log(`   (Length: ${result.text.length} characters)\n`);
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 2: Request likely to produce short response
@@ -153,6 +154,7 @@ try {
   console.log(`   (Length: ${result.text.length} characters)\n`);
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 3: Advanced quality metrics
@@ -253,6 +255,7 @@ try {
   console.log('✅ Generated response with quality analysis\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 4: Response completeness check
@@ -323,4 +326,5 @@ try {
   console.log('✅ Generated response:', result.text.slice(0, 150) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }

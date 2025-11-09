@@ -69,6 +69,7 @@ async function demonstrateBlockingMode() {
     console.log('   Response:', result.text.slice(0, 50) + '...\n');
   } catch (error) {
     console.log('❌ Unexpected error:', (error as Error).message + '\n');
+    throw error;
   }
 
   // Test 2: Input with profanity
@@ -139,6 +140,7 @@ async function demonstrateWarningMode() {
     console.log('   Response:', result.text.slice(0, 50) + '...\n');
   } catch (error) {
     console.log('❌ Unexpected error:', (error as Error).message + '\n');
+    throw error;
   }
 
   // Test 2: Input with profanity
@@ -152,6 +154,7 @@ async function demonstrateWarningMode() {
     console.log('   Response:', result.text.slice(0, 50) + '...\n');
   } catch (error) {
     console.log('❌ Unexpected error:', (error as Error).message + '\n');
+    throw error;
   }
 
   // Test 3: Multiple violations

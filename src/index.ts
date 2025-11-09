@@ -13,12 +13,9 @@ export {
   MiddlewareError,
   isGuardrailsError,
   extractErrorInfo,
-  // Deprecated - use GuardrailsInputError and GuardrailsOutputError instead
-  InputBlockedError,
-  OutputBlockedError,
 } from './core';
 
-export type { RetryOptions, RetryAttemptInfo } from './core';
+export type { RetryOptions, RetryAttemptInfo, RetryBuilderArgs } from './core';
 
 export {
   defineInputGuardrail,
@@ -41,14 +38,39 @@ export {
 } from './guardrails';
 
 export type {
+  // Core guardrail types
   InputGuardrail,
   OutputGuardrail,
   GuardrailResult,
+  GuardrailExecutionSummary,
   GuardrailsParams,
   InputGuardrailsMiddlewareConfig,
   OutputGuardrailsMiddlewareConfig,
   NormalizedGuardrailContext,
-  // Re-export AI SDK types for convenience
+  // Context types
+  InputGuardrailContext,
+  OutputGuardrailContext,
+  AIResult,
+  // Utility types for metadata inference
+  ExtractGuardrailMetadata,
+  UnionFromGuardrails,
+  InferInputMetadata,
+  InferOutputMetadata,
+  // Logger interface
+  Logger,
+  // AI SDK parameter types (derived for convenience)
+  GenerateTextParams,
+  GenerateObjectParams,
+  StreamTextParams,
+  StreamObjectParams,
+  EmbedParams,
+  // AI SDK result types (derived for convenience)
+  GenerateTextResult,
+  GenerateObjectResult,
+  StreamTextResult,
+  StreamObjectResult,
+  EmbedResult,
+  // Core AI SDK types needed for guardrails API
   LanguageModelV2,
   LanguageModelV2Middleware,
   LanguageModelV2CallOptions,
@@ -153,3 +175,69 @@ export {
 } from './guardrails/stop-conditions';
 
 export type { GuardrailViolation } from './guardrails/stop-conditions';
+
+// Agent guardrails types
+export type {
+  AgentGuardrailsRetry,
+  AgentGuardrailsConfig,
+} from './guardrails/agent';
+
+// Abort controller for guardrail-based stopping
+export {
+  createGuardrailAbortController,
+  GuardrailViolationAbort,
+} from './guardrails/abort-controller';
+
+// Stream transforms for efficient guardrail checking
+export {
+  createGuardrailStreamTransform,
+  createGuardrailStreamTransformBuffered,
+} from './guardrails/streaming';
+
+export type { GuardrailStreamTransformOptions } from './guardrails/streaming';
+
+// Token-level streaming control
+export {
+  createTokenBudgetTransform,
+  createTokenAwareGuardrailTransform,
+  estimateTokenCount,
+} from './guardrails/token-control';
+
+export type {
+  TokenBudgetOptions,
+  TokenAwareGuardrailOptions,
+} from './guardrails/token-control';
+
+// Multi-step guardrail-aware prepareStep
+export {
+  createGuardrailPrepareStep,
+  createAdaptivePrepareStep,
+} from './guardrails/prepare-step';
+
+export type {
+  GuardrailPrepareStepOptions,
+  AdaptivePrepareStepOptions,
+} from './guardrails/prepare-step';
+
+// Tool execution abortion
+export {
+  wrapToolWithAbortion,
+  createToolAbortionController,
+} from './guardrails/tool-abortion';
+
+export type {
+  ToolAbortionControllerOptions,
+  WrapToolWithAbortionOptions,
+} from './guardrails/tool-abortion';
+
+// Finish reason customization and provider metadata
+export {
+  getGuardrailFinishReason,
+  createGuardrailProviderMetadata,
+  createFinishReasonEnhancement,
+} from './guardrails/finish-reason';
+
+export type {
+  FinishReasonOptions,
+  ProviderMetadataOptions,
+} from './guardrails/finish-reason';

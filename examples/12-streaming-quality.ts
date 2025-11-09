@@ -230,6 +230,7 @@ async function demonstrateQualityMonitoring() {
     console.log('\n✅ Quality check complete\n');
   } catch (error) {
     console.log('❌ Error:', (error as Error).message);
+    throw error;
   }
 
   console.log('Test 2: Stream with potential issues');
@@ -247,6 +248,7 @@ async function demonstrateQualityMonitoring() {
     console.log('\n✅ Quality check complete\n');
   } catch (error) {
     console.log('❌ Error:', (error as Error).message);
+    throw error;
   }
 }
 
@@ -288,6 +290,7 @@ async function demonstrateHallucinationDetection() {
     console.log('\n✅ Hallucination check complete\n');
   } catch (error) {
     console.log('❌ Error:', (error as Error).message);
+    throw error;
   }
 }
 
@@ -335,6 +338,7 @@ async function demonstrateCombinedQualityChecks() {
     console.log('\n\n✅ All quality checks complete\n');
   } catch (error) {
     console.log('❌ Error:', (error as Error).message);
+    throw error;
   }
 }
 
@@ -385,6 +389,7 @@ async function demonstrateRealTimeMetrics() {
     );
   } catch (error) {
     console.log('❌ Error:', (error as Error).message);
+    throw error;
   }
 }
 

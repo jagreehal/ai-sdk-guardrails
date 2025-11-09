@@ -799,6 +799,7 @@ try {
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 2: Authentication tokens in input (should be redacted)
@@ -815,6 +816,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 3: Credentials in input (should be redacted)
@@ -830,6 +832,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 4: Personal information in input (should be redacted)
@@ -846,6 +849,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 5: Financial information in input (should be redacted)
@@ -862,6 +866,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 6: Business identifiers in input (should be redacted)
@@ -877,6 +882,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 7: Medical information in input (should be redacted)
@@ -893,6 +899,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 8: Network information in input (should be redacted)
@@ -909,6 +916,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 9: Complex logging scenario (should be redacted)
@@ -925,6 +933,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 10: Compliance analysis

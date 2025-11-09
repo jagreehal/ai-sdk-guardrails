@@ -164,6 +164,7 @@ try {
   console.log('✅ Success:', JSON.stringify(result.object, null, 2) + '\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 2: Invalid parameter (too long location)
@@ -185,6 +186,7 @@ try {
     }),
   });
   console.log('✅ Success:', JSON.stringify(result.object, null, 2) + '\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -207,6 +209,7 @@ try {
   console.log('✅ Success:', JSON.stringify(result.object, null, 2) + '\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 4: Invalid file path (should be blocked)
@@ -227,6 +230,7 @@ try {
     }),
   });
   console.log('✅ Success:', JSON.stringify(result.object, null, 2) + '\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }

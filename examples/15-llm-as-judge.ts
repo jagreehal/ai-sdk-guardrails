@@ -382,6 +382,7 @@ try {
   console.log(`Response: ${result.text.slice(0, 100)}...\n`);
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 console.log('Test 2: Potentially problematic request');
@@ -394,6 +395,7 @@ try {
   console.log(`Response: ${result.text}\n`);
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Example 2: Factual accuracy checking
@@ -430,6 +432,7 @@ try {
   console.log(`Response: ${result.text}\n`);
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Example 3: Bias detection
@@ -466,6 +469,7 @@ try {
   console.log(`Response: ${result.text.slice(0, 100)}...\n`);
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Example 4: Combined LLM judges
@@ -496,6 +500,7 @@ try {
   console.log(`Response: ${result.text.slice(0, 150)}...\n`);
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 console.log('📊 Summary:');

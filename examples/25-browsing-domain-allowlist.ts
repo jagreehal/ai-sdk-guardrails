@@ -742,6 +742,7 @@ try {
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 2: Allowed domain (should pass)
@@ -754,6 +755,7 @@ try {
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 3: Blocked domain (should be blocked)
@@ -764,6 +766,7 @@ try {
     prompt: 'Access http://localhost:3000/admin',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -776,6 +779,7 @@ try {
     prompt: 'Use https://api.example.com/data?api_key=secret123&token=abc123',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -788,6 +792,7 @@ try {
     prompt: 'Download from https://example.com/file.exe',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -800,6 +805,7 @@ try {
     prompt: 'Access file:///etc/passwd',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -812,6 +818,7 @@ try {
     prompt: 'Use http://api.example.com/data',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -824,6 +831,7 @@ try {
     prompt: 'Connect to https://example.com:22',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }
@@ -862,6 +870,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Unexpected error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 10: Multiple URLs with mixed compliance
@@ -873,6 +882,7 @@ try {
       'Use https://api.openai.com/v1/models and http://localhost:3000/admin',
   });
   console.log('✅ Success:', result.text.slice(0, 100) + '...\n');
+  throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
 }

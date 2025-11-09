@@ -134,6 +134,7 @@ async function example1_FactualityCorrect() {
     }
   } catch (error) {
     console.error('❌ Error:', error);
+    throw error;
   }
 }
 
@@ -217,6 +218,7 @@ async function example3_FactualityNonBlocking() {
     }
   } catch (error) {
     console.error('❌ Unexpected error:', error);
+    throw error;
   }
 }
 
@@ -384,6 +386,7 @@ async function example5_CustomEvaluation() {
     }
   } catch (error) {
     console.error('❌ Error:', error);
+    throw error;
   }
 }
 

@@ -129,6 +129,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
+  throw error;
 }
 
 // Test invalid user (might fail validation)
@@ -172,6 +173,7 @@ try {
   console.log('✅ Product generated:', JSON.stringify(result.object, null, 2));
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
+  throw error;
 }
 
 // Example 3: Complex nested schema validation
@@ -223,6 +225,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
+  throw error;
 }
 
 // Example 4: Custom validation rules
@@ -310,6 +313,7 @@ try {
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
+  throw error;
 }
 
 console.log('\n📊 Summary:');

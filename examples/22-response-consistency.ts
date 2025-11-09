@@ -300,6 +300,7 @@ try {
   console.log('✅ Response:', result.text.slice(0, 150) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 2: Consistent follow-up
@@ -312,6 +313,7 @@ try {
   console.log('✅ Response:', result.text.slice(0, 150) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 3: Similar question (should maintain consistency)
@@ -324,6 +326,7 @@ try {
   console.log('✅ Response:', result.text.slice(0, 150) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 4: Different topic (should not trigger consistency check)
@@ -336,6 +339,7 @@ try {
   console.log('✅ Response:', result.text.slice(0, 150) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 5: Return to original topic
@@ -348,6 +352,7 @@ try {
   console.log('✅ Response:', result.text.slice(0, 150) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Test 6: Conflicting information request
@@ -360,6 +365,7 @@ try {
   console.log('✅ Response:', result.text.slice(0, 150) + '...\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
+  throw error;
 }
 
 // Summary of consistency validation
