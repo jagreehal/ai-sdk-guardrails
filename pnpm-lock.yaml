@@ -83,7 +83,7 @@ importers:
         version: 15.1.0
       ollama:
         specifier: ^0.6.2
-        version: 0.6.2
+        version: 0.6.3
       openai:
         specifier: ^6.8.1
         version: 6.9.0(ws@8.18.3)(zod@4.1.12)
@@ -1943,8 +1943,8 @@ packages:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
     engines: {node: '>=0.10.0'}
 
-  ollama@0.6.2:
-    resolution: {integrity: sha512-VcPZpBuz3kdoJIcyWpiDS1MSDSZKyQPM6f9wi405vdLOB5yZWiQ+m7NSTrYsntQyCp/s/Yy0quKiYerhq7Liog==}
+  ollama@0.6.3:
+    resolution: {integrity: sha512-KEWEhIqE5wtfzEIZbDCLH51VFZ6Z3ZSa6sIOg/E/tBV8S51flyqBOXi+bRxlOYKDf8i327zG9eSTb8IJxvm3Zg==}
 
   openai@4.104.0:
     resolution: {integrity: sha512-p99EFNsA/yX6UhVO93f5kJsDRLAg+CTA2RBqdHK4RtK8u5IJw32Hyb2dTGKbnnFmnuoBv5r7Z2CURI9sGZpSuA==}
@@ -3389,7 +3389,7 @@ snapshots:
       '@ai-sdk/provider': 2.0.0
       '@ai-sdk/provider-utils': 3.0.16(zod@4.1.12)
       ai: 5.0.93(zod@4.1.12)
-      ollama: 0.6.2
+      ollama: 0.6.3
     transitivePeerDependencies:
       - zod
 
@@ -4300,7 +4300,7 @@ snapshots:
 
   object-assign@4.1.1: {}
 
-  ollama@0.6.2:
+  ollama@0.6.3:
     dependencies:
       whatwg-fetch: 3.6.20
 
