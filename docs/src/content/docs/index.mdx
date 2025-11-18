@@ -1,0 +1,84 @@
+---
+title: AI SDK Guardrails
+description: Input and output safety controls for AI SDK applications
+template: splash
+hero:
+  title: AI SDK Guardrails
+  tagline: Input and output safety controls for the Vercel AI SDK. Add validation, filtering, and quality checks to your AI applications.
+  actions:
+    - text: Get Started
+      link: /quick-start/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/jagreehal/ai-sdk-guardrails
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Usage
+
+```ts
+import { withGuardrails, piiDetector } from 'ai-sdk-guardrails';
+import { openai } from '@ai-sdk/openai';
+
+const model = withGuardrails(openai('gpt-4o'), {
+  inputGuardrails: [piiDetector()],
+});
+
+await generateText({ model, prompt: '...' });
+```
+
+## Features
+
+<CardGrid stagger>
+  <Card title="Built-in Guardrails" icon="puzzle">
+    30+ guardrails for PII detection, prompt injection blocking, toxicity filtering, and content validation.
+  </Card>
+  <Card title="OpenAI Config Compatible" icon="file">
+    Load configs from guardrails.openai.com directly. Supports snake_case config format with automatic mapping.
+  </Card>
+  <Card title="Auto-Retry" icon="refresh">
+    Retry when outputs don't meet quality standards. Configurable backoff and retry strategies.
+  </Card>
+  <Card title="Streaming Support" icon="rocket">
+    Progressive and buffered streaming modes with guardrail checking.
+  </Card>
+  <Card title="Tool Validation" icon="setting">
+    Validate tool calls, enforce policies, and control tool execution in agent workflows.
+  </Card>
+  <Card title="Custom Guardrails" icon="pencil">
+    Create domain-specific guardrails with a type-safe API.
+  </Card>
+</CardGrid>
+
+## Provider Compatibility
+
+Works with all AI SDK providers: OpenAI, Anthropic, Google, Mistral, Groq, Ollama, and custom providers.
+
+## Quick Example
+
+```ts
+import { withGuardrails, piiDetector, sensitiveDataFilter } from 'ai-sdk-guardrails';
+import { openai } from '@ai-sdk/openai';
+import { generateText } from 'ai';
+
+const model = withGuardrails(openai('gpt-4o'), {
+  inputGuardrails: [piiDetector()],
+  outputGuardrails: [sensitiveDataFilter()],
+});
+
+const { text } = await generateText({
+  model,
+  prompt: 'Analyze this customer request...',
+});
+```
+
+## Use Cases
+
+- **Input validation**: Check for PII, prompt injection, toxic content
+- **Output validation**: Filter sensitive data, enforce quality standards
+- **Compliance**: Block regulated content, maintain audit trails
+- **Tool security**: Validate tool calls, enforce execution policies

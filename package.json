@@ -1,43 +1,8 @@
 {
-  "name": "ai-sdk-guardrails",
-  "version": "5.0.2",
-  "description": "Input and output guardrails middleware for Vercel AI SDK.",
-  "keywords": [
-    "ai",
-    "guardrails",
-    "vercel-ai-sdk",
-    "typescript",
-    "validation",
-    "safety",
-    "streaming",
-    "security",
-    "content-filtering",
-    "prompt-injection",
-    "ai-safety"
-  ],
-  "main": "dist/index.js",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
-    "./guardrails/input": {
-      "types": "./dist/guardrails/input.d.ts",
-      "import": "./dist/guardrails/input.js",
-      "require": "./dist/guardrails/input.cjs"
-    },
-    "./guardrails/output": {
-      "types": "./dist/guardrails/output.d.ts",
-      "import": "./dist/guardrails/output.js",
-      "require": "./dist/guardrails/output.cjs"
-    },
-    "./guardrails/tools": {
-      "types": "./dist/guardrails/tools.d.ts",
-      "import": "./dist/guardrails/tools.js",
-      "require": "./dist/guardrails/tools.cjs"
-    }
-  },
+  "name": "ai-sdk-guardrails-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AI SDK Guardrails monorepo - Production-ready guardrails for AI SDK applications",
   "homepage": "https://github.com/jagreehal/ai-sdk-guardrails",
   "bugs": {
     "url": "https://github.com/jagreehal/ai-sdk-guardrails/issues"
@@ -48,69 +13,34 @@
     "url": "git+https://github.com/jagreehal/ai-sdk-guardrails.git"
   },
   "license": "MIT",
-  "files": [
-    "dist"
-  ],
   "type": "module",
   "scripts": {
-    "prepare": "tsup",
-    "prepublishOnly": "pnpm build",
-    "build": "tsup",
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "format": "turbo format",
+    "format:check": "turbo format:check",
+    "test": "turbo test --filter=!@ai-sdk-guardrails/examples",
+    "test:all": "turbo test",
+    "type-check": "turbo type-check",
+    "check-exports": "turbo check-exports",
+    "clean": "turbo clean",
     "ci": "pnpm build && pnpm format:check && pnpm check-exports && pnpm lint && pnpm test",
-    "lint": "eslint src/**/*.ts examples/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier --check src/**/*.ts examples/**/*.ts",
-    "type-check": "tsc --noEmit",
-    "test": "vitest run",
-    "check-format": "prettier --check .",
-    "check-exports": "attw --pack . --ignore-rules false-esm no-resolution",
+    "quality": "pnpm lint && pnpm type-check && pnpm test && pnpm format && pnpm check-exports",
     "local-release": "pnpm build && pnpm format:check && pnpm check-exports && pnpm lint && pnpm test && changeset version && changeset publish",
     "release": "changeset publish",
-    "quality": "pnpm lint && pnpm type-check && pnpm test && pnpm format && pnpm check-exports"
-  },
-  "dependencies": {
-    "@ai-sdk/provider": "2.0.0",
-    "ai": "5.0.89",
-    "zod": "^4.1.12"
-  },
-  "peerDependencies": {
-    "@opentelemetry/api": "^1.0.0"
-  },
-  "peerDependenciesMeta": {
-    "@opentelemetry/api": {
-      "optional": true
-    }
+    "changeset": "changeset",
+    "version-packages": "changeset version"
   },
   "devDependencies": {
-    "@ai-sdk/groq": "^2.0.28",
-    "@ai-sdk/mistral": "2.0.23",
-    "@ai-sdk/openai": "2.0.64",
-    "@arethetypeswrong/cli": "^0.18.2",
     "@changesets/cli": "^2.29.7",
-    "@eslint/js": "^9.39.1",
-    "@opentelemetry/api": "^1.9.0",
-    "@total-typescript/ts-reset": "^0.6.1",
-    "@total-typescript/tsconfig": "^1.0.4",
-    "@types/eslint-config-prettier": "^6.11.3",
-    "@types/node": "^24.10.0",
-    "@typescript-eslint/eslint-plugin": "^8.46.3",
-    "@typescript-eslint/parser": "^8.46.3",
-    "ai-sdk-ollama": "^1.0.1",
-    "autoevals": "^0.0.131",
-    "dotenv": "^17.2.3",
-    "eslint": "^9.39.1",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-unicorn": "^62.0.0",
-    "globals": "^16.5.0",
-    "mathjs": "^15.1.0",
-    "ollama": "^0.6.2",
-    "openai": "^6.8.1",
     "prettier": "^3.6.2",
-    "tsup": "^8.5.0",
-    "tsx": "^4.20.6",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.46.3",
-    "vitest": "^4.0.8"
-  }
+    "turbo": "^2.6.1",
+    "tsx": "^4.20.6"
+  },
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=8"
+  },
+  "packageManager": "pnpm@10.22.0"
 }
