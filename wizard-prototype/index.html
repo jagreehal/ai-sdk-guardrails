@@ -234,11 +234,39 @@
               </li>
             </ol>
           </div>
-          <div
-            class="bg-gray-900 text-gray-100 p-6 rounded-lg font-mono text-sm overflow-x-auto mb-6"
-            id="code-preview"
-          >
-            <!-- Generated code will appear here -->
+          <div class="mb-6">
+            <div class="flex gap-4 mb-4">
+              <button
+                id="show-code-btn"
+                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                onclick="showCodeView()"
+              >
+                TypeScript Code
+              </button>
+              <button
+                id="show-config-btn"
+                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                onclick="showConfigView()"
+              >
+                OpenAI Config JSON
+              </button>
+            </div>
+            <div id="code-view">
+              <div
+                class="bg-gray-900 text-gray-100 p-6 rounded-lg font-mono text-sm overflow-x-auto mb-6"
+                id="code-preview"
+              >
+                <!-- Generated code will appear here -->
+              </div>
+            </div>
+            <div id="config-view" style="display: none;">
+              <div
+                class="bg-gray-900 text-gray-100 p-6 rounded-lg font-mono text-sm overflow-x-auto mb-6"
+                id="openai-config-preview"
+              >
+                <!-- OpenAI config will appear here -->
+              </div>
+            </div>
           </div>
           <div class="flex justify-center gap-4 mt-8">
             <button
@@ -675,6 +703,7 @@
 
       function generateCode() {
         const container = document.getElementById('code-preview');
+        const configContainer = document.getElementById('openai-config-preview');
         const useCase = selectedUseCase;
         const guardrails = guardrailDatabase[useCase] || [];
         const selected = guardrails.filter((g) =>
@@ -713,9 +742,71 @@
           });
         });
 
-        // Generate code
+        // Generate code and config
         const code = generateTypeScriptCode(selected, configuration);
+        const openAIConfig = generateOpenAIConfig(selected, configuration);
         container.textContent = code;
+        
+        // Also show OpenAI config format
+        if (configContainer) {
+          configContainer.textContent = JSON.stringify(openAIConfig, null, 2);
+        }
+      }
+      
+      function generateOpenAIConfig(guardrails, config) {
+        const openAIConfig = {
+          version: 1,
+        };
+        
+        // Map guardrail IDs to OpenAI names and stages
+        const guardrailMapping = {
+          'pii-detector': { name: 'Contains PII', stage: 'pre_flight' },
+          'prompt-injection': { name: 'Prompt Injection Detection', stage: 'input' },
+          'toxicity-detector': { name: 'Moderation', stage: 'output' },
+          'profanity-filter': { name: 'Moderation', stage: 'output' },
+          'hallucination-detector': { name: 'Hallucination Detection', stage: 'output' },
+          'rate-limiting': { name: 'Jailbreak', stage: 'input' }, // Map to closest match
+        };
+        
+        // Group guardrails by stage
+        const stages = { pre_flight: [], input: [], output: [] };
+        
+        guardrails.forEach((guardrail) => {
+          const mapping = guardrailMapping[guardrail.id];
+          if (mapping) {
+            const guardrailConfig = {
+              name: mapping.name,
+              config: config[guardrail.id] || {},
+            };
+            
+            // Transform config to OpenAI format
+            if (guardrail.id === 'pii-detector') {
+              guardrailConfig.config.entities = guardrailConfig.config.entities || ['EMAIL_ADDRESS', 'PHONE_NUMBER'];
+              guardrailConfig.config.block = guardrailConfig.config.block || false;
+            } else if (guardrail.id === 'toxicity-detector' || guardrail.id === 'profanity-filter') {
+              guardrailConfig.config.categories = guardrailConfig.config.categories || ['hate', 'harassment'];
+            } else if (guardrail.id === 'prompt-injection') {
+              guardrailConfig.config.confidence_threshold = guardrailConfig.config.confidence_threshold || 0.7;
+              guardrailConfig.config.model = guardrailConfig.config.model || 'gpt-4o-mini';
+            } else if (guardrail.id === 'hallucination-detector') {
+              guardrailConfig.config = {};
+            }
+            
+            stages[mapping.stage].push(guardrailConfig);
+          }
+        });
+        
+        // Add stages to config
+        Object.keys(stages).forEach((stage) => {
+          if (stages[stage].length > 0) {
+            openAIConfig[stage] = {
+              version: 1,
+              guardrails: stages[stage],
+            };
+          }
+        });
+        
+        return openAIConfig;
       }
 
       function generateTypeScriptCode(guardrails, config) {
@@ -843,10 +934,35 @@ ${guardrailInstances}
 ${usage}`;
       }
 
+      function showCodeView() {
+        document.getElementById('code-view').style.display = 'block';
+        document.getElementById('config-view').style.display = 'none';
+        document.getElementById('show-code-btn').classList.add('bg-blue-700');
+        document.getElementById('show-code-btn').classList.remove('bg-blue-600');
+        document.getElementById('show-config-btn').classList.add('bg-green-600');
+        document.getElementById('show-config-btn').classList.remove('bg-green-700');
+      }
+      
+      function showConfigView() {
+        document.getElementById('code-view').style.display = 'none';
+        document.getElementById('config-view').style.display = 'block';
+        document.getElementById('show-code-btn').classList.add('bg-blue-600');
+        document.getElementById('show-code-btn').classList.remove('bg-blue-700');
+        document.getElementById('show-config-btn').classList.add('bg-green-700');
+        document.getElementById('show-config-btn').classList.remove('bg-green-600');
+      }
+      
       function copyCode() {
         const code = document.getElementById('code-preview').textContent;
         navigator.clipboard.writeText(code).then(() => {
           alert('✅ Code copied to clipboard!');
+        });
+      }
+      
+      function copyConfig() {
+        const config = document.getElementById('openai-config-preview').textContent;
+        navigator.clipboard.writeText(config).then(() => {
+          alert('✅ OpenAI config copied to clipboard!');
         });
       }
 
