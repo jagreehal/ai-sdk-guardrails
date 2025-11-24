@@ -23,12 +23,9 @@ describe('createToolAbortionController', () => {
           tripwireTriggered: true,
           message: 'Violation',
           severity: 'critical' as const,
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/tool-abortion.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/tool-abortion.test.ts
         }),
       },
     ];
@@ -55,12 +52,9 @@ describe('createToolAbortionController', () => {
         execute: async () => ({
           tripwireTriggered: false,
           message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/tool-abortion.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/tool-abortion.test.ts
         }),
       },
     ];
@@ -90,12 +84,9 @@ describe('createToolAbortionController', () => {
           tripwireTriggered: true,
           message: 'High severity',
           severity: 'high' as const,
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/tool-abortion.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/tool-abortion.test.ts
         }),
       },
     ];
@@ -143,12 +134,9 @@ describe('wrapToolWithAbortion', () => {
         execute: async () => ({
           tripwireTriggered: false,
           message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/tool-abortion.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/tool-abortion.test.ts
         }),
       },
     ];
@@ -165,12 +153,9 @@ describe('wrapToolWithAbortion', () => {
     const guardrailExecute = vi.fn(async () => ({
       tripwireTriggered: false,
       message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/tool-abortion.test.ts
       info: {
         guardrailName: 'test-guardrail',
       },
-=======
->>>>>>> origin/main:src/guardrails/tool-abortion.test.ts
     }));
 
     const tool = {
@@ -211,12 +196,9 @@ describe('wrapToolWithAbortion', () => {
           tripwireTriggered: true,
           message: 'Dangerous input detected',
           severity: 'critical' as const,
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/tool-abortion.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/tool-abortion.test.ts
         }),
       },
     ];
@@ -253,12 +235,9 @@ describe('wrapToolWithAbortion', () => {
           return {
             tripwireTriggered: false,
             message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/tool-abortion.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/tool-abortion.test.ts
           };
         },
       },
@@ -298,23 +277,17 @@ describe('wrapToolWithAbortion', () => {
               tripwireTriggered: true,
               message: 'Execution taking too long',
               severity: 'critical' as const,
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/tool-abortion.test.ts
               info: {
                 guardrailName: 'test-guardrail',
               },
-=======
->>>>>>> origin/main:src/guardrails/tool-abortion.test.ts
             };
           }
           return {
             tripwireTriggered: false,
             message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/tool-abortion.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/tool-abortion.test.ts
           };
         },
       },
@@ -374,23 +347,17 @@ describe('wrapToolWithAbortion', () => {
               tripwireTriggered: true,
               message: 'Bad input detected',
               severity: 'high' as const,
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/tool-abortion.test.ts
               info: {
                 guardrailName: 'test-guardrail',
               },
-=======
->>>>>>> origin/main:src/guardrails/tool-abortion.test.ts
             };
           }
           return {
             tripwireTriggered: false,
             message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/tool-abortion.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/tool-abortion.test.ts
           };
         },
       },

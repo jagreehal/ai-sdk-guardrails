@@ -14,12 +14,9 @@ describe('getGuardrailFinishReason', () => {
           tripwireTriggered: true,
           message: 'Toxic content',
           severity: 'high',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/finish-reason.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/finish-reason.test.ts
         },
       ],
       allResults: [],
@@ -39,12 +36,9 @@ describe('getGuardrailFinishReason', () => {
         {
           tripwireTriggered: false,
           message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/finish-reason.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/finish-reason.test.ts
         },
       ],
       totalExecutionTime: 0,
@@ -63,12 +57,9 @@ describe('getGuardrailFinishReason', () => {
           tripwireTriggered: true,
           message: 'Custom block',
           severity: 'critical',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/finish-reason.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/finish-reason.test.ts
         },
       ],
       allResults: [],
@@ -93,12 +84,9 @@ describe('createGuardrailProviderMetadata', () => {
           message: 'PII detected',
           severity: 'high',
           context: { guardrailName: 'pii-detector', executedAt: new Date() },
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/finish-reason.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/finish-reason.test.ts
         },
       ],
       allResults: [],
@@ -138,12 +126,9 @@ describe('createGuardrailProviderMetadata', () => {
         {
           tripwireTriggered: false,
           message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/finish-reason.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/finish-reason.test.ts
         },
       ],
       totalExecutionTime: 25,
@@ -177,12 +162,9 @@ describe('createGuardrailProviderMetadata', () => {
           message: 'Test',
           severity: 'medium',
           metadata: { customField: 'value' },
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/finish-reason.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/finish-reason.test.ts
         },
       ],
       allResults: [],
@@ -211,12 +193,9 @@ describe('createFinishReasonEnhancement', () => {
           tripwireTriggered: true,
           message: 'Blocked',
           severity: 'high',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/finish-reason.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/finish-reason.test.ts
         },
       ],
       allResults: [],
@@ -244,12 +223,9 @@ describe('createFinishReasonEnhancement', () => {
           message: 'Violation',
           severity: 'critical',
           context: { guardrailName: 'test', executedAt: new Date() },
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/finish-reason.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/finish-reason.test.ts
         },
       ],
       allResults: [],
@@ -279,12 +255,9 @@ describe('createFinishReasonEnhancement', () => {
           tripwireTriggered: true,
           message: 'Test',
           severity: 'medium',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/finish-reason.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/finish-reason.test.ts
         },
       ],
       allResults: [],
@@ -315,12 +288,9 @@ describe('createFinishReasonEnhancement', () => {
         {
           tripwireTriggered: false,
           message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/finish-reason.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/finish-reason.test.ts
         },
       ],
       totalExecutionTime: 10,

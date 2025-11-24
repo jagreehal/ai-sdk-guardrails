@@ -17,12 +17,9 @@ describe('createGuardrailStreamTransform', () => {
         execute: async () => ({
           tripwireTriggered: false,
           message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/streaming.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/streaming.test.ts
         }),
       },
     ];
@@ -72,7 +69,6 @@ describe('createGuardrailStreamTransform', () => {
               tripwireTriggered: true,
               message: 'Toxic content detected',
               severity: 'critical' as const,
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/streaming.test.ts
               info: {
                 guardrailName: 'toxic-filter',
               },
@@ -85,11 +81,6 @@ describe('createGuardrailStreamTransform', () => {
               guardrailName: 'toxic-filter',
             },
           };
-=======
-            };
-          }
-          return { tripwireTriggered: false, message: '' };
->>>>>>> origin/main:src/guardrails/streaming.test.ts
         },
       },
     ];
@@ -137,12 +128,9 @@ describe('createGuardrailStreamTransform', () => {
           tripwireTriggered: true,
           message: 'Violation',
           severity: 'high' as const,
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/streaming.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/streaming.test.ts
         }),
       },
     ];
@@ -187,12 +175,9 @@ describe('createGuardrailStreamTransform', () => {
     const executeFn = vi.fn(async () => ({
       tripwireTriggered: false,
       message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/streaming.test.ts
       info: {
         guardrailName: 'test-guardrail',
       },
-=======
->>>>>>> origin/main:src/guardrails/streaming.test.ts
     }));
 
     const guardrails: OutputGuardrail[] = [
@@ -238,12 +223,9 @@ describe('createGuardrailStreamTransform', () => {
     const executeFn = vi.fn(async () => ({
       tripwireTriggered: false,
       message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/streaming.test.ts
       info: {
         guardrailName: 'test-guardrail',
       },
-=======
->>>>>>> origin/main:src/guardrails/streaming.test.ts
     }));
 
     const guardrails: OutputGuardrail[] = [
@@ -290,12 +272,9 @@ describe('createGuardrailStreamTransform', () => {
           tripwireTriggered: true,
           message: 'Low severity',
           severity: 'low' as const,
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/streaming.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/streaming.test.ts
         }),
       },
     ];
@@ -334,12 +313,9 @@ describe('createGuardrailStreamTransform', () => {
           tripwireTriggered: true,
           message: 'Low severity',
           severity: 'low' as const,
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/streaming.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/streaming.test.ts
         }),
       },
     ];

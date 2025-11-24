@@ -30,12 +30,9 @@ describe('createGuardrailAbortController', () => {
             tripwireTriggered: true,
             message: 'Critical violation',
             severity: 'critical',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
           },
         ],
         blockedResults: [
@@ -43,12 +40,9 @@ describe('createGuardrailAbortController', () => {
             tripwireTriggered: true,
             message: 'Critical violation',
             severity: 'critical',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
           },
         ],
         totalExecutionTime: 100,
@@ -69,12 +63,9 @@ describe('createGuardrailAbortController', () => {
             tripwireTriggered: true,
             message: 'Medium violation',
             severity: 'medium',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
           },
         ],
         blockedResults: [
@@ -82,12 +73,9 @@ describe('createGuardrailAbortController', () => {
             tripwireTriggered: true,
             message: 'Medium violation',
             severity: 'medium',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
           },
         ],
         totalExecutionTime: 100,
@@ -108,12 +96,9 @@ describe('createGuardrailAbortController', () => {
             tripwireTriggered: true,
             message: 'High violation',
             severity: 'high',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
           },
         ],
         blockedResults: [
@@ -121,12 +106,9 @@ describe('createGuardrailAbortController', () => {
             tripwireTriggered: true,
             message: 'High violation',
             severity: 'high',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
           },
         ],
         totalExecutionTime: 100,
@@ -146,12 +128,9 @@ describe('createGuardrailAbortController', () => {
           {
             tripwireTriggered: false,
             message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
           },
         ],
         blockedResults: [],
@@ -174,12 +153,9 @@ describe('createGuardrailAbortController', () => {
             message: 'PII detected',
             severity: 'critical',
             metadata: { detectedPII: ['email'] },
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
           },
         ],
         blockedResults: [
@@ -188,12 +164,9 @@ describe('createGuardrailAbortController', () => {
             message: 'PII detected',
             severity: 'critical',
             metadata: { detectedPII: ['email'] },
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
           },
         ],
         totalExecutionTime: 100,
@@ -218,12 +191,9 @@ describe('createGuardrailAbortController', () => {
             tripwireTriggered: true,
             message: 'Low violation',
             severity: 'low',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
           },
         ],
         blockedResults: [
@@ -231,12 +201,9 @@ describe('createGuardrailAbortController', () => {
             tripwireTriggered: true,
             message: 'Low violation',
             severity: 'low',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
           },
         ],
         totalExecutionTime: 100,
@@ -258,12 +225,9 @@ describe('createGuardrailAbortController', () => {
           {
             tripwireTriggered: false,
             message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
             info: {
               guardrailName: 'test-guardrail',
             },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
           },
         ],
         blockedResults: [],
@@ -300,12 +264,9 @@ describe('GuardrailViolationAbort', () => {
           tripwireTriggered: true,
           message: 'Test violation',
           severity: 'critical',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
         },
       ],
       totalExecutionTime: 100,
@@ -329,23 +290,17 @@ describe('GuardrailViolationAbort', () => {
           tripwireTriggered: true,
           message: 'Violation 1',
           severity: 'critical',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
         },
         {
           tripwireTriggered: true,
           message: 'Violation 2',
           severity: 'high',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/abort-controller.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/abort-controller.test.ts
         },
       ],
       totalExecutionTime: 100,

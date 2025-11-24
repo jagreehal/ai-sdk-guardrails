@@ -702,4 +702,3 @@ export function registerOpenAIGuardrails(): void {
 
 // Auto-register on import
 registerOpenAIGuardrails();
-

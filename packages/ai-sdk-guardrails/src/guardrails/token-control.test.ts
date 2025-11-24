@@ -138,12 +138,9 @@ describe('createTokenAwareGuardrailTransform', () => {
     const executeFn = vi.fn(async () => ({
       tripwireTriggered: false,
       message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/token-control.test.ts
       info: {
         guardrailName: 'test-guardrail',
       },
-=======
->>>>>>> origin/main:src/guardrails/token-control.test.ts
     }));
 
     const guardrails: OutputGuardrail[] = [
@@ -194,12 +191,9 @@ describe('createTokenAwareGuardrailTransform', () => {
         execute: async () => ({
           tripwireTriggered: false,
           message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/token-control.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/token-control.test.ts
         }),
       },
     ];
@@ -251,7 +245,6 @@ describe('createTokenAwareGuardrailTransform', () => {
               tripwireTriggered: true,
               message: 'Toxic content',
               severity: 'critical' as const,
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/token-control.test.ts
               info: {
                 guardrailName: 'toxic-filter',
               },
@@ -264,11 +257,6 @@ describe('createTokenAwareGuardrailTransform', () => {
               guardrailName: 'toxic-filter',
             },
           };
-=======
-            };
-          }
-          return { tripwireTriggered: false, message: '' };
->>>>>>> origin/main:src/guardrails/token-control.test.ts
         },
       },
     ];
@@ -314,12 +302,9 @@ describe('createTokenAwareGuardrailTransform', () => {
         execute: async () => ({
           tripwireTriggered: false,
           message: '',
-<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/token-control.test.ts
           info: {
             guardrailName: 'test-guardrail',
           },
-=======
->>>>>>> origin/main:src/guardrails/token-control.test.ts
         }),
       },
     ];

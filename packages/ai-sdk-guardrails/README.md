@@ -748,8 +748,8 @@ Browse 48+ runnable examples: [examples/README.md](../examples/README.md) |
 
 ### Quick Starts
 
-| Example                    | Description                     | File                                                                              |
-| -------------------------- | ------------------------------- | --------------------------------------------------------------------------------- |
+| Example                    | Description                     | File                                                                               |
+| -------------------------- | ------------------------------- | ---------------------------------------------------------------------------------- |
 | Simple combined protection | Minimal input and output setup  | [07a-simple-combined-protection.ts](../examples/07a-simple-combined-protection.ts) |
 | Auto retry on output       | Retry until output meets a rule | [32-auto-retry-output.ts](../examples/32-auto-retry-output.ts)                     |
 | LLM judge auto-retry       | Judge feedback drives retry     | [35-judge-auto-retry.ts](../examples/35-judge-auto-retry.ts)                       |
@@ -757,8 +757,8 @@ Browse 48+ runnable examples: [examples/README.md](../examples/README.md) |
 
 ### Input Safety
 
-| Example            | Description                         | File                                                            |
-| ------------------ | ----------------------------------- | --------------------------------------------------------------- |
+| Example            | Description                         | File                                                             |
+| ------------------ | ----------------------------------- | ---------------------------------------------------------------- |
 | Input length limit | Enforce max input length            | [01-input-length-limit.ts](../examples/01-input-length-limit.ts) |
 | Blocked keywords   | Block specific terms                | [02-blocked-keywords.ts](../examples/02-blocked-keywords.ts)     |
 | PII detection      | Detect PII before calling the model | [03-pii-detection.ts](../examples/03-pii-detection.ts)           |
@@ -766,24 +766,24 @@ Browse 48+ runnable examples: [examples/README.md](../examples/README.md) |
 
 ### Output Safety
 
-| Example                 | Description                         | File                                                                      |
-| ----------------------- | ----------------------------------- | ------------------------------------------------------------------------- |
+| Example                 | Description                         | File                                                                       |
+| ----------------------- | ----------------------------------- | -------------------------------------------------------------------------- |
 | Output length check     | Require min/max output length       | [04-output-length-check.ts](../examples/04-output-length-check.ts)         |
 | Sensitive output filter | Filter secrets and PII in responses | [05-sensitive-output-filter.ts](../examples/05-sensitive-output-filter.ts) |
 | Hallucination detection | Flag uncertain factual claims       | [19-hallucination-detection.ts](../examples/19-hallucination-detection.ts) |
 
 ### Streaming
 
-| Example           | Description                        | File                                                                              |
-| ----------------- | ---------------------------------- | --------------------------------------------------------------------------------- |
+| Example           | Description                        | File                                                                               |
+| ----------------- | ---------------------------------- | ---------------------------------------------------------------------------------- |
 | Streaming limits  | Apply limits in buffered streaming | [11-streaming-limits.ts](../examples/11-streaming-limits.ts)                       |
 | Streaming quality | Quality checks with streaming      | [12-streaming-quality.ts](../examples/12-streaming-quality.ts)                     |
 | Early termination | Stop streams early when blocked    | [28-streaming-early-termination.ts](../examples/28-streaming-early-termination.ts) |
 
 ### Advanced
 
-| Example                    | Description                   | File                                                                            |
-| -------------------------- | ----------------------------- | ------------------------------------------------------------------------------- |
+| Example                    | Description                   | File                                                                             |
+| -------------------------- | ----------------------------- | -------------------------------------------------------------------------------- |
 | Simple quality judge       | Cheaper model judges quality  | [15a-simple-quality-judge.ts](../examples/15a-simple-quality-judge.ts)           |
 | Secret leakage scan        | Scan responses for secrets    | [18-secret-leakage-scan.ts](../examples/18-secret-leakage-scan.ts)               |
 | SQL code safety            | Basic SQL safety checks       | [24-sql-code-safety.ts](../examples/24-sql-code-safety.ts)                       |
