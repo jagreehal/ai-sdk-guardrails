@@ -31,9 +31,12 @@ describe('createGuardrailPrepareStep', () => {
               tripwireTriggered: true,
               message: 'Violation',
               severity: 'medium',
+<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/prepare-step.test.ts
               info: {
                 guardrailName: 'test-guardrail',
               },
+=======
+>>>>>>> origin/main:src/guardrails/prepare-step.test.ts
             },
           ],
           allResults: [],
@@ -67,9 +70,12 @@ describe('createGuardrailPrepareStep', () => {
               tripwireTriggered: true,
               message: 'PII detected',
               severity: 'high',
+<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/prepare-step.test.ts
               info: {
                 guardrailName: 'test-guardrail',
               },
+=======
+>>>>>>> origin/main:src/guardrails/prepare-step.test.ts
             },
           ],
           allResults: [],
@@ -102,9 +108,12 @@ describe('createGuardrailPrepareStep', () => {
               tripwireTriggered: true,
               message: 'Critical issue',
               severity: 'critical',
+<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/prepare-step.test.ts
               info: {
                 guardrailName: 'test-guardrail',
               },
+=======
+>>>>>>> origin/main:src/guardrails/prepare-step.test.ts
             },
           ],
           allResults: [],
@@ -142,9 +151,12 @@ describe('createGuardrailPrepareStep', () => {
               tripwireTriggered: true,
               message: 'Old violation',
               severity: 'medium',
+<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/prepare-step.test.ts
               info: {
                 guardrailName: 'test-guardrail',
               },
+=======
+>>>>>>> origin/main:src/guardrails/prepare-step.test.ts
             },
           ],
           allResults: [],
@@ -180,9 +192,12 @@ describe('createGuardrailPrepareStep', () => {
               tripwireTriggered: true,
               message: 'High severity',
               severity: 'high',
+<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/prepare-step.test.ts
               info: {
                 guardrailName: 'test-guardrail',
               },
+=======
+>>>>>>> origin/main:src/guardrails/prepare-step.test.ts
             },
           ],
           allResults: [],
@@ -228,9 +243,12 @@ describe('createAdaptivePrepareStep', () => {
               tripwireTriggered: true,
               message: 'Test violation',
               severity: 'medium',
+<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/prepare-step.test.ts
               info: {
                 guardrailName: 'test-guardrail',
               },
+=======
+>>>>>>> origin/main:src/guardrails/prepare-step.test.ts
             },
           ],
           allResults: [],
@@ -272,9 +290,12 @@ describe('createAdaptivePrepareStep', () => {
               tripwireTriggered: true,
               message: 'Test violation',
               severity: 'medium',
+<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/prepare-step.test.ts
               info: {
                 guardrailName: 'test-guardrail',
               },
+=======
+>>>>>>> origin/main:src/guardrails/prepare-step.test.ts
             },
           ],
           allResults: [],
@@ -314,9 +335,12 @@ describe('createAdaptivePrepareStep', () => {
               tripwireTriggered: true,
               message: 'Violation 1',
               severity: 'medium',
+<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/prepare-step.test.ts
               info: {
                 guardrailName: 'test-guardrail',
               },
+=======
+>>>>>>> origin/main:src/guardrails/prepare-step.test.ts
             },
           ],
           allResults: [],
@@ -333,9 +357,12 @@ describe('createAdaptivePrepareStep', () => {
               tripwireTriggered: true,
               message: 'Violation 2',
               severity: 'medium',
+<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/prepare-step.test.ts
               info: {
                 guardrailName: 'test-guardrail',
               },
+=======
+>>>>>>> origin/main:src/guardrails/prepare-step.test.ts
             },
           ],
           allResults: [],
@@ -352,9 +379,12 @@ describe('createAdaptivePrepareStep', () => {
               tripwireTriggered: true,
               message: 'Violation 3',
               severity: 'medium',
+<<<<<<< HEAD:packages/ai-sdk-guardrails/src/guardrails/prepare-step.test.ts
               info: {
                 guardrailName: 'test-guardrail',
               },
+=======
+>>>>>>> origin/main:src/guardrails/prepare-step.test.ts
             },
           ],
           allResults: [],

@@ -1,67 +1,47 @@
 # AI SDK Guardrails Examples
 
-Short, focused scripts that show common guardrail patterns. Each file is self-contained and demonstrates production-ready patterns.
+Short, focused scripts that show common guardrail patterns. Each file is self-contained.
 
 ## Run
 
 ```bash
-# Most examples use Ollama (local, no API key required)
-# Ensure Ollama is running: ollama serve
+# Ensure your provider env is set (e.g., OPENAI_API_KEY)
 # Then run any script with tsx
-npx tsx 01-input-length-limit.ts
-
-# Or use cloud providers (set API keys as needed)
-export OPENAI_API_KEY=sk-...
-npx tsx 16-prompt-injection-detection.ts
+npx tsx examples/01-input-length-limit.ts
 ```
-
-## Naming Conventions
-
-All examples follow **AI SDK naming patterns**:
-- Functions: `camelCase` (withGuardrails, defineInputGuardrail)
-- Parameters: `camelCase` (inputGuardrails, outputGuardrails, throwOnBlocked)
-- Types: `PascalCase` (InputGuardrail, OutputGuardrail)
-
-OpenAI configs (example 53) use `snake_case` and are automatically mapped internally.
 
 ## Highlights
 
-- **Quick starts**
+- Quick starts
   - [07a-simple-combined-protection.ts](./07a-simple-combined-protection.ts) — minimal input and output setup
-  - [53-openai-config-example.ts](./53-openai-config-example.ts) — use OpenAI guardrails.openai.com configs directly
   - [32-auto-retry-output.ts](./32-auto-retry-output.ts) — retry until output meets a rule
-  - [35-judge-auto-retry.ts](./35-judge-auto-retry.ts) — LLM-judge reasons drive auto-retry
+  - [33-judge-auto-retry.ts](./33-judge-auto-retry.ts) — LLM-judge reasons drive auto-retry
   - [34-expected-tool-use-retry.ts](./34-expected-tool-use-retry.ts) — expect tool use and retry
   - [33-blog-post-weather-assistant.ts](./33-blog-post-weather-assistant.ts) — end-to-end input/output + retry
 
-- **OpenAI Compatibility**
-  - [53-openai-config-example.ts](./53-openai-config-example.ts) — load and use configs from guardrails.openai.com
-
-- **Input safety**
+- Input safety
   - [01-input-length-limit.ts](./01-input-length-limit.ts) — enforce max input length
   - [02-blocked-keywords.ts](./02-blocked-keywords.ts) — block specific terms
   - [03-pii-detection.ts](./03-pii-detection.ts) — detect PII before calling the model
   - [13-rate-limiting.ts](./13-rate-limiting.ts) — simple per-user rate limit
 
-- **Output safety**
+- Output safety
   - [04-output-length-check.ts](./04-output-length-check.ts) — require min/max output length
   - [05-sensitive-output-filter.ts](./05-sensitive-output-filter.ts) — filter secrets and PII in responses
   - [19-hallucination-detection.ts](./19-hallucination-detection.ts) — flag uncertain factual claims
 
-- **Streaming**
+- Streaming
   - [11-streaming-limits.ts](./11-streaming-limits.ts) — apply limits in buffered streaming
   - [12-streaming-quality.ts](./12-streaming-quality.ts) — quality checks with streaming
   - [28-streaming-early-termination.ts](./28-streaming-early-termination.ts) — stop streams early when blocked
-  - [50-stream-early-termination.ts](./50-stream-early-termination.ts) — advanced stream control
 
-- **Advanced**
+- Advanced
   - [15a-simple-quality-judge.ts](./15a-simple-quality-judge.ts) — cheaper model judges quality
   - [18-secret-leakage-scan.ts](./18-secret-leakage-scan.ts) — scan responses for secrets
   - [24-sql-code-safety.ts](./24-sql-code-safety.ts) — basic SQL safety checks
   - [23-role-hierarchy-enforcement.ts](./23-role-hierarchy-enforcement.ts) — enforce role rules in prompts
   - [39-advanced-security-guardrails.ts](./39-advanced-security-guardrails.ts) — comprehensive security guardrails
-  - [40-tool-guardrails.ts](./40-tool-guardrails.ts) — complete tool security with validation
-  - [41-mcp-security-test.ts](./41-mcp-security-test.ts) — MCP tool security patterns
+  - [40-comprehensive-tool-security.ts](./40-comprehensive-tool-security.ts) — complete tool security with role-based access
 
 ## Full Index
 
@@ -105,13 +85,9 @@ OpenAI configs (example 53) use `snake_case` and are automatically mapped intern
 | Auto retry output            | [32-auto-retry-output.ts](./32-auto-retry-output.ts)                                 | retry, output             |
 | Blog post weather assistant  | [33-blog-post-weather-assistant.ts](./33-blog-post-weather-assistant.ts)             | input, output, retry      |
 | Expected tool use retry      | [34-expected-tool-use-retry.ts](./34-expected-tool-use-retry.ts)                     | retry, tools              |
-| LLM judge auto-retry         | [35-judge-auto-retry.ts](./35-judge-auto-retry.ts)                                   | retry, judge, quality     |
+| LLM judge auto-retry         | [35-judge-auto-retry.ts](./33-judge-auto-retry.ts)                                   | retry, judge, quality     |
 | Agent example                | [36-agent-example.ts](./36-agent-example.ts)                                         | agent, tools              |
 | Agent composition cascade    | [37-agent-composition-cascade-failure.ts](./37-agent-composition-cascade-failure.ts) | agent, reliability        |
 | Agent routing reliability    | [38-agent-routing-reliability.ts](./38-agent-routing-reliability.ts)                 | agent, routing            |
 | Advanced security guardrails | [39-advanced-security-guardrails.ts](./39-advanced-security-guardrails.ts)           | security, comprehensive   |
-| Tool guardrails              | [40-tool-guardrails.ts](./40-tool-guardrails.ts)                                     | tools, security, validation |
-| MCP security test            | [41-mcp-security-test.ts](./41-mcp-security-test.ts)                                 | mcp, security             |
-| Stream early termination     | [50-stream-early-termination.ts](./50-stream-early-termination.ts)                   | streaming, control        |
-| Guardrails with telemetry    | [52-guardrails-with-telemetry.ts](./52-guardrails-with-telemetry.ts)                 | observability, telemetry  |
-| OpenAI config format         | [53-openai-config-example.ts](./53-openai-config-example.ts)                         | openai, config, integration |
+| Comprehensive tool security  | [40-comprehensive-tool-security.ts](./40-comprehensive-tool-security.ts)             | tools, security, roles    |
