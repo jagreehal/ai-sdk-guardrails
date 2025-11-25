@@ -12,7 +12,7 @@
   "dependencies": {
     "@ai-sdk/groq": "^2.0.31",
     "@ai-sdk/mistral": "2.0.24",
-    "@ai-sdk/openai": "2.0.71",
+    "@ai-sdk/openai": "2.0.72",
     "@opentelemetry/api": "^1.9.0",
     "ai": "5.0.101",
     "ai-sdk-guardrails": "workspace:*",
