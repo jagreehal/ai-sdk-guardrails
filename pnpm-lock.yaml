@@ -71,8 +71,8 @@ importers:
         specifier: 2.0.24
         version: 2.0.24(zod@4.1.13)
       '@ai-sdk/openai':
-        specifier: 2.0.71
-        version: 2.0.71(zod@4.1.13)
+        specifier: 2.0.72
+        version: 2.0.72(zod@4.1.13)
       '@arethetypeswrong/cli':
         specifier: ^0.18.2
         version: 0.18.2
@@ -140,8 +140,8 @@ importers:
         specifier: 2.0.24
         version: 2.0.24(zod@4.1.13)
       '@ai-sdk/openai':
-        specifier: 2.0.71
-        version: 2.0.71(zod@4.1.13)
+        specifier: 2.0.72
+        version: 2.0.72(zod@4.1.13)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -206,8 +206,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/openai@2.0.71':
-    resolution: {integrity: sha512-tg+gj+R0z/On9P4V7hy7/7o04cQPjKGayMCL3gzWD/aNGjAKkhEnaocuNDidSnghizt8g2zJn16cAuAolnW+qQ==}
+  '@ai-sdk/openai@2.0.72':
+    resolution: {integrity: sha512-9j8Gdt9gFiUGFdQIjjynbC7+w8YQxkXje6dwAq1v2Pj17wmB3U0Td3lnEe/a+EnEysY3mdkc8dHPYc5BNev9NQ==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -4110,7 +4110,7 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.17(zod@4.1.13)
       zod: 4.1.13
 
-  '@ai-sdk/openai@2.0.71(zod@4.1.13)':
+  '@ai-sdk/openai@2.0.72(zod@4.1.13)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
       '@ai-sdk/provider-utils': 3.0.17(zod@4.1.13)
