@@ -17,7 +17,7 @@
     "prettier-plugin-astro": "^0.14.1"
   },
   "dependencies": {
-    "@astrojs/check": "^0.9.5",
+    "@astrojs/check": "^0.9.6",
     "@astrojs/starlight": "^0.36.3",
     "@astrojs/sitemap": "^3.6.0",
     "@expressive-code/plugin-collapsible-sections": "^0.41.3",
