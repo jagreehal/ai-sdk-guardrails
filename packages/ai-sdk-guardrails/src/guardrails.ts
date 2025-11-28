@@ -27,6 +27,10 @@ const USE_ENHANCED_RUNTIME =
 // Enhanced retry integration temporarily disabled due to AI SDK type complexity
 import { extractContent } from './guardrails/output';
 import {
+  createDefaultBuildRetryParams,
+  resolveRetryConfig,
+} from './guardrails/retry-helpers';
+import {
   executeInputGuardrailsWithEnhancedRuntime,
   executeOutputGuardrailsWithEnhancedRuntime,
 } from './adapters/parallel-runtime-adapter';
@@ -1566,25 +1570,55 @@ export function createOutputGuardrailsMiddleware<
         startTime,
       );
       if (executionSummary.blockedResults.length > 0) {
+        // Get blocked guardrail objects for retry config resolution
+        const blockedGuardrailObjects = executionSummary.blockedResults
+          .map((r: GuardrailResult) =>
+            outputGuardrails.find(
+              (g) =>
+                g.name ===
+                (r.context?.guardrailName ??
+                  (r.info as Record<string, unknown> | undefined)
+                    ?.guardrailName),
+            ),
+          )
+          .filter((g): g is OutputGuardrail<M> => g !== undefined);
+
+        // Resolve effective retry config (withGuardrails level takes precedence)
+        const effectiveRetry = resolveRetryConfig(
+          retry,
+          blockedGuardrailObjects,
+        );
+
         // Auto-retry path - inline retry logic (middleware pattern limitation)
         if (
-          retry &&
-          (retry.onlyWhen ? retry.onlyWhen(executionSummary) : true)
+          effectiveRetry.maxRetries > 0 &&
+          (retry?.onlyWhen ? retry.onlyWhen(executionSummary) : true)
         ) {
-          const maxRetries = retry.maxRetries ?? 1;
+          const maxRetries = effectiveRetry.maxRetries;
           let lastParams = params;
           let lastResult = result;
 
           for (let attempt = 1; attempt <= maxRetries; attempt++) {
             const wait =
-              typeof retry.backoffMs === 'function'
-                ? retry.backoffMs(attempt)
-                : (retry.backoffMs ?? 0);
+              typeof effectiveRetry.backoffMs === 'function'
+                ? effectiveRetry.backoffMs(attempt)
+                : (effectiveRetry.backoffMs ?? 0);
             if (wait && wait > 0) {
               await new Promise((r) => setTimeout(r, wait));
             }
 
-            const nextParams = retry.buildRetryParams({
+            // Use provided buildRetryParams or create default
+            const buildRetryParams =
+              retry?.buildRetryParams ??
+              createDefaultBuildRetryParams({
+                outputGuardrails,
+                multipleBlockedStrategy:
+                  retry?.multipleBlockedStrategy ?? 'highest-severity',
+                attempt,
+                maxRetries,
+              });
+
+            const nextParams = buildRetryParams({
               summary: executionSummary,
               originalParams: params,
               lastParams,
@@ -1706,12 +1740,31 @@ export function createOutputGuardrailsMiddleware<
             );
 
             if (executionSummary.blockedResults.length > 0) {
+              // Get blocked guardrail objects for retry config resolution
+              const blockedGuardrailObjects = executionSummary.blockedResults
+                .map((r: GuardrailResult) =>
+                  outputGuardrails.find(
+                    (g) =>
+                      g.name ===
+                      (r.context?.guardrailName ??
+                        (r.info as Record<string, unknown> | undefined)
+                          ?.guardrailName),
+                  ),
+                )
+                .filter((g): g is OutputGuardrail<M> => g !== undefined);
+
+              // Resolve effective retry config (withGuardrails level takes precedence)
+              const effectiveRetry = resolveRetryConfig(
+                retry,
+                blockedGuardrailObjects,
+              );
+
               // Auto-retry (buffer mode only) - inline retry logic
               if (
-                retry &&
-                (retry.onlyWhen ? retry.onlyWhen(executionSummary) : true)
+                effectiveRetry.maxRetries > 0 &&
+                (retry?.onlyWhen ? retry.onlyWhen(executionSummary) : true)
               ) {
-                const maxRetries = retry.maxRetries ?? 1;
+                const maxRetries = effectiveRetry.maxRetries;
                 let lastParams = params;
                 let lastResult: AIResult | { text: string } = {
                   text: accumulatedText,
@@ -1719,14 +1772,25 @@ export function createOutputGuardrailsMiddleware<
 
                 for (let attempt = 1; attempt <= maxRetries; attempt++) {
                   const wait =
-                    typeof retry.backoffMs === 'function'
-                      ? retry.backoffMs(attempt)
-                      : (retry.backoffMs ?? 0);
+                    typeof effectiveRetry.backoffMs === 'function'
+                      ? effectiveRetry.backoffMs(attempt)
+                      : (effectiveRetry.backoffMs ?? 0);
                   if (wait && wait > 0) {
                     await new Promise((r) => setTimeout(r, wait));
                   }
 
-                  const nextParams = retry.buildRetryParams({
+                  // Use provided buildRetryParams or create default
+                  const buildRetryParams =
+                    retry?.buildRetryParams ??
+                    createDefaultBuildRetryParams({
+                      outputGuardrails,
+                      multipleBlockedStrategy:
+                        retry?.multipleBlockedStrategy ?? 'highest-severity',
+                      attempt,
+                      maxRetries,
+                    });
+
+                  const nextParams = buildRetryParams({
                     summary: executionSummary,
                     originalParams: params,
                     lastParams,
