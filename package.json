@@ -33,7 +33,7 @@
     "version-packages": "changeset version"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.29.7",
+    "@changesets/cli": "^2.29.8",
     "prettier": "^3.6.2",
     "turbo": "^2.6.1",
     "tsx": "^4.20.6"
