@@ -16,8 +16,7 @@
  */
 
 import { generateText } from 'ai';
-import { withGuardrails } from '../src';
-import { defineInputGuardrail, defineOutputGuardrail } from '../src';
+import { withGuardrails, defineInputGuardrail, defineOutputGuardrail } from 'ai-sdk-guardrails';
 import { extractTextContent } from 'ai-sdk-guardrails/guardrails/input';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 import { trace } from '@opentelemetry/api';

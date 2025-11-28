@@ -1,10 +1,24 @@
 import { createOutputGuardrail } from '../core';
 import type {
   AIResult,
+  GuardrailRetryConfig,
   OutputGuardrail,
   OutputGuardrailContext,
+  RetryInstructionContext,
 } from '../types';
 import { extractContent } from './output';
+
+/**
+ * Metadata returned by the expectedToolUse guardrail.
+ * Used for type-safe access in getRetryInstruction and buildRetryParams.
+ */
+export interface ExpectedToolUseMetadata extends Record<string, unknown> {
+  expectedTools: string[];
+  observedTools: string[];
+  observedMarkers: string[];
+  missingTools: string[];
+  detection: string;
+}
 
 export interface ExpectedToolUseOptions {
   /** One or more tool names that must be used. */
@@ -28,6 +42,19 @@ export interface ExpectedToolUseOptions {
    * Return an array of tool names observed.
    */
   providerExtractor?: (result: AIResult) => string[];
+  /**
+   * Retry configuration for this guardrail.
+   * When specified, enables automatic retry with context-aware instructions.
+   *
+   * @example
+   * ```typescript
+   * expectedToolUse({
+   *   tools: 'calculator',
+   *   retry: { maxRetries: 2 }
+   * })
+   * ```
+   */
+  retry?: GuardrailRetryConfig;
 }
 
 function defaultMarker(tool: string): string {
@@ -241,21 +268,52 @@ function determineDetectionType(
   return 'none';
 }
 
+/**
+ * Guardrail that verifies evidence of expected tool usage.
+ *
+ * **Improved DX in v5.0:** Now supports guardrail-level retry configuration
+ * with context-aware retry instructions.
+ *
+ * @example Simple usage
+ * ```typescript
+ * expectedToolUse({ tools: 'calculator' })
+ * ```
+ *
+ * @example With retry (new in v5.0)
+ * ```typescript
+ * expectedToolUse({
+ *   tools: 'calculator',
+ *   retry: { maxRetries: 2 }
+ * })
+ * ```
+ *
+ * @example Multiple tools
+ * ```typescript
+ * expectedToolUse({
+ *   tools: ['search', 'browser'],
+ *   requireAll: false
+ * })
+ * ```
+ */
 export function expectedToolUse(
   options: ExpectedToolUseOptions,
-): OutputGuardrail {
+): OutputGuardrail<ExpectedToolUseMetadata> {
   const {
     tools,
     requireAll = true,
     mode = 'auto',
     textMarkers,
     providerExtractor,
+    retry: retryConfig,
   } = options;
   const expected = Array.isArray(tools) ? tools : [tools];
 
-  return createOutputGuardrail(
-    'expected-tool-use',
-    (context: OutputGuardrailContext) => {
+  // Return guardrail with retry support (constructed directly for proper typing)
+  return {
+    name: 'expected-tool-use',
+    retry: retryConfig,
+
+    execute: (context: OutputGuardrailContext) => {
       const { result } = context;
 
       // Extract provider tools
@@ -282,7 +340,7 @@ export function expectedToolUse(
       const missing = expected.filter((t) => !detectedTools.has(t));
       const passed = requireAll ? missing.length === 0 : detectedTools.size > 0;
 
-      const metadata = {
+      const metadata: ExpectedToolUseMetadata = {
         expectedTools: expected,
         observedTools: [...new Set(observedTools)],
         observedMarkers,
@@ -324,7 +382,28 @@ export function expectedToolUse(
         },
       };
     },
-  );
+
+    getRetryInstruction: (
+      ctx: RetryInstructionContext<ExpectedToolUseMetadata>,
+    ) => {
+      const missingTools = ctx.result.metadata?.missingTools ?? expected;
+      const attempt = ctx.attempt;
+      const toolName = missingTools[0] ?? 'the required tool';
+
+      if (missingTools.length === 1) {
+        const urgency = attempt > 1 ? 'CRITICAL: ' : '';
+        return {
+          message: `${urgency}Your previous response did not call any tools. You MUST call the "${toolName}" tool function NOW. Do not respond with text - invoke the tool first. This is attempt ${attempt}.`,
+          context: { missingTools, attempt },
+        };
+      }
+
+      return {
+        message: `REQUIRED: You must call these tool functions: ${missingTools.join(', ')}. Do not respond with text until you have called the tools. Attempt ${attempt}.`,
+        context: { missingTools, attempt },
+      };
+    },
+  };
 }
 
 /**

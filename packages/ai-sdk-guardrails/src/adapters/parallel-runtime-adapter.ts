@@ -129,7 +129,9 @@ export async function executeOutputGuardrailsWithEnhancedRuntime<
   // Convert guardrails to specs
   const specs = guardrails
     .filter((g) => g.enabled !== false)
-    .map((g) => outputGuardrailToSpec(g));
+    .map((g) =>
+      outputGuardrailToSpec(g as OutputGuardrail<Record<string, unknown>>),
+    );
 
   // Create a guardrail bundle for the enhanced runtime
   const bundle: GuardrailBundle = {

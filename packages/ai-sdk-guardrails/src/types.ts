@@ -105,6 +105,50 @@ export interface Logger {
   debug(message: string, ...args: any[]): void;
 }
 
+// ============================================================================
+// Retry Configuration Types
+// ============================================================================
+
+/**
+ * Retry configuration that can be specified at the guardrail level.
+ * When specified here, it provides guardrail-specific retry behavior.
+ * The withGuardrails-level retry config takes precedence when both are specified.
+ */
+export interface GuardrailRetryConfig {
+  /** Maximum retries for this specific guardrail */
+  maxRetries?: number;
+  /** Backoff between retry attempts (ms or function) */
+  backoffMs?: number | ((attempt: number) => number);
+}
+
+/**
+ * Context provided to getRetryInstruction for generating context-aware retry prompts.
+ * Contains information about what failed and the current retry attempt.
+ */
+export interface RetryInstructionContext<M = Record<string, unknown>> {
+  /** The guardrail result that triggered the retry */
+  result: GuardrailResult<M>;
+  /** Current retry attempt number (1-based) */
+  attempt: number;
+  /** Maximum retry attempts configured */
+  maxRetries: number;
+}
+
+/**
+ * Retry instruction returned by guardrails.
+ * Provides context-aware retry prompts that the default buildRetryParams uses.
+ */
+export interface RetryInstruction {
+  /** The instruction text to append as a user message */
+  message: string;
+  /** Optional temperature adjustment (e.g., -0.1 to make more deterministic) */
+  temperatureAdjustment?: number;
+  /** Optional additional context for logging/debugging */
+  context?: Record<string, unknown>;
+}
+
+// ============================================================================
+
 // Normalized internal types for better type safety and maintainability
 export interface NormalizedGuardrailContext {
   /** The main prompt/input text */
@@ -238,6 +282,36 @@ export interface OutputGuardrail<M = Record<string, unknown>> {
   setup?: () => Promise<void> | void;
   /** Optional cleanup function called when guardrail is destroyed */
   cleanup?: () => Promise<void> | void;
+
+  /**
+   * Retry configuration specific to this guardrail.
+   * When specified, provides guardrail-level retry behavior.
+   * The withGuardrails-level retry config takes precedence when both are specified.
+   */
+  retry?: GuardrailRetryConfig;
+
+  /**
+   * Generate a context-aware retry instruction when this guardrail blocks.
+   * Called by the default buildRetryParams to create appropriate retry prompts.
+   *
+   * @param context Information about the blocked result and retry attempt
+   * @returns RetryInstruction with message and optional temperature adjustment,
+   *          or a simple string message, or undefined to use default fallback
+   *
+   * @example
+   * ```typescript
+   * getRetryInstruction: (ctx) => {
+   *   const missing = ctx.result.metadata?.missingTools ?? [];
+   *   return {
+   *     message: `Please use the ${missing.join(', ')} tool(s) to complete this task.`,
+   *     temperatureAdjustment: -0.1,
+   *   };
+   * }
+   * ```
+   */
+  getRetryInstruction?: (
+    context: RetryInstructionContext<M>,
+  ) => RetryInstruction | string | undefined;
 }
 
 /**
@@ -649,8 +723,34 @@ export interface OutputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
 
   /**
    * Optional automatic retry when output guardrails block a result.
-   * Keeps DX simple by allowing users to provide only a small builder
-   * that amends params for the next attempt.
+   *
+   * **Improved DX in v5.0:** When `buildRetryParams` is not provided, the library
+   * uses a default implementation that:
+   * 1. Finds which guardrail(s) blocked the result
+   * 2. Calls their `getRetryInstruction()` method if available
+   * 3. Appends the instruction as a user message to the prompt
+   *
+   * @example Simple usage (default retry behavior)
+   * ```typescript
+   * withGuardrails(model, {
+   *   outputGuardrails: [expectedToolUse({ tools: 'calculator' })],
+   *   retry: { maxRetries: 2 },
+   * });
+   * ```
+   *
+   * @example Custom retry behavior
+   * ```typescript
+   * withGuardrails(model, {
+   *   outputGuardrails: [expectedToolUse({ tools: 'calculator' })],
+   *   retry: {
+   *     maxRetries: 2,
+   *     buildRetryParams: ({ summary, lastParams }) => ({
+   *       ...lastParams,
+   *       temperature: 0.2,
+   *     }),
+   *   },
+   * });
+   * ```
    */
   retry?: {
     /** Maximum number of retry attempts. Default: 1 */
@@ -660,10 +760,26 @@ export interface OutputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
     /** Optional predicate to enable retries only for certain violations */
     onlyWhen?: (summary: GuardrailExecutionSummary<M>) => boolean;
     /**
+     * Strategy for handling multiple blocked guardrails when generating retry instructions.
+     * Only used when `buildRetryParams` is not provided (default implementation).
+     *
+     * - 'first': Use instruction from first blocked guardrail only
+     * - 'all': Combine instructions from all blocked guardrails
+     * - 'highest-severity': Use instruction from highest severity guardrail (default)
+     *
+     * @default 'highest-severity'
+     */
+    multipleBlockedStrategy?: 'first' | 'all' | 'highest-severity';
+    /**
      * Build next call params based on previous failure.
+     *
+     * **Optional in v5.0:** When not provided, the library uses a default implementation
+     * that appends retry instructions from blocked guardrails' `getRetryInstruction()` methods.
+     *
+     * When provided, this function has full control over the retry parameters.
      * Must return complete LanguageModelV2CallOptions for the next attempt.
      */
-    buildRetryParams: (args: {
+    buildRetryParams?: (args: {
       summary: GuardrailExecutionSummary<M>;
       originalParams: LMCallOptions;
       lastParams: LMCallOptions;

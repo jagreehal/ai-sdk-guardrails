@@ -151,7 +151,7 @@ export function getGuardrailTracer(
   // Try to get global tracer from OpenTelemetry
   const otel = getOTelAPI();
   if (otel) {
-    return otel.trace.getTracer('ai-sdk-guardrails', '5.0.0');
+    return otel.trace.getTracer('ai-sdk-guardrails');
   }
 
   // Fall back to no-op tracer
@@ -252,13 +252,19 @@ export function mergeTelemetrySettings(
 /**
  * Check if telemetry is enabled based on settings.
  *
+ * **Default behavior:** Telemetry is ENABLED by default so users get
+ * OpenTelemetry tracing out of the box when using guardrails. If OTel
+ * is not configured in the environment, this has zero overhead (no-op tracer).
+ *
+ * To opt-out, explicitly set `isEnabled: false` in telemetry settings.
+ *
  * @param settings Telemetry settings
- * @returns true if telemetry should be recorded
+ * @returns true if telemetry should be recorded (default: true)
  */
 export function isTelemetryEnabled(
   settings?: GuardrailTelemetrySettings,
 ): boolean {
-  // Explicitly disabled
+  // Explicitly disabled - users must opt-out
   if (settings?.isEnabled === false) {
     return false;
   }
@@ -268,8 +274,8 @@ export function isTelemetryEnabled(
     return true;
   }
 
-  // Default to disabled when no settings provided
-  return false;
+  // Default: enabled out of the box for zero-config observability
+  return true;
 }
 
 /**
@@ -307,11 +313,27 @@ export function recordErrorOnSpan(span: Span, error: unknown) {
  * Record a guardrail execution as a span.
  * Based on AI SDK's recordSpan implementation.
  *
- * @param name Span name
+ * Span naming convention follows OTel guidelines:
+ * - Format: `guardrail.<operation>` (e.g., `guardrail.check`, `guardrail.validate`)
+ * - Use lowercase with dots as separators
+ *
+ * @param name Span name (should follow `guardrail.<operation>` format)
  * @param tracer OpenTelemetry tracer
  * @param attributes Span attributes
  * @param fn Function to execute within the span
  * @returns Promise resolving to the function result
+ *
+ * @example
+ * ```typescript
+ * await recordGuardrailSpan({
+ *   name: 'guardrail.check.pii_detector',
+ *   tracer: getGuardrailTracer(settings),
+ *   attributes: { 'guardrail.name': 'pii-detector' },
+ *   fn: async (span) => {
+ *     // ... guardrail logic
+ *   }
+ * });
+ * ```
  */
 export async function recordGuardrailSpan<T>({
   name,
@@ -348,7 +370,21 @@ export async function recordGuardrailSpan<T>({
 }
 
 /**
+ * Convert camelCase to snake_case for OTel semantic convention compliance.
+ */
+function toSnakeCase(str: string): string {
+  return str.replaceAll(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+}
+
+/**
  * Add guardrail result attributes to a span.
+ * Follows OTel semantic conventions with snake_case naming.
+ *
+ * Attribute naming follows:
+ * - `guardrail.is_triggered` - boolean indicating if guardrail blocked
+ * - `guardrail.severity` - severity level (low, medium, high, critical)
+ * - `guardrail.execution_time_ms` - execution duration
+ * - `guardrail.result.*` - detailed result metadata
  *
  * @param span OpenTelemetry span
  * @param result Guardrail result
@@ -359,8 +395,12 @@ export function addGuardrailResultAttributes(
   result: GuardrailResult,
   settings?: GuardrailTelemetrySettings,
 ): void {
-  // Always record basic result info
-  span.setAttribute('guardrail.triggered', result.tripwireTriggered);
+  // Core result attributes (OTel snake_case convention)
+  span.setAttribute('guardrail.is_triggered', result.tripwireTriggered);
+
+  if (result.executionFailed !== undefined) {
+    span.setAttribute('guardrail.execution_failed', result.executionFailed);
+  }
 
   if (result.severity) {
     span.setAttribute('guardrail.severity', result.severity);
@@ -370,6 +410,10 @@ export function addGuardrailResultAttributes(
     span.setAttribute('guardrail.message', result.message);
   }
 
+  if (result.confidence !== undefined) {
+    span.setAttribute('guardrail.confidence', result.confidence);
+  }
+
   if (result.context?.executionTimeMs) {
     span.setAttribute(
       'guardrail.execution_time_ms',
@@ -377,21 +421,28 @@ export function addGuardrailResultAttributes(
     );
   }
 
-  // Record metadata if enabled
+  // Record result details if enabled (using guardrail.result.* namespace)
   const recordMetadata = settings?.recordMetadata !== false;
   if (recordMetadata && result.metadata) {
-    // Flatten metadata for span attributes
+    // Flatten metadata for span attributes with snake_case keys
     for (const [key, value] of Object.entries(result.metadata)) {
+      const snakeKey = toSnakeCase(key);
       if (
         typeof value === 'string' ||
         typeof value === 'number' ||
         typeof value === 'boolean'
       ) {
-        span.setAttribute(`guardrail.metadata.${key}`, value);
+        span.setAttribute(`guardrail.result.${snakeKey}`, value);
       } else if (Array.isArray(value)) {
-        span.setAttribute(`guardrail.metadata.${key}`, JSON.stringify(value));
+        span.setAttribute(
+          `guardrail.result.${snakeKey}`,
+          JSON.stringify(value),
+        );
       } else if (value && typeof value === 'object') {
-        span.setAttribute(`guardrail.metadata.${key}`, JSON.stringify(value));
+        span.setAttribute(
+          `guardrail.result.${snakeKey}`,
+          JSON.stringify(value),
+        );
       }
     }
   }
@@ -399,31 +450,51 @@ export function addGuardrailResultAttributes(
 
 /**
  * Add guardrail configuration attributes to a span.
+ * Includes OTel semantic convention attributes (code.*) and guardrail-specific attributes.
+ *
+ * OTel Semantic Convention attributes:
+ * - `code.namespace` - The namespace (ai-sdk-guardrails)
+ * - `code.function` - The guardrail check function name
+ *
+ * Guardrail-specific attributes:
+ * - `guardrail.name` - Guardrail identifier
+ * - `guardrail.version` - Guardrail version
+ * - `guardrail.priority` - Execution priority
+ * - `guardrail.tags` - Comma-separated tags
  *
  * @param span OpenTelemetry span
  * @param name Guardrail name
- * @param version Guardrail version
- * @param priority Guardrail priority
- * @param tags Guardrail tags
+ * @param options Additional configuration options
  */
 export function addGuardrailConfigAttributes(
   span: Span,
   name: string,
-  version?: string,
-  priority?: string,
-  tags?: string[],
+  options?: {
+    version?: string;
+    priority?: string;
+    tags?: string[];
+    /** Function name for code.function attribute */
+    functionName?: string;
+  },
 ): void {
+  // OTel semantic convention: code.* attributes
+  span.setAttribute('code.namespace', 'ai-sdk-guardrails');
+  if (options?.functionName) {
+    span.setAttribute('code.function', options.functionName);
+  }
+
+  // Guardrail-specific attributes
   span.setAttribute('guardrail.name', name);
 
-  if (version) {
-    span.setAttribute('guardrail.version', version);
+  if (options?.version) {
+    span.setAttribute('guardrail.version', options.version);
   }
 
-  if (priority) {
-    span.setAttribute('guardrail.priority', priority);
+  if (options?.priority) {
+    span.setAttribute('guardrail.priority', options.priority);
   }
 
-  if (tags && tags.length > 0) {
-    span.setAttribute('guardrail.tags', tags.join(','));
+  if (options?.tags && options.tags.length > 0) {
+    span.setAttribute('guardrail.tags', options.tags.join(','));
   }
 }
