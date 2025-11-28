@@ -75,7 +75,7 @@ export interface GuardrailResult<TMetadata = any> {
   originalException?: Error;
 
   /** Info object with structured metadata (using camelCase to match AI SDK convention) */
-  info: {
+  info?: {
     /** The processed/checked text when the guardrail modifies content */
     checkedText?: string;
     /** The media type this guardrail was designed for */

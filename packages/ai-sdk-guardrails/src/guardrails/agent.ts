@@ -86,10 +86,15 @@ export interface AgentGuardrailsRetry {
 }
 
 export interface AgentGuardrailsConfig<MIn = AnyRecord, MOut = AnyRecord> {
-  inputGuardrails?: Array<InputGuardrail<MIn>>;
-  outputGuardrails?: Array<OutputGuardrail<MOut>>;
+  /** Input guardrails to validate user input */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  inputGuardrails?: Array<InputGuardrail<any>>;
+  /** Output guardrails to validate assistant responses */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  outputGuardrails?: Array<OutputGuardrail<any>>;
   /** Guardrails that validate tool usage (applied on tool calls) */
-  toolGuardrails?: Array<OutputGuardrail<MOut>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  toolGuardrails?: Array<OutputGuardrail<any>>;
   /** If true, throw on blocked input/output; otherwise return original result */
   throwOnBlocked?: boolean;
   /** Replace blocked assistant text with a message */
@@ -319,7 +324,7 @@ export function withAgentGuardrails<
               messages: [],
             };
             await executeOutputGuardrails(
-              toolGuardrails,
+              toolGuardrails as OutputGuardrail<AnyRecord>[],
               {
                 input: context,
                 // Treat tool-call as text for generic guardrails
@@ -355,7 +360,7 @@ export function withAgentGuardrails<
     }
 
     const inputResults = await executeInputGuardrails(
-      inputGuardrails,
+      inputGuardrails as InputGuardrail<AnyRecord>[],
       normalized,
       executionOptions,
     );
@@ -411,7 +416,7 @@ export function withAgentGuardrails<
         messages: normalized.messages,
       };
       const res = await executeOutputGuardrails(
-        toolGuardrails,
+        toolGuardrails as OutputGuardrail<AnyRecord>[],
         {
           input: ctx,
           result: createMockGenerateTextResult<ToolSet, unknown>(''),
@@ -454,7 +459,7 @@ export function withAgentGuardrails<
         messages: normalized.messages,
       };
       const out = await executeOutputGuardrails(
-        outputGuardrails,
+        outputGuardrails as OutputGuardrail<AnyRecord>[],
         {
           input: ctx,
           result: createMockGenerateTextResult<ToolSet, unknown>(text),

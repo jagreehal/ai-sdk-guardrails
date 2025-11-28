@@ -69,6 +69,10 @@ export type {
   LanguageModelV2Middleware,
   LanguageModelV2CallOptions,
   LanguageModelV2StreamPart,
+  // Retry configuration types (v5.0)
+  GuardrailRetryConfig,
+  RetryInstructionContext,
+  RetryInstruction,
 } from './types';
 
 // Telemetry types for OpenTelemetry integration
@@ -146,8 +150,17 @@ export {
 
 export type {
   ExpectedToolUseOptions,
+  ExpectedToolUseMetadata,
   ToolEgressPolicyOptions,
 } from './guardrails/tools';
+
+// Retry helpers for advanced customization
+export {
+  createDefaultBuildRetryParams,
+  resolveRetryConfig,
+} from './guardrails/retry-helpers';
+
+export type { DefaultBuildRetryParamsOptions } from './guardrails/retry-helpers';
 
 export type {
   McpSecurityOptions,

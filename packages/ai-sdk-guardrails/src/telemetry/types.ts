@@ -36,9 +36,15 @@ export interface GuardrailTelemetrySettings {
   /**
    * Enable or disable telemetry for guardrails.
    *
-   * When undefined, will inherit from AI SDK's experimental_telemetry.isEnabled
+   * **Default: true** - Telemetry is enabled out of the box for zero-config
+   * observability. When OTel is not configured, a no-op tracer is used (zero overhead).
    *
-   * @default undefined (inherit from AI SDK)
+   * Set to `false` to explicitly opt-out of telemetry.
+   *
+   * When undefined, will inherit from AI SDK's experimental_telemetry.isEnabled,
+   * falling back to `true` if not specified.
+   *
+   * @default true
    */
   isEnabled?: boolean;
 
