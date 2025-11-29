@@ -117,7 +117,13 @@ export {
   costQuotaRails,
   enhancedHallucinationDetector,
   retryAfterIntegration,
+  // Utility functions
+  extractContent,
+  stringifyContent,
+  normalizeUsage,
 } from './guardrails/output';
+
+export type { NormalizedUsage } from './guardrails/output';
 
 export {
   // Input guardrails
@@ -134,6 +140,9 @@ export {
   mathHomeworkDetector,
   codeGenerationLimiter,
   allowedToolsGuardrail,
+  // Utility functions
+  extractTextContent,
+  extractMetadata,
 } from './guardrails/input';
 
 export {
@@ -167,7 +176,21 @@ export type {
   McpSecurityMetadata,
 } from './guardrails/mcp-security';
 
-export type { AllowedToolsOptions } from './guardrails/input';
+export type {
+  AllowedToolsOptions,
+  LengthLimitOptions,
+  BlockedWordsOptions,
+  RateLimitingOptions,
+  ProfanityCategory,
+  ProfanityFilterOptions,
+  CustomValidationInput,
+  CustomValidationResult,
+  CustomValidationOptions,
+  PromptInjectionOptions,
+  MathHomeworkOptions,
+  CodeGenerationMode,
+  CodeGenerationOptions,
+} from './guardrails/input';
 
 // Stop condition helpers for agent guardrails
 export {
