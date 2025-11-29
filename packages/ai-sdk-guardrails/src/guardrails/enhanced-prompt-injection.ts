@@ -553,9 +553,9 @@ export const enhancedPromptInjectionDetector = (
       // Determine if injection is detected
       const isInjectionDetected = Boolean(
         enhancedScore.finalScore > confidenceThreshold ||
-          (incrementalAnalysis &&
-            incrementalAnalysis.cumulativeScore > cumulativeThreshold) ||
-          (toolCallAnalysis && toolCallAnalysis.suspiciousCalls > 0),
+        (incrementalAnalysis &&
+          incrementalAnalysis.cumulativeScore > cumulativeThreshold) ||
+        (toolCallAnalysis && toolCallAnalysis.suspiciousCalls > 0),
       );
 
       // Create comprehensive metadata
