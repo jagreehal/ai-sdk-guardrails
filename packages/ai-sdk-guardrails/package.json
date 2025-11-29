@@ -78,7 +78,7 @@
   "devDependencies": {
     "@ai-sdk/groq": "^2.0.32",
     "@ai-sdk/mistral": "2.0.25",
-    "@ai-sdk/openai": "2.0.73",
+    "@ai-sdk/openai": "2.0.74",
     "@arethetypeswrong/cli": "^0.18.2",
     "@eslint/js": "^9.39.1",
     "@opentelemetry/api": "^1.9.0",
@@ -87,16 +87,16 @@
     "@types/eslint-config-prettier": "^6.11.3",
     "@types/node": "^24.10.1",
     "@typescript-eslint/eslint-plugin": "^8.48.0",
-    "@typescript-eslint/parser": "^8.47.0",
+    "@typescript-eslint/parser": "^8.48.0",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-unicorn": "^62.0.0",
     "globals": "^16.5.0",
-    "prettier": "^3.7.1",
+    "prettier": "^3.7.2",
     "tsup": "^8.5.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.47.0",
+    "typescript-eslint": "^8.48.0",
     "vitest": "^4.0.14"
   }
 }
