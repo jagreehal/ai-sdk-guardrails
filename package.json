@@ -36,7 +36,7 @@
     "@changesets/cli": "^2.29.8",
     "prettier": "^3.7.3",
     "turbo": "^2.6.1",
-    "tsx": "^4.20.6"
+    "tsx": "^4.21.0"
   },
   "engines": {
     "node": ">=22",
