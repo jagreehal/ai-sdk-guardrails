@@ -152,8 +152,8 @@ importers:
         specifier: workspace:*
         version: link:../ai-sdk-guardrails
       ai-sdk-ollama:
-        specifier: ^1.0.2
-        version: 1.0.2(ai@5.0.108(zod@4.1.13))(zod@4.1.13)
+        specifier: ^1.1.0
+        version: 1.1.0(ai@5.0.108(zod@4.1.13))(zod@4.1.13)
       autoevals:
         specifier: ^0.0.131
         version: 0.0.131(ws@8.18.3)
@@ -208,12 +208,6 @@ packages:
 
   '@ai-sdk/openai@2.0.80':
     resolution: {integrity: sha512-tNHuraF11db+8xJEDBoU9E3vMcpnHFKRhnLQ3DQX2LnEzfPB9DksZ8rE+yVuDN1WRW9cm2OWAhgHFgVKs7ICuw==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/provider-utils@3.0.17':
-    resolution: {integrity: sha512-TR3Gs4I3Tym4Ll+EPdzRdvo/rc8Js6c4nVhFLuvGLX/Y4V9ZcQMa/HTiYsHEgmYrf1zVi6Q145UEZUfleOwOjw==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -1495,11 +1489,11 @@ packages:
     resolution: {integrity: sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ==}
     engines: {node: '>= 8.0.0'}
 
-  ai-sdk-ollama@1.0.2:
-    resolution: {integrity: sha512-RT/FShttyyztQA8Gm/FFdXU61Yg4aTf18zZAmd0RJ3Q/8Wv72EQszwI+T9hvEP1qF7do/z1aHQMx+ZdXBaRbvQ==}
+  ai-sdk-ollama@1.1.0:
+    resolution: {integrity: sha512-Amyfr1NlP7GF0f6hLpWTnQ75gd5NN8wo+JiE4x0L2aNBsN256Qw55/xG1aCEYpDCSaZ8wBBzuvgbBn80twwVLA==}
     engines: {node: '>=22'}
     peerDependencies:
-      ai: ^5.0.97
+      ai: ^5.0.108
 
   ai@5.0.108:
     resolution: {integrity: sha512-Jex3Lb7V41NNpuqJHKgrwoU6BCLHdI1Pg4qb4GJH4jRIDRXUBySJErHjyN4oTCwbiYCeb/8II9EnqSRPq9EifA==}
@@ -4235,13 +4229,6 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.18(zod@4.1.13)
       zod: 4.1.13
 
-  '@ai-sdk/provider-utils@3.0.17(zod@4.1.13)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0
-      '@standard-schema/spec': 1.0.0
-      eventsource-parser: 3.0.6
-      zod: 4.1.13
-
   '@ai-sdk/provider-utils@3.0.18(zod@4.1.13)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
@@ -5530,10 +5517,10 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
 
-  ai-sdk-ollama@1.0.2(ai@5.0.108(zod@4.1.13))(zod@4.1.13):
+  ai-sdk-ollama@1.1.0(ai@5.0.108(zod@4.1.13))(zod@4.1.13):
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.17(zod@4.1.13)
+      '@ai-sdk/provider-utils': 3.0.18(zod@4.1.13)
       ai: 5.0.108(zod@4.1.13)
       ollama: 0.6.3
     transitivePeerDependencies:
