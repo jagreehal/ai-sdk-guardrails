@@ -58,8 +58,8 @@ importers:
         specifier: 2.0.0
         version: 2.0.0
       ai:
-        specifier: 5.0.108
-        version: 5.0.108(zod@4.1.13)
+        specifier: 5.0.109
+        version: 5.0.109(zod@4.1.13)
       zod:
         specifier: ^4.1.13
         version: 4.1.13
@@ -146,14 +146,14 @@ importers:
         specifier: ^1.9.0
         version: 1.9.0
       ai:
-        specifier: 5.0.108
-        version: 5.0.108(zod@4.1.13)
+        specifier: 5.0.109
+        version: 5.0.109(zod@4.1.13)
       ai-sdk-guardrails:
         specifier: workspace:*
         version: link:../ai-sdk-guardrails
       ai-sdk-ollama:
         specifier: ^1.1.0
-        version: 1.1.0(ai@5.0.108(zod@4.1.13))(zod@4.1.13)
+        version: 1.1.0(ai@5.0.109(zod@4.1.13))(zod@4.1.13)
       autoevals:
         specifier: ^0.0.131
         version: 0.0.131(ws@8.18.3)
@@ -1495,8 +1495,8 @@ packages:
     peerDependencies:
       ai: ^5.0.108
 
-  ai@5.0.108:
-    resolution: {integrity: sha512-Jex3Lb7V41NNpuqJHKgrwoU6BCLHdI1Pg4qb4GJH4jRIDRXUBySJErHjyN4oTCwbiYCeb/8II9EnqSRPq9EifA==}
+  ai@5.0.109:
+    resolution: {integrity: sha512-tW8K4Z0bcYH9PzP7gMmPilgBwgpylEL25bRtWruUnrTS45S6ryNJ6YSEh6mZajlIEDS6bcur7srdXVGERxjVXQ==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -5517,16 +5517,16 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
 
-  ai-sdk-ollama@1.1.0(ai@5.0.108(zod@4.1.13))(zod@4.1.13):
+  ai-sdk-ollama@1.1.0(ai@5.0.109(zod@4.1.13))(zod@4.1.13):
     dependencies:
       '@ai-sdk/provider': 2.0.0
       '@ai-sdk/provider-utils': 3.0.18(zod@4.1.13)
-      ai: 5.0.108(zod@4.1.13)
+      ai: 5.0.109(zod@4.1.13)
       ollama: 0.6.3
     transitivePeerDependencies:
       - zod
 
-  ai@5.0.108(zod@4.1.13):
+  ai@5.0.109(zod@4.1.13):
     dependencies:
       '@ai-sdk/gateway': 2.0.18(zod@4.1.13)
       '@ai-sdk/provider': 2.0.0
