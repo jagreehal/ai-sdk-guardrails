@@ -14,7 +14,7 @@
     "@ai-sdk/mistral": "2.0.25",
     "@ai-sdk/openai": "2.0.80",
     "@opentelemetry/api": "^1.9.0",
-    "ai": "5.0.109",
+    "ai": "5.0.112",
     "ai-sdk-guardrails": "workspace:*",
     "ai-sdk-ollama": "^1.1.0",
     "autoevals": "^0.0.131",
