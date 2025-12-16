@@ -59,20 +59,20 @@ importers:
         version: 2.0.0
       ai:
         specifier: 5.0.113
-        version: 5.0.113(zod@4.1.13)
+        version: 5.0.113(zod@4.2.1)
       zod:
-        specifier: ^4.1.13
-        version: 4.1.13
+        specifier: ^4.2.1
+        version: 4.2.1
     devDependencies:
       '@ai-sdk/groq':
         specifier: ^2.0.33
-        version: 2.0.33(zod@4.1.13)
+        version: 2.0.33(zod@4.2.1)
       '@ai-sdk/mistral':
         specifier: 2.0.26
-        version: 2.0.26(zod@4.1.13)
+        version: 2.0.26(zod@4.2.1)
       '@ai-sdk/openai':
         specifier: 2.0.86
-        version: 2.0.86(zod@4.1.13)
+        version: 2.0.86(zod@4.2.1)
       '@arethetypeswrong/cli':
         specifier: ^0.18.2
         version: 0.18.2
@@ -135,25 +135,25 @@ importers:
     dependencies:
       '@ai-sdk/groq':
         specifier: ^2.0.33
-        version: 2.0.33(zod@4.1.13)
+        version: 2.0.33(zod@4.2.1)
       '@ai-sdk/mistral':
         specifier: 2.0.26
-        version: 2.0.26(zod@4.1.13)
+        version: 2.0.26(zod@4.2.1)
       '@ai-sdk/openai':
         specifier: 2.0.86
-        version: 2.0.86(zod@4.1.13)
+        version: 2.0.86(zod@4.2.1)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
       ai:
         specifier: 5.0.113
-        version: 5.0.113(zod@4.1.13)
+        version: 5.0.113(zod@4.2.1)
       ai-sdk-guardrails:
         specifier: workspace:*
         version: link:../ai-sdk-guardrails
       ai-sdk-ollama:
         specifier: ^2.0.0
-        version: 2.0.0(ai@5.0.113(zod@4.1.13))(zod@4.1.13)
+        version: 2.0.0(ai@5.0.113(zod@4.2.1))(zod@4.2.1)
       autoevals:
         specifier: ^0.0.131
         version: 0.0.131(ws@8.18.3)
@@ -168,10 +168,10 @@ importers:
         version: 0.6.3
       openai:
         specifier: ^6.10.0
-        version: 6.10.0(ws@8.18.3)(zod@4.1.13)
+        version: 6.10.0(ws@8.18.3)(zod@4.2.1)
       zod:
-        specifier: ^4.1.13
-        version: 4.1.13
+        specifier: ^4.2.1
+        version: 4.2.1
     devDependencies:
       tsx:
         specifier: ^4.21.0
@@ -4191,45 +4191,45 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
-  zod@4.1.13:
-    resolution: {integrity: sha512-AvvthqfqrAhNH9dnfmrfKzX5upOdjUVJYFqNSlkmGf64gRaTzlPwz99IHYnVs28qYAybvAlBV+H7pn0saFY4Ig==}
+  zod@4.2.1:
+    resolution: {integrity: sha512-0wZ1IRqGGhMP76gLqz8EyfBXKk0J2qo2+H3fi4mcUP/KtTocoX08nmIAHl1Z2kJIZbZee8KOpBCSNPRgauucjw==}
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
 
-  '@ai-sdk/gateway@2.0.21(zod@4.1.13)':
+  '@ai-sdk/gateway@2.0.21(zod@4.2.1)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.19(zod@4.1.13)
+      '@ai-sdk/provider-utils': 3.0.19(zod@4.2.1)
       '@vercel/oidc': 3.0.5
-      zod: 4.1.13
+      zod: 4.2.1
 
-  '@ai-sdk/groq@2.0.33(zod@4.1.13)':
+  '@ai-sdk/groq@2.0.33(zod@4.2.1)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.19(zod@4.1.13)
-      zod: 4.1.13
+      '@ai-sdk/provider-utils': 3.0.19(zod@4.2.1)
+      zod: 4.2.1
 
-  '@ai-sdk/mistral@2.0.26(zod@4.1.13)':
+  '@ai-sdk/mistral@2.0.26(zod@4.2.1)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.19(zod@4.1.13)
-      zod: 4.1.13
+      '@ai-sdk/provider-utils': 3.0.19(zod@4.2.1)
+      zod: 4.2.1
 
-  '@ai-sdk/openai@2.0.86(zod@4.1.13)':
+  '@ai-sdk/openai@2.0.86(zod@4.2.1)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.19(zod@4.1.13)
-      zod: 4.1.13
+      '@ai-sdk/provider-utils': 3.0.19(zod@4.2.1)
+      zod: 4.2.1
 
-  '@ai-sdk/provider-utils@3.0.19(zod@4.1.13)':
+  '@ai-sdk/provider-utils@3.0.19(zod@4.2.1)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
       '@standard-schema/spec': 1.0.0
       eventsource-parser: 3.0.6
-      zod: 4.1.13
+      zod: 4.2.1
 
   '@ai-sdk/provider@2.0.0':
     dependencies:
@@ -5536,22 +5536,22 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
 
-  ai-sdk-ollama@2.0.0(ai@5.0.113(zod@4.1.13))(zod@4.1.13):
+  ai-sdk-ollama@2.0.0(ai@5.0.113(zod@4.2.1))(zod@4.2.1):
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.19(zod@4.1.13)
-      ai: 5.0.113(zod@4.1.13)
+      '@ai-sdk/provider-utils': 3.0.19(zod@4.2.1)
+      ai: 5.0.113(zod@4.2.1)
       ollama: 0.6.3
     transitivePeerDependencies:
       - zod
 
-  ai@5.0.113(zod@4.1.13):
+  ai@5.0.113(zod@4.2.1):
     dependencies:
-      '@ai-sdk/gateway': 2.0.21(zod@4.1.13)
+      '@ai-sdk/gateway': 2.0.21(zod@4.2.1)
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.19(zod@4.1.13)
+      '@ai-sdk/provider-utils': 3.0.19(zod@4.2.1)
       '@opentelemetry/api': 1.9.0
-      zod: 4.1.13
+      zod: 4.2.1
 
   ajv-draft-04@1.0.0(ajv@8.17.1):
     optionalDependencies:
@@ -7576,10 +7576,10 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  openai@6.10.0(ws@8.18.3)(zod@4.1.13):
+  openai@6.10.0(ws@8.18.3)(zod@4.2.1):
     optionalDependencies:
       ws: 8.18.3
-      zod: 4.1.13
+      zod: 4.2.1
 
   optionator@0.9.4:
     dependencies:
@@ -8780,6 +8780,6 @@ snapshots:
 
   zod@3.25.76: {}
 
-  zod@4.1.13: {}
+  zod@4.2.1: {}
 
   zwitch@2.0.4: {}
