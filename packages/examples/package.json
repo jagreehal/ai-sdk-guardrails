@@ -16,7 +16,7 @@
     "@opentelemetry/api": "^1.9.0",
     "ai": "5.0.113",
     "ai-sdk-guardrails": "workspace:*",
-    "ai-sdk-ollama": "^2.0.0",
+    "ai-sdk-ollama": "^2.0.1",
     "autoevals": "^0.0.131",
     "dotenv": "^17.2.3",
     "mathjs": "^15.1.0",
