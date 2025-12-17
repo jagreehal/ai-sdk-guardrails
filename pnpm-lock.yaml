@@ -58,8 +58,8 @@ importers:
         specifier: 2.0.0
         version: 2.0.0
       ai:
-        specifier: 5.0.113
-        version: 5.0.113(zod@4.2.1)
+        specifier: 5.0.114
+        version: 5.0.114(zod@4.2.1)
       zod:
         specifier: ^4.2.1
         version: 4.2.1
@@ -146,14 +146,14 @@ importers:
         specifier: ^1.9.0
         version: 1.9.0
       ai:
-        specifier: 5.0.113
-        version: 5.0.113(zod@4.2.1)
+        specifier: 5.0.114
+        version: 5.0.114(zod@4.2.1)
       ai-sdk-guardrails:
         specifier: workspace:*
         version: link:../ai-sdk-guardrails
       ai-sdk-ollama:
         specifier: ^2.0.1
-        version: 2.0.1(ai@5.0.113(zod@4.2.1))(zod@4.2.1)
+        version: 2.0.1(ai@5.0.114(zod@4.2.1))(zod@4.2.1)
       autoevals:
         specifier: ^0.0.131
         version: 0.0.131(ws@8.18.3)
@@ -1537,9 +1537,6 @@ packages:
     resolution: {integrity: sha512-t09vSN3MdfsyCHoFcTRCH/iUtG7OJ0CsjzB8cjAmKc/va/kIgeDI/TxsigdncE/4be734m0cvIYwNaV4i2XqAw==}
     engines: {node: '>=10'}
 
-  '@standard-schema/spec@1.0.0':
-    resolution: {integrity: sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA==}
-
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
@@ -1763,8 +1760,8 @@ packages:
     peerDependencies:
       ai: ^5.0.113
 
-  ai@5.0.113:
-    resolution: {integrity: sha512-26vivpSO/mzZj0k1Si2IpsFspp26ttQICHRySQiMrtWcRd5mnJMX2a8sG28vmZ38C+JUn1cWmfZrsLMxkSMw9g==}
+  ai@5.0.114:
+    resolution: {integrity: sha512-q/lxcJA6avYn/TXTaE41VX6p9lN245mDU9bIGuPpfk6WxDMvmMoUKUIS0/aXAPYN3UmkUn/r9rvq/8C98RoCWw==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -4506,7 +4503,7 @@ snapshots:
   '@ai-sdk/provider-utils@3.0.19(zod@4.2.1)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@standard-schema/spec': 1.0.0
+      '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.0.6
       zod: 4.2.1
 
@@ -5683,8 +5680,6 @@ snapshots:
 
   '@sindresorhus/is@4.6.0': {}
 
-  '@standard-schema/spec@1.0.0': {}
-
   '@standard-schema/spec@1.1.0': {}
 
   '@swc/helpers@0.5.17':
@@ -5961,16 +5956,16 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
 
-  ai-sdk-ollama@2.0.1(ai@5.0.113(zod@4.2.1))(zod@4.2.1):
+  ai-sdk-ollama@2.0.1(ai@5.0.114(zod@4.2.1))(zod@4.2.1):
     dependencies:
       '@ai-sdk/provider': 2.0.0
       '@ai-sdk/provider-utils': 3.0.19(zod@4.2.1)
-      ai: 5.0.113(zod@4.2.1)
+      ai: 5.0.114(zod@4.2.1)
       ollama: 0.6.3
     transitivePeerDependencies:
       - zod
 
-  ai@5.0.113(zod@4.2.1):
+  ai@5.0.114(zod@4.2.1):
     dependencies:
       '@ai-sdk/gateway': 2.0.21(zod@4.2.1)
       '@ai-sdk/provider': 2.0.0
