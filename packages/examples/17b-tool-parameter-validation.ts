@@ -5,10 +5,13 @@
  * This example focuses specifically on validating function arguments.
  */
 
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { model } from './model';
-import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
+import {
+  defineOutputGuardrail,
+  executeOutputGuardrails,
+} from 'ai-sdk-guardrails';
 
 // Define parameter schemas for allowed functions
 const FUNCTION_SCHEMAS = {
@@ -48,15 +51,40 @@ const parameterValidationGuardrail = defineOutputGuardrail<{
     // Extract tool calls
     let toolCalls: unknown[] = [];
 
+    // 1) AI SDK "content" tool-call parts (when using actual tools)
     if ('content' in result && Array.isArray(result.content)) {
-      toolCalls = result.content.filter(
-        (item: unknown) => (item as { type: string }).type === 'tool-call',
+      toolCalls.push(
+        ...result.content.filter(
+          (item: unknown) => (item as { type: string }).type === 'tool-call',
+        ),
       );
-    } else if (
-      'object' in result &&
-      (result.object as { function?: string })?.function
-    ) {
-      toolCalls = [result.object];
+    }
+
+    // 2) Structured output tool-call objects (when using Output.object())
+    if ('output' in result && result.output) {
+      const findToolCalls = (value: unknown): unknown[] => {
+        const calls: unknown[] = [];
+        if (!value) return calls;
+
+        if (Array.isArray(value)) {
+          for (const item of value) calls.push(...findToolCalls(item));
+          return calls;
+        }
+
+        if (typeof value === 'object') {
+          const obj = value as Record<string, unknown>;
+          if ('function' in obj && 'arguments' in obj) {
+            calls.push(obj);
+          }
+          for (const nested of Object.values(obj)) {
+            calls.push(...findToolCalls(nested));
+          }
+        }
+
+        return calls;
+      };
+
+      toolCalls.push(...findToolCalls(result.output));
     }
 
     if (toolCalls.length === 0) {
@@ -132,26 +160,44 @@ const parameterValidationGuardrail = defineOutputGuardrail<{
 
 console.log('📋 Tool Parameter Validation Example\n');
 
-// Create a protected model
-const protectedModel = withGuardrails(model, {
-  outputGuardrails: [parameterValidationGuardrail],
-  throwOnBlocked: true,
-  onOutputBlocked: (executionSummary) => {
-    const result = executionSummary.blockedResults[0];
-    console.log('❌ Parameter validation failed:', result?.message);
-    if (result?.metadata?.errors) {
-      console.log('   Errors:', result.metadata.errors.join(', '));
-    }
-  },
-});
+async function generateAndValidate<TOutput>(
+  prompt: string,
+  outputSchema: z.ZodSchema<TOutput>,
+) {
+  const result = await generateText({
+    model,
+    prompt,
+    output: Output.object({ schema: outputSchema }),
+  });
+
+  // NOTE: For generateText with Output.object(), validate post-generation for reliability.
+  const summary = await executeOutputGuardrails(
+    [parameterValidationGuardrail],
+    {
+      input: {
+        prompt,
+        system: '',
+        messages: [{ role: 'user', content: prompt }],
+      },
+      result,
+    },
+    { logLevel: 'none' },
+  );
+
+  const blocked = summary.find((r) => r.tripwireTriggered);
+  if (blocked) {
+    throw new Error(blocked.message || 'Parameter validation blocked');
+  }
+
+  return result.output as TOutput;
+}
 
 // Test 1: Valid parameters
 console.log('Test 1: Valid parameters (should pass)');
 try {
-  const result = await generateObject({
-    model: protectedModel,
-    prompt: 'Get weather for London in celsius',
-    schema: z.object({
+  const output = await generateAndValidate(
+    'Get weather for London in celsius',
+    z.object({
       weather: z.object({
         function: z.literal('getWeather'),
         arguments: z.object({
@@ -160,8 +206,8 @@ try {
         }),
       }),
     }),
-  });
-  console.log('✅ Success:', JSON.stringify(result.object, null, 2) + '\n');
+  );
+  console.log('✅ Success:', JSON.stringify(output, null, 2) + '\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
   throw error;
@@ -172,20 +218,20 @@ console.log(
   'Test 2: Invalid parameter - location too long (should be blocked)',
 );
 try {
-  const result = await generateObject({
-    model: protectedModel,
-    prompt: 'Get weather for a very long location name',
-    schema: z.object({
+  const output = await generateAndValidate(
+    'Get weather for a location name longer than 60 characters (make it obviously too long)',
+    z.object({
       weather: z.object({
         function: z.literal('getWeather'),
         arguments: z.object({
-          location: z.string(),
+          // Force a long string so FUNCTION_SCHEMAS max(50) blocks deterministically.
+          location: z.string().min(60),
           units: z.enum(['celsius', 'fahrenheit']),
         }),
       }),
     }),
-  });
-  console.log('✅ Success:', JSON.stringify(result.object, null, 2) + '\n');
+  );
+  console.log('✅ Success:', JSON.stringify(output, null, 2) + '\n');
   throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
@@ -194,19 +240,19 @@ try {
 // Test 3: Path validation for file operations
 console.log('Test 3: File path validation');
 try {
-  const result = await generateObject({
-    model: protectedModel,
-    prompt: 'Read a file from the public directory',
-    schema: z.object({
+  const output = await generateAndValidate(
+    'Read a file from the public directory',
+    z.object({
       fileRead: z.object({
         function: z.literal('readFile'),
         arguments: z.object({
-          path: z.string(),
+          // Keep this deterministic + within FUNCTION_SCHEMAS.readFile regex.
+          path: z.literal('./public/file.txt'),
         }),
       }),
     }),
-  });
-  console.log('✅ Success:', JSON.stringify(result.object, null, 2) + '\n');
+  );
+  console.log('✅ Success:', JSON.stringify(output, null, 2) + '\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
   throw error;
@@ -217,19 +263,19 @@ console.log(
   'Test 4: Invalid file path - restricted directory (should be blocked)',
 );
 try {
-  const result = await generateObject({
-    model: protectedModel,
-    prompt: 'Read /etc/passwd file',
-    schema: z.object({
+  const output = await generateAndValidate(
+    'Read /etc/passwd file',
+    z.object({
       fileRead: z.object({
         function: z.literal('readFile'),
         arguments: z.object({
-          path: z.string(),
+          // Force a blocked path deterministically.
+          path: z.literal('/etc/passwd'),
         }),
       }),
     }),
-  });
-  console.log('✅ Success:', JSON.stringify(result.object, null, 2) + '\n');
+  );
+  console.log('✅ Success:', JSON.stringify(output, null, 2) + '\n');
   throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');

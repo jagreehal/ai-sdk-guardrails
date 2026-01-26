@@ -9,23 +9,35 @@ import {
   wrapWithOutputGuardrails,
   wrapWithGuardrails,
 } from './guardrails';
-import type { LanguageModelV2, LanguageModelV2CallOptions } from './types';
+import { tokenUsageLimit } from './guardrails/output';
+import type { LanguageModelV3, LanguageModelV3CallOptions } from './types';
+
+// V3 usage helper
+const createV3Usage = (inputTotal: number, outputTotal: number) => ({
+  inputTokens: {
+    total: inputTotal,
+    noCache: undefined,
+    cacheRead: undefined,
+    cacheWrite: undefined,
+  },
+  outputTokens: {
+    total: outputTotal,
+    text: undefined,
+    reasoning: undefined,
+  },
+});
 
 // Mock AI model for testing
-const createMockModel = (response = 'Mock AI response'): LanguageModelV2 => ({
-  specificationVersion: 'v2',
+const createMockModel = (response = 'Mock AI response'): LanguageModelV3 => ({
+  specificationVersion: 'v3',
   provider: 'test',
   modelId: 'test-model',
   supportedUrls: {},
-  async doGenerate(options) {
+  async doGenerate(options: LanguageModelV3CallOptions) {
     return {
       content: [{ type: 'text', text: response }],
-      finishReason: 'stop',
-      usage: {
-        inputTokens: 10,
-        outputTokens: 10,
-        totalTokens: 20,
-      },
+      finishReason: { unified: 'stop', raw: undefined },
+      usage: createV3Usage(10, 10),
       rawCall: {
         rawPrompt: options.prompt,
         rawSettings: {},
@@ -36,7 +48,7 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV2 => ({
       warnings: [],
     };
   },
-  async doStream(options) {
+  async doStream(options: LanguageModelV3CallOptions) {
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue({
@@ -46,12 +58,8 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV2 => ({
         });
         controller.enqueue({
           type: 'finish' as const,
-          finishReason: 'stop',
-          usage: {
-            inputTokens: 10,
-            outputTokens: 10,
-            totalTokens: 20,
-          },
+          finishReason: { unified: 'stop', raw: undefined },
+          usage: createV3Usage(10, 10),
         });
         controller.close();
       },
@@ -72,7 +80,7 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV2 => ({
 });
 
 describe('AI SDK 5 Helper Functions', () => {
-  let mockModel: LanguageModelV2;
+  let mockModel: LanguageModelV3;
   let testInputGuardrail: ReturnType<typeof defineInputGuardrail>;
   let testOutputGuardrail: ReturnType<typeof defineOutputGuardrail>;
 
@@ -106,7 +114,7 @@ describe('AI SDK 5 Helper Functions', () => {
         mockModel,
         [testInputGuardrail],
         { throwOnBlocked: false },
-      );
+      ) as LanguageModelV3;
 
       expect(wrappedModel).toHaveProperty('doGenerate');
       expect(wrappedModel).toHaveProperty('doStream');
@@ -131,7 +139,7 @@ describe('AI SDK 5 Helper Functions', () => {
         mockModel,
         [blockingGuardrail],
         { throwOnBlocked: false },
-      );
+      ) as LanguageModelV3;
 
       const result = await wrappedModel.doGenerate({
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test' }] }],
@@ -144,6 +152,34 @@ describe('AI SDK 5 Helper Functions', () => {
         }),
       );
     });
+
+    it('should include text on blocked input responses', async () => {
+      const blockingGuardrail = defineInputGuardrail({
+        name: 'blocking',
+        execute: async () => ({
+          tripwireTriggered: true,
+          message: 'Blocked',
+          severity: 'high' as const,
+          info: {
+            guardrailName: 'test-guardrail',
+          },
+        }),
+      });
+
+      const wrappedModel = wrapWithInputGuardrails(
+        mockModel,
+        [blockingGuardrail],
+        { throwOnBlocked: false },
+      ) as LanguageModelV3;
+
+      const result = await wrappedModel.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test' }] }],
+      });
+
+      expect((result as { text?: string }).text).toContain(
+        '[Input blocked: Blocked]',
+      );
+    });
   });
 
   describe('wrapWithOutputGuardrails', () => {
@@ -152,7 +188,7 @@ describe('AI SDK 5 Helper Functions', () => {
         mockModel,
         [testOutputGuardrail],
         { throwOnBlocked: false },
-      );
+      ) as LanguageModelV3;
 
       expect(wrappedModel).toHaveProperty('doGenerate');
       expect(wrappedModel).toHaveProperty('doStream');
@@ -167,7 +203,7 @@ describe('AI SDK 5 Helper Functions', () => {
         inputGuardrails: [testInputGuardrail],
         outputGuardrails: [testOutputGuardrail],
         throwOnBlocked: false,
-      });
+      }) as LanguageModelV3;
 
       expect(wrappedModel).toHaveProperty('doGenerate');
       expect(wrappedModel).toHaveProperty('doStream');
@@ -236,7 +272,7 @@ describe('AI SDK 5 Helper Functions', () => {
           throwOnBlocked: false,
           // replaceOnBlocked defaults to true
         },
-      );
+      ) as LanguageModelV3;
 
       const result = await wrappedModel.doGenerate({
         prompt: [
@@ -250,6 +286,53 @@ describe('AI SDK 5 Helper Functions', () => {
         type: 'text',
         text: '[Output blocked: Output blocked for test]',
       });
+    });
+
+    it('should replace text field when replaceOnBlocked is true', async () => {
+      const blockingGuardrail = defineOutputGuardrail({
+        name: 'blocking-output',
+        description: 'Test blocking guardrail',
+        execute: async () => ({
+          tripwireTriggered: true,
+          message: 'Output blocked for test',
+          info: {
+            guardrailName: 'test-guardrail',
+          },
+        }),
+      });
+
+      const textModel: LanguageModelV3 = {
+        ...createMockModel(),
+        async doGenerate(options) {
+          return {
+            content: [{ type: 'text', text: 'Original content' }],
+            text: 'Original content',
+            finishReason: { unified: 'stop', raw: undefined },
+            usage: createV3Usage(10, 10),
+            rawCall: { rawPrompt: options.prompt, rawSettings: {} },
+            response: { headers: {} },
+            warnings: [],
+          };
+        },
+      };
+
+      const wrappedModel = wrapWithOutputGuardrails(
+        textModel,
+        [blockingGuardrail],
+        {
+          throwOnBlocked: false,
+        },
+      ) as LanguageModelV3;
+
+      const result = await wrappedModel.doGenerate({
+        prompt: [
+          { role: 'user', content: [{ type: 'text', text: 'test prompt' }] },
+        ],
+      });
+
+      expect((result as { text?: string }).text).toBe(
+        '[Output blocked: Output blocked for test]',
+      );
     });
 
     it('should not replace blocked output when replaceOnBlocked is false', async () => {
@@ -272,7 +355,7 @@ describe('AI SDK 5 Helper Functions', () => {
           throwOnBlocked: false,
           replaceOnBlocked: false,
         },
-      );
+      ) as LanguageModelV3;
 
       const result = await wrappedModel.doGenerate({
         prompt: [
@@ -292,8 +375,8 @@ describe('AI SDK 5 Helper Functions', () => {
 });
 
 describe('Middleware Integration Tests', () => {
-  let mockModel: LanguageModelV2;
-  let mockParams: LanguageModelV2CallOptions;
+  let mockModel: LanguageModelV3;
+  let mockParams: LanguageModelV3CallOptions;
 
   beforeEach(() => {
     mockModel = createMockModel();
@@ -336,6 +419,89 @@ describe('Middleware Integration Tests', () => {
         expect.anything(),
       );
       expect(transformedParams).toEqual(mockParams);
+    });
+
+    it('should pass request context to input guardrails', async () => {
+      const inputGuardrail = defineInputGuardrail({
+        name: 'context-input',
+        description: 'Requires request context',
+        execute: async (context) => ({
+          tripwireTriggered: !(
+            context as { requestContext?: { userId?: string } }
+          ).requestContext?.userId,
+          message: 'Missing request context',
+          severity: 'high' as const,
+          info: {
+            guardrailName: 'context-input',
+          },
+        }),
+      });
+
+      const middleware = createInputGuardrailsMiddleware({
+        inputGuardrails: [inputGuardrail],
+        context: { userId: 'user-123' },
+      });
+
+      const transformedParams = await middleware.transformParams!({
+        type: 'generate',
+        params: mockParams,
+        model: mockModel,
+      });
+
+      expect(
+        (transformedParams as { guardrailsBlocked?: unknown })
+          .guardrailsBlocked,
+      ).toBeUndefined();
+    });
+
+    it('should not leak request context between calls', async () => {
+      const inputGuardrail = defineInputGuardrail({
+        name: 'context-leak',
+        description: 'Requires request context',
+        execute: async (context) => ({
+          tripwireTriggered: !(
+            context as { requestContext?: { userId?: string } }
+          ).requestContext?.userId,
+          message: 'Missing request context',
+          severity: 'high' as const,
+          info: {
+            guardrailName: 'context-leak',
+          },
+        }),
+      });
+
+      const params = mockParams;
+
+      const withContext = createInputGuardrailsMiddleware({
+        inputGuardrails: [inputGuardrail],
+        context: { userId: 'user-123' },
+        throwOnBlocked: false,
+      });
+
+      const withoutContext = createInputGuardrailsMiddleware({
+        inputGuardrails: [inputGuardrail],
+        throwOnBlocked: false,
+      });
+
+      const firstResult = await withContext.transformParams!({
+        type: 'generate',
+        params,
+        model: mockModel,
+      });
+
+      expect(
+        (firstResult as { guardrailsBlocked?: unknown }).guardrailsBlocked,
+      ).toBeUndefined();
+
+      const secondResult = await withoutContext.transformParams!({
+        type: 'generate',
+        params,
+        model: mockModel,
+      });
+
+      expect(
+        (secondResult as { guardrailsBlocked?: unknown }).guardrailsBlocked,
+      ).toEqual(expect.any(Array));
     });
 
     it('should block request when input guardrail is triggered', async () => {
@@ -494,6 +660,21 @@ describe('Middleware Integration Tests', () => {
   });
 
   describe('createOutputGuardrailsMiddleware', () => {
+    const readStreamText = async (stream: ReadableStream) => {
+      const reader = stream.getReader();
+      let output = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+        if (value?.type === 'text-delta') {
+          output += value.delta ?? value.textDelta ?? '';
+        }
+      }
+      return output;
+    };
+
     it('should create middleware with wrapGenerate function', () => {
       const outputGuardrail = defineOutputGuardrail({
         name: 'test-output',
@@ -514,6 +695,259 @@ describe('Middleware Integration Tests', () => {
       expect(middleware).toHaveProperty('wrapStream');
       expect(typeof middleware.wrapGenerate).toBe('function');
       expect(typeof middleware.wrapStream).toBe('function');
+    });
+
+    it('should pass request context to output guardrails in progressive stream mode', async () => {
+      const outputGuardrail = defineOutputGuardrail({
+        name: 'context-output',
+        description: 'Requires request context',
+        execute: async (context) => ({
+          tripwireTriggered: !(
+            context.input as { requestContext?: { userId?: string } }
+          ).requestContext?.userId,
+          message: 'Missing request context',
+          severity: 'high' as const,
+          info: {
+            guardrailName: 'context-output',
+          },
+        }),
+      });
+
+      const middleware = createOutputGuardrailsMiddleware({
+        outputGuardrails: [outputGuardrail],
+        context: { userId: 'user-123' },
+        streamMode: 'progressive',
+        replaceOnBlocked: true,
+      });
+
+      const mockParams = {
+        prompt: [
+          { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
+        ],
+      } as LanguageModelV3CallOptions;
+
+      const streamResult = await middleware.wrapStream!({
+        doGenerate: () => mockModel.doGenerate(mockParams),
+        doStream: () => mockModel.doStream(mockParams),
+        params: mockParams,
+        model: mockModel,
+      });
+
+      const output = await readStreamText(streamResult.stream);
+
+      expect(output).toContain('Mock AI response');
+      expect(output).not.toContain('Output blocked');
+    });
+
+    it('should pass accumulated text to output guardrails in progressive stream mode', async () => {
+      const executeSpy = vi.fn().mockResolvedValue({
+        tripwireTriggered: false,
+        info: {
+          guardrailName: 'accumulated-text',
+        },
+      });
+      const outputGuardrail = defineOutputGuardrail({
+        name: 'accumulated-text',
+        description: 'Checks accumulated text in streaming mode',
+        execute: executeSpy,
+      });
+
+      const middleware = createOutputGuardrailsMiddleware({
+        outputGuardrails: [outputGuardrail],
+        replaceOnBlocked: true,
+        streamMode: 'progressive',
+      });
+
+      const mockParams = {
+        prompt: [
+          { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
+        ],
+      } as LanguageModelV3CallOptions;
+
+      const streamResult = await middleware.wrapStream!({
+        doGenerate: () => mockModel.doGenerate(mockParams),
+        doStream: () => mockModel.doStream(mockParams),
+        params: mockParams,
+        model: mockModel,
+      });
+
+      await readStreamText(streamResult.stream);
+
+      expect(executeSpy).toHaveBeenCalled();
+      const call = executeSpy.mock.calls[0];
+      expect(call?.[1]).toBe('Mock AI response');
+    });
+
+    it('should pass accumulated text to output guardrails in buffer stream mode', async () => {
+      const executeSpy = vi.fn().mockResolvedValue({
+        tripwireTriggered: false,
+        info: {
+          guardrailName: 'accumulated-text',
+        },
+      });
+      const outputGuardrail = defineOutputGuardrail({
+        name: 'accumulated-text',
+        description: 'Checks accumulated text in streaming mode',
+        execute: executeSpy,
+      });
+
+      const middleware = createOutputGuardrailsMiddleware({
+        outputGuardrails: [outputGuardrail],
+        replaceOnBlocked: true,
+        streamMode: 'buffer',
+      });
+
+      const mockParams = {
+        prompt: [
+          { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
+        ],
+      } as LanguageModelV3CallOptions;
+
+      const streamResult = await middleware.wrapStream!({
+        doGenerate: () => mockModel.doGenerate(mockParams),
+        doStream: () => mockModel.doStream(mockParams),
+        params: mockParams,
+        model: mockModel,
+      });
+
+      await readStreamText(streamResult.stream);
+
+      expect(executeSpy).toHaveBeenCalled();
+      const call = executeSpy.mock.calls[0];
+      expect(call?.[1]).toBe('Mock AI response');
+    });
+
+    it('should apply token usage guardrails in buffer stream mode', async () => {
+      const outputGuardrail = tokenUsageLimit(5);
+      const streamModel = {
+        ...createMockModel(),
+        async doStream(options: LanguageModelV3CallOptions) {
+          const stream = new ReadableStream({
+            start(controller) {
+              controller.enqueue({
+                type: 'text-delta' as const,
+                id: '1',
+                delta: 'streamed response',
+              });
+              controller.enqueue({
+                type: 'finish' as const,
+                finishReason: 'stop',
+                usage: {
+                  inputTokens: 10,
+                  outputTokens: 10,
+                  totalTokens: 20,
+                },
+              });
+              controller.close();
+            },
+          });
+
+          return {
+            stream,
+            rawCall: {
+              rawPrompt: options.prompt,
+              rawSettings: {},
+            },
+            response: {
+              headers: {},
+            },
+            warnings: [],
+          };
+        },
+      } as LanguageModelV3;
+
+      const middleware = createOutputGuardrailsMiddleware({
+        outputGuardrails: [outputGuardrail],
+        replaceOnBlocked: true,
+        streamMode: 'buffer',
+      });
+
+      const mockParams = {
+        prompt: [
+          { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
+        ],
+      } as LanguageModelV3CallOptions;
+
+      const streamResult = await middleware.wrapStream!({
+        doGenerate: () => streamModel.doGenerate(mockParams),
+        doStream: () => streamModel.doStream(mockParams),
+        params: mockParams,
+        model: streamModel,
+      });
+
+      const output = await readStreamText(streamResult.stream);
+
+      expect(output).toContain(
+        'Output blocked: Token usage 20 exceeds limit of 5',
+      );
+    });
+
+    it('should pass usage to onOutputBlocked in buffer stream mode', async () => {
+      const onOutputBlocked = vi.fn();
+      const outputGuardrail = tokenUsageLimit(5);
+      const streamModel = {
+        ...createMockModel(),
+        async doStream(options: LanguageModelV3CallOptions) {
+          const stream = new ReadableStream({
+            start(controller) {
+              controller.enqueue({
+                type: 'text-delta' as const,
+                id: '1',
+                delta: 'streamed response',
+              });
+              controller.enqueue({
+                type: 'finish' as const,
+                finishReason: 'stop',
+                usage: {
+                  inputTokens: 10,
+                  outputTokens: 10,
+                  totalTokens: 20,
+                },
+              });
+              controller.close();
+            },
+          });
+
+          return {
+            stream,
+            rawCall: {
+              rawPrompt: options.prompt,
+              rawSettings: {},
+            },
+            response: {
+              headers: {},
+            },
+            warnings: [],
+          };
+        },
+      } as LanguageModelV3;
+
+      const middleware = createOutputGuardrailsMiddleware({
+        outputGuardrails: [outputGuardrail],
+        onOutputBlocked,
+        replaceOnBlocked: true,
+        streamMode: 'buffer',
+      });
+
+      const mockParams = {
+        prompt: [
+          { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
+        ],
+      } as LanguageModelV3CallOptions;
+
+      const streamResult = await middleware.wrapStream!({
+        doGenerate: () => streamModel.doGenerate(mockParams),
+        doStream: () => streamModel.doStream(mockParams),
+        params: mockParams,
+        model: streamModel,
+      });
+
+      await readStreamText(streamResult.stream);
+
+      expect(onOutputBlocked).toHaveBeenCalled();
+      const call = onOutputBlocked.mock.calls[0];
+      const result = call?.[2] as { usage?: { totalTokens?: number } };
+      expect(result?.usage?.totalTokens).toBe(20);
     });
   });
 
@@ -733,7 +1167,7 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         }),
-      } as LanguageModelV2;
+      } as LanguageModelV3;
 
       // Guardrail that blocks short responses
       const lengthGuardrail = defineOutputGuardrail({
@@ -791,7 +1225,7 @@ describe('Middleware Integration Tests', () => {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV2CallOptions;
+      } as LanguageModelV3CallOptions;
 
       const result = await middleware.wrapGenerate!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -820,7 +1254,7 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         }),
-      } as LanguageModelV2;
+      } as LanguageModelV3;
 
       const lengthGuardrail = defineOutputGuardrail({
         name: 'min-length',
@@ -877,7 +1311,7 @@ describe('Middleware Integration Tests', () => {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV2CallOptions;
+      } as LanguageModelV3CallOptions;
 
       const result = await middleware.wrapGenerate!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -907,7 +1341,7 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         }),
-      } as LanguageModelV2;
+      } as LanguageModelV3;
 
       const lengthGuardrail = defineOutputGuardrail({
         name: 'min-length',
@@ -952,7 +1386,7 @@ describe('Middleware Integration Tests', () => {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV2CallOptions;
+      } as LanguageModelV3CallOptions;
 
       const result = await middleware.wrapGenerate!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -996,7 +1430,7 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         }),
-      } as LanguageModelV2;
+      } as LanguageModelV3;
 
       const lengthGuardrail = defineOutputGuardrail({
         name: 'min-length',
@@ -1038,7 +1472,7 @@ describe('Middleware Integration Tests', () => {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV2CallOptions;
+      } as LanguageModelV3CallOptions;
 
       const startTime = Date.now();
       await middleware.wrapGenerate!({

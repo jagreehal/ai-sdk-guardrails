@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { generateText, generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { model } from './model';
 import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
 import { z } from 'zod';
@@ -310,13 +310,15 @@ Respond with a JSON object matching this schema:
 }
 `;
 
-    const result = await generateObject({
+    const result = await generateText({
       model: model,
       prompt: verificationPrompt,
-      schema: verificationSchema,
+      output: Output.object({
+        schema: verificationSchema,
+      }),
     });
 
-    return result.object;
+    return result.output;
   } catch (error) {
     // Fallback to basic heuristics if LLM verification fails
     const hasHedging = hasHedgingLanguage(claim);
@@ -351,8 +353,8 @@ const hallucinationDetectionGuardrail =
       if ('text' in result) {
         text =
           typeof result.text === 'string' ? result.text : String(result.text);
-      } else if ('object' in result && result.object) {
-        text = JSON.stringify(result.object);
+      } else if ('output' in result && result.output) {
+        text = JSON.stringify(result.output);
       } else if ('content' in result && Array.isArray(result.content)) {
         const content = result.content;
         text = content

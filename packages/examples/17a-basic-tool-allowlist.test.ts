@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { model } from './model';
 import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
@@ -36,10 +36,10 @@ const toolAllowlistGuardrail = defineOutputGuardrail<{
         (item: unknown) => (item as { type: string }).type === 'tool-call',
       );
     } else if (
-      'object' in result &&
-      (result.object as { function?: string })?.function
+      'output' in result &&
+      (result.output as { function?: string })?.function
     ) {
-      toolCalls = [result.object];
+      toolCalls = [result.output];
     }
 
     if (toolCalls.length === 0) {
@@ -90,20 +90,22 @@ describe('Basic Tool Allowlist Example', () => {
         throwOnBlocked: false,
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: protectedModel,
         prompt: 'Calculate 2 + 2',
-        schema: z.object({
-          calculation: z.object({
-            function: z.literal('calculate'),
-            arguments: z.object({
-              expression: z.string(),
+        output: Output.object({
+          schema: z.object({
+            calculation: z.object({
+              function: z.literal('calculate'),
+              arguments: z.object({
+                expression: z.string(),
+              }),
             }),
           }),
         }),
       });
 
-      expect(result.object).toBeDefined();
+      expect(result.output).toBeDefined();
     },
     120000,
   );
@@ -124,14 +126,16 @@ describe('Basic Tool Allowlist Example', () => {
       });
 
       try {
-        await generateObject({
+        await generateText({
           model: protectedModel,
           prompt: 'Delete all files',
-          schema: z.object({
-            dangerousOperation: z.object({
-              function: z.literal('deleteAllFiles'),
-              arguments: z.object({
-                path: z.string(),
+          output: Output.object({
+            schema: z.object({
+              dangerousOperation: z.object({
+                function: z.literal('deleteAllFiles'),
+                arguments: z.object({
+                  path: z.string(),
+                }),
               }),
             }),
           }),
@@ -157,26 +161,28 @@ describe('Basic Tool Allowlist Example', () => {
         throwOnBlocked: false,
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: protectedModel,
         prompt: 'Calculate 5 * 3 and get weather for London',
-        schema: z.object({
-          calculation: z.object({
-            function: z.literal('calculate'),
-            arguments: z.object({
-              expression: z.string(),
+        output: Output.object({
+          schema: z.object({
+            calculation: z.object({
+              function: z.literal('calculate'),
+              arguments: z.object({
+                expression: z.string(),
+              }),
             }),
-          }),
-          weather: z.object({
-            function: z.literal('getWeather'),
-            arguments: z.object({
-              location: z.string(),
+            weather: z.object({
+              function: z.literal('getWeather'),
+              arguments: z.object({
+                location: z.string(),
+              }),
             }),
           }),
         }),
       });
 
-      expect(result.object).toBeDefined();
+      expect(result.output).toBeDefined();
     },
     120000,
   );
@@ -195,13 +201,15 @@ describe('Basic Tool Allowlist Example', () => {
       });
 
       try {
-        await generateObject({
+        await generateText({
           model: protectedModel,
           prompt: 'Execute dangerous operation',
-          schema: z.object({
-            operation: z.object({
-              function: z.literal('dangerousFunction'),
-              arguments: z.object({}),
+          output: Output.object({
+            schema: z.object({
+              operation: z.object({
+                function: z.literal('dangerousFunction'),
+                arguments: z.object({}),
+              }),
             }),
           }),
         });
@@ -229,20 +237,22 @@ describe('Basic Tool Allowlist Example', () => {
         },
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: protectedModel,
         prompt: 'Format a date',
-        schema: z.object({
-          dateFormat: z.object({
-            function: z.literal('formatDate'),
-            arguments: z.object({
-              date: z.string(),
+        output: Output.object({
+          schema: z.object({
+            dateFormat: z.object({
+              function: z.literal('formatDate'),
+              arguments: z.object({
+                date: z.string(),
+              }),
             }),
           }),
         }),
       });
 
-      expect(result.object).toBeDefined();
+      expect(result.output).toBeDefined();
       // If metadata was captured, verify structure
       // Note: metadata may not be captured if guardrail doesn't trigger
     },

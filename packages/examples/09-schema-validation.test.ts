@@ -10,7 +10,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { model } from './model';
 import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
@@ -96,17 +96,19 @@ describe('Schema Validation Example', () => {
         throwOnBlocked: true,
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: strictUserModel,
         prompt:
           'Generate a user: John Doe, 30 years old, john@example.com, admin role',
-        schema: userSchema,
+        output: Output.object({
+          schema: userSchema,
+        }),
       });
 
-      expect(result.object).toBeDefined();
-      expect(result.object.name).toBeDefined();
-      expect(result.object.email).toContain('@');
-      expect(result.object.age).toBeGreaterThanOrEqual(0);
+      expect(result.output).toBeDefined();
+      expect(result.output.name).toBeDefined();
+      expect(result.output.email).toContain('@');
+      expect(result.output.age).toBeGreaterThanOrEqual(0);
     });
 
     it('should block invalid user object in blocking mode', async () => {
@@ -121,10 +123,12 @@ describe('Schema Validation Example', () => {
       });
 
       try {
-        await generateObject({
+        await generateText({
           model: strictUserModel,
           prompt: 'Generate a user with invalid email: not-an-email',
-          schema: userSchema,
+          output: Output.object({
+            schema: userSchema,
+          }),
         });
         // If generation succeeds but validation fails, check the message
         if (blockedMessage) {
@@ -151,14 +155,16 @@ describe('Schema Validation Example', () => {
         },
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: warningProductModel,
         prompt:
           'Generate a product: Laptop, $999.99, Electronics category, in stock, tags: portable, computing',
-        schema: productSchema,
+        output: Output.object({
+          schema: productSchema,
+        }),
       });
 
-      expect(result.object).toBeDefined();
+      expect(result.output).toBeDefined();
       // In warning mode, validation issues are logged but don't block
       if (warningMessage) {
         expect(warningMessage).toContain('Schema validation');
@@ -202,14 +208,16 @@ describe('Schema Validation Example', () => {
         },
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: orderModel,
         prompt:
           'Generate an order with 2 items, customer John Doe (john@example.com), pending status',
-        schema: orderSchema,
+        output: Output.object({
+          schema: orderSchema,
+        }),
       });
 
-      expect(result.object).toBeDefined();
+      expect(result.output).toBeDefined();
       // If validation triggered, check metadata
       if (validationMetadata) {
         expect(validationMetadata.schemaName).toBe('order');
@@ -291,14 +299,16 @@ describe('Schema Validation Example', () => {
         },
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: businessModel,
         prompt:
           'Generate a discounted product: 20% off, out of stock, featured item',
-        schema: businessSchema,
+        output: Output.object({
+          schema: businessSchema,
+        }),
       });
 
-      expect(result.object).toBeDefined();
+      expect(result.output).toBeDefined();
       // If business rules triggered, check for violations
       if (violationMessage) {
         expect(violationMessage).toContain('Business rule violations');

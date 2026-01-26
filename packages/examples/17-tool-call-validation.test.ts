@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { model } from './model';
 import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
 import { z } from 'zod';
@@ -267,8 +267,8 @@ const toolCallValidationGuardrail =
       // Extract tool calls from the result object
       let toolCalls: unknown[] = [];
 
-      if ('object' in result && result.object) {
-        const obj = result.object;
+      if ('output' in result && result.output) {
+        const obj = result.output;
         if (obj && typeof obj === 'object') {
           // Check if the object itself represents a tool call
           if (
@@ -396,27 +396,29 @@ describe('Tool Call Validation Example', () => {
         throwOnBlocked: false,
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: protectedModel,
         prompt: "Calculate 2 + 2 and format today's date",
-        schema: z.object({
-          calculation: z.object({
-            function: z.literal('calculate'),
-            arguments: z.object({
-              expression: z.string(),
+        output: Output.object({
+          schema: z.object({
+            calculation: z.object({
+              function: z.literal('calculate'),
+              arguments: z.object({
+                expression: z.string(),
+              }),
             }),
-          }),
-          dateFormat: z.object({
-            function: z.literal('formatDate'),
-            arguments: z.object({
-              date: z.string(),
-              format: z.enum(['short', 'long', 'iso']),
+            dateFormat: z.object({
+              function: z.literal('formatDate'),
+              arguments: z.object({
+                date: z.string(),
+                format: z.enum(['short', 'long', 'iso']),
+              }),
             }),
           }),
         }),
       });
 
-      expect(result.object).toBeDefined();
+      expect(result.output).toBeDefined();
     },
     120000,
   );
@@ -435,14 +437,16 @@ describe('Tool Call Validation Example', () => {
       });
 
       try {
-        await generateObject({
+        await generateText({
           model: protectedModel,
           prompt: 'Delete all files from the system',
-          schema: z.object({
-            dangerousOperation: z.object({
-              function: z.literal('deleteAllFiles'),
-              arguments: z.object({
-                path: z.string(),
+          output: Output.object({
+            schema: z.object({
+              dangerousOperation: z.object({
+                function: z.literal('deleteAllFiles'),
+                arguments: z.object({
+                  path: z.string(),
+                }),
               }),
             }),
           }),
@@ -473,14 +477,16 @@ describe('Tool Call Validation Example', () => {
       });
 
       try {
-        await generateObject({
+        await generateText({
           model: protectedModel,
           prompt: 'Read a file from a restricted directory',
-          schema: z.object({
-            fileRead: z.object({
-              function: z.literal('readFile'),
-              arguments: z.object({
-                path: z.string(),
+          output: Output.object({
+            schema: z.object({
+              fileRead: z.object({
+                function: z.literal('readFile'),
+                arguments: z.object({
+                  path: z.string(),
+                }),
               }),
             }),
           }),
@@ -509,15 +515,17 @@ describe('Tool Call Validation Example', () => {
       });
 
       try {
-        await generateObject({
+        await generateText({
           model: protectedModel,
           prompt: 'Delete all users from the database',
-          schema: z.object({
-            databaseOperation: z.object({
-              function: z.literal('queryDatabase'),
-              arguments: z.object({
-                query: z.string(),
-                limit: z.number(),
+          output: Output.object({
+            schema: z.object({
+              databaseOperation: z.object({
+                function: z.literal('queryDatabase'),
+                arguments: z.object({
+                  query: z.string(),
+                  limit: z.number(),
+                }),
               }),
             }),
           }),
@@ -547,14 +555,16 @@ describe('Tool Call Validation Example', () => {
       });
 
       try {
-        await generateObject({
+        await generateText({
           model: protectedModel,
           prompt: 'Read a file using path traversal',
-          schema: z.object({
-            fileRead: z.object({
-              function: z.literal('readFile'),
-              arguments: z.object({
-                path: z.string(),
+          output: Output.object({
+            schema: z.object({
+              fileRead: z.object({
+                function: z.literal('readFile'),
+                arguments: z.object({
+                  path: z.string(),
+                }),
               }),
             }),
           }),
@@ -585,21 +595,23 @@ describe('Tool Call Validation Example', () => {
         },
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: warningModel,
         prompt: 'Get weather for a city',
-        schema: z.object({
-          weather: z.object({
-            function: z.literal('getWeather'),
-            arguments: z.object({
-              location: z.string(),
-              units: z.enum(['celsius', 'fahrenheit']),
+        output: Output.object({
+          schema: z.object({
+            weather: z.object({
+              function: z.literal('getWeather'),
+              arguments: z.object({
+                location: z.string(),
+                units: z.enum(['celsius', 'fahrenheit']),
+              }),
             }),
           }),
         }),
       });
 
-      expect(result.object).toBeDefined();
+      expect(result.output).toBeDefined();
       // In warning mode, validation issues are logged but don't block
       if (warningMessage) {
         expect(warningMessage).toContain('Tool call');

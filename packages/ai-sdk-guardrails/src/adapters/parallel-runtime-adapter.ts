@@ -124,6 +124,7 @@ export async function executeOutputGuardrailsWithEnhancedRuntime<
     timeout?: number;
     continueOnFailure?: boolean;
     signal?: AbortSignal;
+    accumulatedText?: string;
   } = {},
 ): Promise<GuardrailResult<M>[]> {
   // Convert guardrails to specs
@@ -155,17 +156,16 @@ export async function executeOutputGuardrailsWithEnhancedRuntime<
 
   try {
     // Execute using enhanced runtime
-    const result = await runGuardrails(
-      context,
-      bundle,
-      {},
-      {
-        parallelExecution: options.parallel ?? true,
-        timeoutMs: options.timeout,
-        raiseGuardrailErrors: !options.continueOnFailure,
-        signal: options.signal,
-      },
-    );
+    // Pass accumulatedText through the runtime context (3rd param) for streaming scenarios
+    const runtimeContext = options.accumulatedText
+      ? { _accumulatedText: options.accumulatedText }
+      : {};
+    const result = await runGuardrails(context, bundle, runtimeContext, {
+      parallelExecution: options.parallel ?? true,
+      timeoutMs: options.timeout,
+      raiseGuardrailErrors: !options.continueOnFailure,
+      signal: options.signal,
+    });
 
     // Restore registry
     defaultRegistry.get = originalGet;

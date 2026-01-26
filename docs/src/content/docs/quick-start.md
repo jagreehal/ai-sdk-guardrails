@@ -11,7 +11,7 @@ This guide shows you how to add guardrails to your AI SDK application.
 npm install ai-sdk-guardrails
 ```
 
-Requires `ai` SDK v4.0+ and Node.js 22+.
+Requires `ai` SDK v6.0+ and Node.js 22+.
 
 ## Basic Usage
 
@@ -82,7 +82,7 @@ const model = withGuardrails(openai('gpt-4o'), {
 
 ## Handling Violations
 
-By default, guardrails throw errors when blocked. Handle them with try-catch:
+If you set `throwOnBlocked: true`, guardrails throw errors when blocked. Handle them with try-catch:
 
 ```ts
 import { isGuardrailsError } from 'ai-sdk-guardrails';
@@ -102,7 +102,7 @@ try {
 
 ## Warning Mode
 
-Use callbacks instead of throwing errors:
+Use callbacks instead of throwing errors (default behavior):
 
 ```ts
 const model = withGuardrails(openai('gpt-4o'), {

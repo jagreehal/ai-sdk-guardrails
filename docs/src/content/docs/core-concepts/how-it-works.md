@@ -130,7 +130,9 @@ Guardrails can be configured to handle errors gracefully:
 const model = withGuardrails(openai('gpt-4o'), {
   inputGuardrails: [piiDetector()],
   throwOnBlocked: true,  // Throw errors
-  continueOnFailure: true, // Continue if guardrail fails
+  executionOptions: {
+    continueOnFailure: true, // Continue if guardrail fails
+  },
 });
 ```
 

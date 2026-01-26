@@ -71,7 +71,13 @@ export function outputGuardrailToSpec(
     'text/plain',
     z.unknown(), // Placeholder schema for legacy guardrails
     async (context: GuardrailContext, input: unknown) => {
-      const result = await guardrail.execute(input as OutputGuardrailContext);
+      // Extract accumulatedText from context if available (for streaming scenarios)
+      const accumulatedText = (context as { _accumulatedText?: string })
+        ._accumulatedText;
+      const result = await guardrail.execute(
+        input as OutputGuardrailContext,
+        accumulatedText,
+      );
       return result;
     },
     undefined,

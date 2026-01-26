@@ -153,12 +153,41 @@ const companyPolicyGuardrail = defineOutputGuardrail({
 });
 ```
 
+### Streaming-Aware Guardrails
+
+For guardrails that need to work with progressive streaming, you can access the accumulated text:
+
+```ts
+const streamingGuardrail = defineOutputGuardrail({
+  name: 'streaming-aware',
+  description: 'Check accumulated text during streaming',
+  execute: async ({ result }, accumulatedText) => {
+    // In progressive mode, accumulatedText contains all text seen so far
+    // In buffer mode or non-streaming, accumulatedText is undefined
+    const text = accumulatedText ?? result.text ?? '';
+    
+    // Check the accumulated text
+    if (text.length > 1000) {
+      return {
+        tripwireTriggered: true,
+        message: 'Response too long',
+        severity: 'medium',
+      };
+    }
+    
+    return { tripwireTriggered: false };
+  },
+});
+```
+
+The `accumulatedText` parameter is automatically provided by the middleware when using progressive streaming mode (`streamMode: 'progressive'`).
+
 ### LLM-as-Judge Pattern
 
 Use another LLM to validate responses:
 
 ```ts
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { z } from 'zod';
 
 const llmJudgeGuardrail = defineOutputGuardrail({
@@ -167,12 +196,14 @@ const llmJudgeGuardrail = defineOutputGuardrail({
   execute: async ({ result }) => {
     const { text } = extractContent(result);
 
-    const assessment = await generateObject({
+    const assessment = await generateText({
       model: openai('gpt-4o-mini'), // Cheaper model for judging
-      schema: z.object({
-        isQuality: z.boolean(),
-        reason: z.string(),
-        score: z.number().min(0).max(10),
+      output: Output.object({
+        schema: z.object({
+          isQuality: z.boolean(),
+          reason: z.string(),
+          score: z.number().min(0).max(10),
+        }),
       }),
       prompt: `
         Assess if this response is helpful and complete:
@@ -182,15 +213,15 @@ const llmJudgeGuardrail = defineOutputGuardrail({
       `,
     });
 
-    if (assessment.object.score >= 7) {
+    if (assessment.output.score >= 7) {
       return { tripwireTriggered: false };
     }
 
     return {
       tripwireTriggered: true,
-      message: `Low quality response (score: ${assessment.object.score})`,
+      message: `Low quality response (score: ${assessment.output.score})`,
       severity: 'medium',
-      metadata: assessment.object,
+      metadata: assessment.output,
     };
   },
 });
@@ -308,7 +339,7 @@ return {
   metadata: {
     userId: params.userId,
     requestCount: currentCount,
-    limit: maxRequests,
+    maxRequestsPerMinute,
     resetTime: resetTimestamp,
   },
 };

@@ -1,9 +1,38 @@
 import { wrapLanguageModel } from 'ai';
+import type {
+  LanguageModelV3FinishReason,
+  LanguageModelV3Usage,
+} from '@ai-sdk/provider';
 import {
   GuardrailTimeoutError,
   GuardrailsOutputError,
   GuardrailsInputError,
 } from './errors';
+
+// V3-compatible helpers for mock responses
+const emptyV3Usage: LanguageModelV3Usage = {
+  inputTokens: {
+    total: 0,
+    noCache: undefined,
+    cacheRead: undefined,
+    cacheWrite: undefined,
+  },
+  outputTokens: {
+    total: 0,
+    text: undefined,
+    reasoning: undefined,
+  },
+};
+
+const finishReasonStop: LanguageModelV3FinishReason = {
+  unified: 'stop',
+  raw: undefined,
+};
+
+const finishReasonOther: LanguageModelV3FinishReason = {
+  unified: 'other',
+  raw: undefined,
+};
 import {
   getGuardrailTracer,
   isTelemetryEnabled,
@@ -41,10 +70,13 @@ import type {
   InputGuardrailContext,
   OutputGuardrailContext,
   AIResult,
-  LanguageModelV2,
-  LanguageModelV2Middleware,
-  LanguageModelV2CallOptions,
-  LanguageModelV2StreamPart,
+  LanguageModel,
+  LanguageModelV3,
+  LanguageModelV3Middleware,
+  LanguageModelV3CallOptions,
+  LanguageModelV3GenerateResult,
+  LanguageModelV3StreamResult,
+  LanguageModelV3StreamPart,
   InputGuardrailsMiddlewareConfig,
   OutputGuardrailsMiddlewareConfig,
   NormalizedGuardrailContext,
@@ -398,6 +430,8 @@ export async function executeOutputGuardrails<
     logger?: Logger;
     /** Telemetry settings */
     telemetry?: GuardrailTelemetrySettings;
+    /** Accumulated text for streaming scenarios */
+    accumulatedText?: string;
   } = {},
 ): Promise<GuardrailResult<M>[]> {
   const {
@@ -407,6 +441,7 @@ export async function executeOutputGuardrails<
     logLevel = 'warn',
     logger = console,
     telemetry,
+    accumulatedText,
   } = options;
 
   // Check if telemetry is enabled
@@ -433,7 +468,7 @@ export async function executeOutputGuardrails<
       return executeWithOptimizedTimeout(
         async (signal) =>
           await Promise.resolve(
-            guardrail.execute(params, undefined, { signal }),
+            guardrail.execute(params, accumulatedText, { signal }),
           ),
         timeout,
         `Guardrail ${guardrail.name} timed out after ${timeout}ms`,
@@ -479,6 +514,7 @@ export async function executeOutputGuardrails<
               parallel: true,
               timeout,
               continueOnFailure,
+              accumulatedText,
             },
           );
         results.push(...enhancedResults);
@@ -630,7 +666,7 @@ function extractTextFromContent(content: MessageContent): string {
 // Context caching for performance optimization
 // WeakMap automatically garbage collects when params objects are no longer referenced
 const normalizedContextCache = new WeakMap<
-  LanguageModelV2CallOptions,
+  LanguageModelV3CallOptions,
   NormalizedGuardrailContext
 >();
 
@@ -874,7 +910,7 @@ async function executeBatchInputGuardrails<M extends Record<string, unknown>>(
  * Uses caching to avoid redundant processing of the same parameters
  */
 export function normalizeGuardrailContext(
-  params: LanguageModelV2CallOptions,
+  params: LanguageModelV3CallOptions,
 ): NormalizedGuardrailContext {
   // Check cache first for performance optimization
   const cached = normalizedContextCache.get(params);
@@ -928,7 +964,7 @@ export function normalizeGuardrailContext(
  * into a NormalizedGuardrailContext for guardrail execution.
  */
 export function toNormalizedGuardrailContext(
-  params: LanguageModelV2CallOptions | InputGuardrailContext,
+  params: LanguageModelV3CallOptions | InputGuardrailContext,
 ): NormalizedGuardrailContext {
   const candidate = params as {
     prompt?: unknown;
@@ -940,7 +976,7 @@ export function toNormalizedGuardrailContext(
   ) {
     return params as NormalizedGuardrailContext;
   }
-  return normalizeGuardrailContext(params as LanguageModelV2CallOptions);
+  return normalizeGuardrailContext(params as LanguageModelV3CallOptions);
 }
 
 /**
@@ -1006,19 +1042,19 @@ function createExecutionSummary<
 export function wrapWithInputGuardrails<
   M extends Record<string, unknown> = Record<string, unknown>,
 >(
-  model: LanguageModelV2,
+  model: LanguageModel,
   guardrails: InputGuardrail<M>[],
   options?: Omit<InputGuardrailsMiddlewareConfig<M>, 'inputGuardrails'>,
-): LanguageModelV2 {
+): LanguageModel {
   const middleware = createInputGuardrailsMiddleware<M>({
     inputGuardrails: guardrails,
     ...options,
   });
 
   return wrapLanguageModel({
-    model,
-    middleware,
-  });
+    model: model as unknown as LanguageModelV3,
+    middleware: middleware as unknown as LanguageModelV3Middleware,
+  }) as LanguageModel;
 }
 
 /**
@@ -1042,25 +1078,25 @@ export function wrapWithInputGuardrails<
  * });
  * ```
  *
- * @note For generateObject scenarios, consider using executeOutputGuardrails()
+ * @note For generateText with Output.object() scenarios, consider using executeOutputGuardrails()
  * after generation for more reliable object validation.
  */
 export function wrapWithOutputGuardrails<
   M extends Record<string, unknown> = Record<string, unknown>,
 >(
-  model: LanguageModelV2,
+  model: LanguageModel,
   guardrails: OutputGuardrail<M>[],
   options?: Omit<OutputGuardrailsMiddlewareConfig<M>, 'outputGuardrails'>,
-): LanguageModelV2 {
+): LanguageModel {
   const middleware = createOutputGuardrailsMiddleware<M>({
     outputGuardrails: guardrails,
     ...options,
   });
 
   return wrapLanguageModel({
-    model,
-    middleware,
-  });
+    model: model as unknown as LanguageModelV3,
+    middleware: middleware as unknown as LanguageModelV3Middleware,
+  }) as LanguageModel;
 }
 
 /**
@@ -1086,7 +1122,7 @@ export function wrapWithOutputGuardrails<
  */
 // Overload for automatic type inference when no explicit types are provided
 export function wrapWithGuardrails(
-  _model: LanguageModelV2,
+  _model: LanguageModel,
   _config: {
     inputGuardrails?: InputGuardrail<Record<string, unknown>>[];
     outputGuardrails?: OutputGuardrail<Record<string, unknown>>[];
@@ -1104,14 +1140,14 @@ export function wrapWithGuardrails(
     onOutputBlocked?: (_executionSummary: GuardrailExecutionSummary) => void;
     retry?: OutputGuardrailsMiddlewareConfig['retry'];
   },
-): LanguageModelV2;
+): LanguageModel;
 
 // Overload for explicit type specification (backward compatibility)
 export function wrapWithGuardrails<
   MIn extends Record<string, unknown> = Record<string, unknown>,
   MOut extends Record<string, unknown> = Record<string, unknown>,
 >(
-  _model: LanguageModelV2,
+  _model: LanguageModel,
   _config: {
     inputGuardrails?: InputGuardrail<MIn>[];
     outputGuardrails?: OutputGuardrail<MOut>[];
@@ -1124,11 +1160,11 @@ export function wrapWithGuardrails<
     onOutputBlocked?: OutputGuardrailsMiddlewareConfig<MOut>['onOutputBlocked'];
     retry?: OutputGuardrailsMiddlewareConfig<MOut>['retry'];
   },
-): LanguageModelV2;
+): LanguageModel;
 
 // Implementation
 export function wrapWithGuardrails(
-  model: LanguageModelV2,
+  model: LanguageModel,
   config:
     | {
         inputGuardrails?: InputGuardrail<Record<string, unknown>>[];
@@ -1156,7 +1192,7 @@ export function wrapWithGuardrails(
         onOutputBlocked?: OutputGuardrailsMiddlewareConfig['onOutputBlocked'];
         retry?: OutputGuardrailsMiddlewareConfig['retry'];
       },
-): LanguageModelV2 {
+): LanguageModel {
   const {
     inputGuardrails = [],
     outputGuardrails = [],
@@ -1170,7 +1206,7 @@ export function wrapWithGuardrails(
     retry,
   } = config;
 
-  const middlewares: LanguageModelV2Middleware[] = [];
+  const middlewares: LanguageModelV3Middleware[] = [];
 
   // Add input guardrails middleware if provided
   if (inputGuardrails.length > 0) {
@@ -1206,9 +1242,9 @@ export function wrapWithGuardrails(
   }
 
   return wrapLanguageModel({
-    model,
-    middleware: middlewares,
-  });
+    model: model as unknown as LanguageModelV3,
+    middleware: middlewares as unknown as LanguageModelV3Middleware[],
+  }) as LanguageModel;
 }
 
 // ============================================================================
@@ -1243,7 +1279,7 @@ export function withGuardrails<
   MIn extends Record<string, unknown> = Record<string, unknown>,
   MOut extends Record<string, unknown> = Record<string, unknown>,
 >(
-  model: LanguageModelV2,
+  model: LanguageModel,
   config: {
     inputGuardrails?: InputGuardrail<MIn>[];
     outputGuardrails?: OutputGuardrail<MOut>[];
@@ -1256,7 +1292,7 @@ export function withGuardrails<
     onOutputBlocked?: OutputGuardrailsMiddlewareConfig<MOut>['onOutputBlocked'];
     retry?: OutputGuardrailsMiddlewareConfig<MOut>['retry'];
   },
-): LanguageModelV2 {
+): LanguageModel {
   return wrapWithGuardrails(model, config);
 }
 
@@ -1312,7 +1348,7 @@ export function createGuardrails<
   onInputBlocked?: InputGuardrailsMiddlewareConfig<MIn>['onInputBlocked'];
   onOutputBlocked?: OutputGuardrailsMiddlewareConfig<MOut>['onOutputBlocked'];
 }) {
-  return (model: LanguageModelV2): LanguageModelV2 => {
+  return (model: LanguageModel): LanguageModel => {
     return withGuardrails(model, config);
   };
 }
@@ -1331,9 +1367,10 @@ export function createGuardrails<
  */
 export function createInputGuardrailsMiddleware<
   M extends Record<string, unknown> = Record<string, unknown>,
->(config: InputGuardrailsMiddlewareConfig<M>): LanguageModelV2Middleware {
+>(config: InputGuardrailsMiddlewareConfig<M>): LanguageModelV3Middleware {
   const {
     inputGuardrails,
+    context,
     executionOptions = {},
     onInputBlocked,
     throwOnBlocked = false,
@@ -1343,15 +1380,21 @@ export function createInputGuardrailsMiddleware<
   const guardrailTelemetrySettings = executionOptions.telemetry;
 
   return {
+    specificationVersion: 'v3' as const,
     transformParams: async ({
       params,
     }: {
       type: 'generate' | 'stream';
-      params: LanguageModelV2CallOptions;
-      model: LanguageModelV2;
+      params: LanguageModelV3CallOptions;
+      model: LanguageModelV3;
     }) => {
       // Start from original params; only add helper property if we actually block
-      const guardrailContext = normalizeGuardrailContext(params);
+      const baseContext = normalizeGuardrailContext(params);
+
+      // Create new context with request context to avoid mutating cached context
+      const guardrailContext = context
+        ? { ...baseContext, requestContext: context }
+        : baseContext;
 
       // Merge AI SDK telemetry with guardrail telemetry settings
       const aiSdkTelemetry = (params as { experimental_telemetry?: unknown })
@@ -1402,7 +1445,7 @@ export function createInputGuardrailsMiddleware<
         }
 
         // Store blocked results for later use by wrapGenerate/wrapStream
-        const enhancedParams = params as LanguageModelV2CallOptions & {
+        const enhancedParams = params as LanguageModelV3CallOptions & {
           guardrailsBlocked?: GuardrailResult[];
         };
         enhancedParams.guardrailsBlocked = blockedResults;
@@ -1417,25 +1460,25 @@ export function createInputGuardrailsMiddleware<
       doGenerate,
       params,
     }: {
-      doGenerate: () => ReturnType<LanguageModelV2['doGenerate']>;
-      doStream: () => ReturnType<LanguageModelV2['doStream']>;
-      params: LanguageModelV2CallOptions;
-      model: LanguageModelV2;
+      doGenerate: () => PromiseLike<LanguageModelV3GenerateResult>;
+      doStream: () => PromiseLike<LanguageModelV3StreamResult>;
+      params: LanguageModelV3CallOptions;
+      model: LanguageModelV3;
     }) => {
-      const paramsWithGuardrails = params as LanguageModelV2CallOptions & {
+      const paramsWithGuardrails = params as LanguageModelV3CallOptions & {
         guardrailsBlocked?: GuardrailResult[];
       };
 
       if (paramsWithGuardrails.guardrailsBlocked) {
         const blockedResults = paramsWithGuardrails.guardrailsBlocked;
         const blockedMessage = blockedResults.map((r) => r.message).join(', ');
+        const blockedText = `[Input blocked: ${blockedMessage}]`;
 
         return {
-          content: [
-            { type: 'text', text: `[Input blocked: ${blockedMessage}]` },
-          ],
-          finishReason: 'other',
-          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          text: blockedText,
+          content: [{ type: 'text', text: blockedText }],
+          finishReason: finishReasonOther,
+          usage: emptyV3Usage,
           warnings: [],
           rawCall: { rawPrompt: params.prompt, rawSettings: {} },
           response: { headers: {} },
@@ -1449,12 +1492,12 @@ export function createInputGuardrailsMiddleware<
       doStream,
       params,
     }: {
-      doGenerate: () => ReturnType<LanguageModelV2['doGenerate']>;
-      doStream: () => ReturnType<LanguageModelV2['doStream']>;
-      params: LanguageModelV2CallOptions;
-      model: LanguageModelV2;
+      doGenerate: () => PromiseLike<LanguageModelV3GenerateResult>;
+      doStream: () => PromiseLike<LanguageModelV3StreamResult>;
+      params: LanguageModelV3CallOptions;
+      model: LanguageModelV3;
     }) => {
-      const paramsWithGuardrails = params as LanguageModelV2CallOptions & {
+      const paramsWithGuardrails = params as LanguageModelV3CallOptions & {
         guardrailsBlocked?: GuardrailResult[];
       };
 
@@ -1462,7 +1505,7 @@ export function createInputGuardrailsMiddleware<
         const blockedResults = paramsWithGuardrails.guardrailsBlocked;
         const blockedMessage = blockedResults.map((r) => r.message).join(', ');
 
-        const stream = new ReadableStream<LanguageModelV2StreamPart>({
+        const stream = new ReadableStream<LanguageModelV3StreamPart>({
           start(controller) {
             controller.enqueue({
               type: 'text-delta',
@@ -1471,8 +1514,8 @@ export function createInputGuardrailsMiddleware<
             });
             controller.enqueue({
               type: 'finish',
-              finishReason: 'other',
-              usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+              finishReason: finishReasonOther,
+              usage: emptyV3Usage,
             });
             controller.close();
           },
@@ -1496,9 +1539,10 @@ export function createInputGuardrailsMiddleware<
  */
 export function createOutputGuardrailsMiddleware<
   M extends Record<string, unknown> = Record<string, unknown>,
->(config: OutputGuardrailsMiddlewareConfig<M>): LanguageModelV2Middleware {
+>(config: OutputGuardrailsMiddlewareConfig<M>): LanguageModelV3Middleware {
   const {
     outputGuardrails,
+    context,
     executionOptions = {},
     onOutputBlocked,
     throwOnBlocked = false,
@@ -1512,25 +1556,31 @@ export function createOutputGuardrailsMiddleware<
   const guardrailTelemetrySettings = executionOptions.telemetry;
 
   return {
+    specificationVersion: 'v3' as const,
     wrapGenerate: async ({
       doGenerate,
       params,
       model,
     }: {
-      doGenerate: () => ReturnType<LanguageModelV2['doGenerate']>;
-      doStream: () => ReturnType<LanguageModelV2['doStream']>;
-      params: LanguageModelV2CallOptions;
-      model: LanguageModelV2;
+      doGenerate: () => PromiseLike<LanguageModelV3GenerateResult>;
+      doStream: () => PromiseLike<LanguageModelV3StreamResult>;
+      params: LanguageModelV3CallOptions;
+      model: LanguageModelV3;
     }) => {
       const result = await doGenerate();
 
       // Use normalized context for better type safety
-      const guardrailContext = normalizeGuardrailContext(params);
+      const baseContext = normalizeGuardrailContext(params);
 
-      // Create a proper AIResult that works for both generateText and generateObject
+      // Create new context with request context to avoid mutating cached context
+      const guardrailContext = context
+        ? { ...baseContext, requestContext: context }
+        : baseContext;
+
+      // Create a proper AIResult that works for both generateText and generateText with Output.object()
       const aiResult: AIResult = result as unknown as AIResult;
       // For middleware, we work with the raw model result
-      // Note: generateObject scenarios should use executeOutputGuardrails() post-generation
+      // Note: generateText with Output.object() scenarios should use executeOutputGuardrails() post-generation
 
       const outputContext: OutputGuardrailContext = {
         input: guardrailContext,
@@ -1622,7 +1672,7 @@ export function createOutputGuardrailsMiddleware<
               summary: executionSummary,
               originalParams: params,
               lastParams,
-              lastResult: lastResult as AIResult,
+              lastResult: lastResult as unknown as AIResult,
             });
 
             // Call model with new params
@@ -1631,7 +1681,7 @@ export function createOutputGuardrailsMiddleware<
 
             const retryContext: OutputGuardrailContext = {
               input: normalizeGuardrailContext(nextParams),
-              result: retryResult as AIResult,
+              result: retryResult as unknown as AIResult,
             };
             const retryStart = Date.now();
             const retryResults = await executeOutputGuardrails<M>(
@@ -1677,12 +1727,12 @@ export function createOutputGuardrailsMiddleware<
           const blockedMessage = executionSummary.blockedResults
             .map((r) => r.message)
             .join(', ');
+          const blockedText = `[Output blocked: ${blockedMessage}]`;
           const replaced = {
             ...(result as unknown as Record<string, unknown>),
-            content: [
-              { type: 'text', text: `[Output blocked: ${blockedMessage}]` },
-            ],
-          } as typeof result;
+            text: blockedText,
+            content: [{ type: 'text' as const, text: blockedText }],
+          } as unknown as typeof result;
           return replaced;
         }
       }
@@ -1695,23 +1745,25 @@ export function createOutputGuardrailsMiddleware<
       params,
       model,
     }: {
-      doGenerate: () => ReturnType<LanguageModelV2['doGenerate']>;
-      doStream: () => ReturnType<LanguageModelV2['doStream']>;
-      params: LanguageModelV2CallOptions;
-      model: LanguageModelV2;
+      doGenerate: () => PromiseLike<LanguageModelV3GenerateResult>;
+      doStream: () => PromiseLike<LanguageModelV3StreamResult>;
+      params: LanguageModelV3CallOptions;
+      model: LanguageModelV3;
     }) => {
       const streamResult = await doStream();
 
       if (streamMode === 'buffer') {
         // Buffer mode: evaluate at the end
         let accumulatedText = '';
-        const blockedChunks: LanguageModelV2StreamPart[] = [];
+        let streamUsage: LanguageModelV3Usage | undefined;
+        let streamFinishReason: LanguageModelV3FinishReason | undefined;
+        const blockedChunks: LanguageModelV3StreamPart[] = [];
 
         const transformStream = new TransformStream<
-          LanguageModelV2StreamPart,
-          LanguageModelV2StreamPart
+          LanguageModelV3StreamPart,
+          LanguageModelV3StreamPart
         >({
-          transform(chunk: LanguageModelV2StreamPart) {
+          transform(chunk: LanguageModelV3StreamPart) {
             if (chunk.type === 'text-delta') {
               const anyChunk = chunk as {
                 type: string;
@@ -1720,19 +1772,41 @@ export function createOutputGuardrailsMiddleware<
               };
               accumulatedText += anyChunk.delta ?? anyChunk.textDelta ?? '';
             }
+            // Capture usage and finishReason from finish chunk
+            if (chunk.type === 'finish') {
+              streamUsage = chunk.usage;
+              streamFinishReason = chunk.finishReason;
+            }
             blockedChunks.push(chunk);
           },
           async flush(controller) {
-            const guardrailContext = normalizeGuardrailContext(params);
+            const baseContext = normalizeGuardrailContext(params);
+
+            // Create new context with request context to avoid mutating cached context
+            const guardrailContext = context
+              ? { ...baseContext, requestContext: context }
+              : baseContext;
+
+            // Build result with usage data so guardrails like tokenUsageLimit work
+            const streamedResult = {
+              text: accumulatedText,
+              content: [{ type: 'text', text: accumulatedText }],
+              usage: streamUsage,
+              finishReason: streamFinishReason,
+            };
+
             const outputContext: OutputGuardrailContext = {
               input: guardrailContext,
-              result: { text: accumulatedText } as unknown as AIResult,
+              result: streamedResult as unknown as AIResult,
             };
             const startTime = Date.now();
             const outputResults = await executeOutputGuardrails<M>(
               outputGuardrails,
               outputContext,
-              executionOptions,
+              {
+                ...executionOptions,
+                accumulatedText,
+              },
             );
             const executionSummary = createExecutionSummary<M>(
               outputResults,
@@ -1797,9 +1871,10 @@ export function createOutputGuardrailsMiddleware<
                     lastResult: lastResult as AIResult,
                   });
 
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const retryResult = (await model.doGenerate(
-                    nextParams,
-                  )) as AIResult;
+                    nextParams as any,
+                  )) as unknown as AIResult;
 
                   const retryContext: OutputGuardrailContext = {
                     input: normalizeGuardrailContext(nextParams),
@@ -1828,12 +1903,8 @@ export function createOutputGuardrailsMiddleware<
                     });
                     controller.enqueue({
                       type: 'finish',
-                      finishReason: 'stop',
-                      usage: {
-                        inputTokens: 0,
-                        outputTokens: 0,
-                        totalTokens: 0,
-                      },
+                      finishReason: finishReasonStop,
+                      usage: emptyV3Usage,
                     });
                     return;
                   }
@@ -1843,9 +1914,11 @@ export function createOutputGuardrailsMiddleware<
               }
 
               if (onOutputBlocked) {
-                onOutputBlocked(executionSummary, guardrailContext, {
-                  text: accumulatedText,
-                });
+                onOutputBlocked(
+                  executionSummary,
+                  guardrailContext,
+                  streamedResult,
+                );
               }
               if (throwOnBlocked) {
                 controller.error(
@@ -1866,8 +1939,8 @@ export function createOutputGuardrailsMiddleware<
                 });
                 controller.enqueue({
                   type: 'finish',
-                  finishReason: 'other',
-                  usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+                  finishReason: finishReasonOther,
+                  usage: emptyV3Usage,
                 });
               } else {
                 for (const chunk of blockedChunks) {
@@ -1882,7 +1955,10 @@ export function createOutputGuardrailsMiddleware<
           },
         });
 
-        return { stream: streamResult.stream.pipeThrough(transformStream) };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return {
+          stream: streamResult.stream.pipeThrough(transformStream as any),
+        };
       }
 
       // Progressive mode: evaluate on the fly with early termination support
@@ -1895,10 +1971,10 @@ export function createOutputGuardrailsMiddleware<
       }> = [];
 
       const transformStream = new TransformStream<
-        LanguageModelV2StreamPart,
-        LanguageModelV2StreamPart
+        LanguageModelV3StreamPart,
+        LanguageModelV3StreamPart
       >({
-        async transform(chunk: LanguageModelV2StreamPart, controller) {
+        async transform(chunk: LanguageModelV3StreamPart, controller) {
           if (blocked) {
             return;
           }
@@ -1911,7 +1987,13 @@ export function createOutputGuardrailsMiddleware<
             accumulatedText += anyChunk.delta ?? anyChunk.textDelta ?? '';
             chunkIndex++;
 
-            const guardrailContext = normalizeGuardrailContext(params);
+            const baseContext = normalizeGuardrailContext(params);
+
+            // Create new context with request context to avoid mutating cached context
+            const guardrailContext = context
+              ? { ...baseContext, requestContext: context }
+              : baseContext;
+
             const outputContext: OutputGuardrailContext = {
               input: guardrailContext,
               result: { text: accumulatedText } as AIResult,
@@ -1920,7 +2002,10 @@ export function createOutputGuardrailsMiddleware<
             const outputResults = await executeOutputGuardrails<M>(
               outputGuardrails,
               outputContext,
-              executionOptions,
+              {
+                ...executionOptions,
+                accumulatedText,
+              },
             );
             const executionSummary = createExecutionSummary<M>(
               outputResults,
@@ -1972,8 +2057,8 @@ export function createOutputGuardrailsMiddleware<
                   });
                   controller.enqueue({
                     type: 'finish',
-                    finishReason: 'other',
-                    usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+                    finishReason: finishReasonOther,
+                    usage: emptyV3Usage,
                   });
                   return;
                 }
@@ -1987,7 +2072,10 @@ export function createOutputGuardrailsMiddleware<
         },
       });
 
-      return { stream: streamResult.stream.pipeThrough(transformStream) };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return {
+        stream: streamResult.stream.pipeThrough(transformStream as any),
+      };
     },
   };
 }

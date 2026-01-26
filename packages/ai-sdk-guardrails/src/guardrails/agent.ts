@@ -1,12 +1,10 @@
 import {
-  Experimental_Agent as Agent,
-  type Experimental_AgentSettings as AgentSettings,
+  ToolLoopAgent,
+  type ToolLoopAgentSettings,
   type ToolSet,
   type GenerateTextResult,
   type Prompt,
   type ProviderMetadata,
-  type UIMessage,
-  type InferUITools,
   type LanguageModelUsage,
   type StopCondition,
 } from 'ai';
@@ -26,9 +24,10 @@ import type {
 type AnyRecord = Record<string, unknown>;
 
 // Helper function to create a minimal GenerateTextResult for guardrail validation
-function createMockGenerateTextResult<TOOLS extends ToolSet, OUTPUT>(
+function createMockGenerateTextResult<TOOLS extends ToolSet>(
   text: string,
-): GenerateTextResult<TOOLS, OUTPUT> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): GenerateTextResult<TOOLS, any> {
   return {
     content: [],
     text,
@@ -43,6 +42,8 @@ function createMockGenerateTextResult<TOOLS extends ToolSet, OUTPUT>(
     staticToolResults: [],
     dynamicToolResults: [],
     finishReason: 'stop' as const,
+    rawFinishReason: 'stop' as const,
+    output: undefined,
     usage: {
       inputTokens: 0,
       outputTokens: 0,
@@ -63,20 +64,18 @@ function createMockGenerateTextResult<TOOLS extends ToolSet, OUTPUT>(
     },
     providerMetadata: undefined,
     steps: [],
-    experimental_output: undefined as OUTPUT,
-  } as GenerateTextResult<TOOLS, OUTPUT>;
+    experimental_output: undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as GenerateTextResult<TOOLS, any>;
 }
 
 // Extract the interface from the Agent class to ensure we stay in sync
-type AgentInterface<
-  TOOLS extends ToolSet,
-  OUTPUT = never,
-  OUTPUT_PARTIAL = never,
-> = {
-  generate: Agent<TOOLS, OUTPUT, OUTPUT_PARTIAL>['generate'];
-  stream: Agent<TOOLS, OUTPUT, OUTPUT_PARTIAL>['stream'];
-  respond: Agent<TOOLS, OUTPUT, OUTPUT_PARTIAL>['respond'];
-  tools: Agent<TOOLS, OUTPUT, OUTPUT_PARTIAL>['tools'];
+type AgentInterface<CALL_OPTIONS = never, TOOLS extends ToolSet = ToolSet> = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  generate: ToolLoopAgent<CALL_OPTIONS, TOOLS, any>['generate'];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  stream: ToolLoopAgent<CALL_OPTIONS, TOOLS, any>['stream'];
+  tools: TOOLS;
 };
 
 export interface AgentGuardrailsRetry {
@@ -281,13 +280,13 @@ function toNormalizedContextFromAgent(
  * Accepts full AgentSettings for forward compatibility.
  */
 export function withAgentGuardrails<
-  TOOLS extends ToolSet,
-  OUTPUT = never,
-  OUTPUT_PARTIAL = never,
+  CALL_OPTIONS = never,
+  TOOLS extends ToolSet = ToolSet,
 >(
-  settings: AgentSettings<TOOLS, OUTPUT, OUTPUT_PARTIAL>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  settings: ToolLoopAgentSettings<CALL_OPTIONS, TOOLS, any>,
   config: AgentGuardrailsConfig = {},
-): AgentInterface<TOOLS, OUTPUT, OUTPUT_PARTIAL> {
+): AgentInterface<CALL_OPTIONS, TOOLS> {
   const {
     inputGuardrails = [],
     outputGuardrails = [],
@@ -320,7 +319,7 @@ export function withAgentGuardrails<
           if (toolGuardrails.length > 0) {
             const context: NormalizedGuardrailContext = {
               prompt: JSON.stringify({ tool: name, input: _input }),
-              system: settings.system ?? '',
+              system: (settings as { system?: string }).system ?? '',
               messages: [],
             };
             await executeOutputGuardrails(
@@ -328,7 +327,7 @@ export function withAgentGuardrails<
               {
                 input: context,
                 // Treat tool-call as text for generic guardrails
-                result: createMockGenerateTextResult<ToolSet, unknown>(''),
+                result: createMockGenerateTextResult<ToolSet>(''),
               },
               executionOptions,
             );
@@ -341,17 +340,26 @@ export function withAgentGuardrails<
   ) as unknown as TOOLS;
 
   // Build stopWhen condition if guardrail-based early termination is enabled
-  const enhancedStopWhen = buildGuardrailStopCondition(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const enhancedStopWhen = (buildGuardrailStopCondition as any)(
     settings.stopWhen,
     stopOnGuardrailViolation,
     violationHistory,
-  );
+  ) as StopCondition<ToolSet> | StopCondition<ToolSet>[] | undefined;
 
   // Create the underlying agent with enhanced stopWhen
-  const baseAgent = new Agent<TOOLS, OUTPUT, OUTPUT_PARTIAL>({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const baseAgent = new ToolLoopAgent<CALL_OPTIONS, TOOLS, any>({
     ...settings,
     tools: wrappedTools,
-    ...(enhancedStopWhen ? { stopWhen: enhancedStopWhen } : {}),
+    ...(enhancedStopWhen
+      ? {
+          stopWhen: enhancedStopWhen as unknown as
+            | StopCondition<TOOLS>
+            | StopCondition<TOOLS>[]
+            | undefined,
+        }
+      : {}),
   });
 
   async function checkInputGuardrails(normalized: NormalizedGuardrailContext) {
@@ -419,7 +427,7 @@ export function withAgentGuardrails<
         toolGuardrails as OutputGuardrail<AnyRecord>[],
         {
           input: ctx,
-          result: createMockGenerateTextResult<ToolSet, unknown>(''),
+          result: createMockGenerateTextResult<ToolSet>(''),
         },
         executionOptions,
       );
@@ -462,7 +470,7 @@ export function withAgentGuardrails<
         outputGuardrails as OutputGuardrail<AnyRecord>[],
         {
           input: ctx,
-          result: createMockGenerateTextResult<ToolSet, unknown>(text),
+          result: createMockGenerateTextResult<ToolSet>(text),
         },
         executionOptions,
       );
@@ -491,19 +499,20 @@ export function withAgentGuardrails<
     options: Prompt & {
       providerMetadata?: ProviderMetadata;
     },
-  ): Promise<GenerateTextResult<TOOLS, OUTPUT>> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<any> {
     const normalized = toNormalizedContextFromAgent(
       (options?.prompt ?? options?.messages) as
         | string
         | Array<{ role: string; content: unknown }>,
-      settings.system,
+      (settings as { system?: string }).system,
     );
 
     // Input guardrails first
     const inputBlocked = await checkInputGuardrails(normalized);
     if (inputBlocked) {
       // Return a minimal GenerateTextResult for blocked input
-      return createMockGenerateTextResult<TOOLS, OUTPUT>(inputBlocked.text);
+      return createMockGenerateTextResult<TOOLS>(inputBlocked.text);
     }
 
     let attempts = 0;
@@ -569,26 +578,27 @@ export function withAgentGuardrails<
               return {
                 ...result,
                 text: finalText,
-              } as GenerateTextResult<TOOLS, OUTPUT>;
+                output: result.output,
+                rawFinishReason: result.rawFinishReason ?? result.finishReason,
+              };
             }
           }
         }
       }
 
-      return result;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return result as any;
     }
   }
 
   return {
-    generate: guardedGenerate,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    generate: guardedGenerate as any,
     stream: (
       opts: Prompt & {
         providerMetadata?: ProviderMetadata;
       },
     ) => baseAgent.stream(opts),
-    respond: (opts: {
-      messages: UIMessage<never, never, InferUITools<TOOLS>>[];
-    }) => baseAgent.respond(opts),
-    tools: wrappedTools,
-  };
+    tools: wrappedTools as unknown as TOOLS,
+  } as unknown as AgentInterface<CALL_OPTIONS, TOOLS>;
 }

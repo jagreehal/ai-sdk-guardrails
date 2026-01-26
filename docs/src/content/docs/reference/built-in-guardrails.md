@@ -60,10 +60,8 @@ import { blockedKeywords } from 'ai-sdk-guardrails';
 
 const model = withGuardrails(openai('gpt-4o'), {
   inputGuardrails: [
-    blockedKeywords({
-      keywords: ['spam', 'scam', 'phishing'],
-      caseSensitive: false,
-    }),
+    // Case-insensitive, partial-match keyword blocking
+    blockedKeywords(['spam', 'scam', 'phishing']),
   ],
 });
 ```
@@ -81,7 +79,7 @@ const model = withGuardrails(openai('gpt-4o'), {
   inputGuardrails: [
     inputLengthLimit({
       maxLength: 1000,
-      unit: 'characters', // or 'tokens'
+      countMethod: 'characters', // or 'bytes' | 'words'
     }),
   ],
 });
@@ -99,9 +97,8 @@ import { rateLimiting } from 'ai-sdk-guardrails';
 const model = withGuardrails(openai('gpt-4o'), {
   inputGuardrails: [
     rateLimiting({
-      maxRequests: 10,
-      windowMs: 60000, // 10 requests per minute
-      keyExtractor: (params) => params.userId,
+      maxRequestsPerMinute: 10,
+      windowMs: 60000, // 10 requests per minute (optional; defaults to 60s)
     }),
   ],
 });
@@ -213,10 +210,7 @@ import { outputLengthLimit } from 'ai-sdk-guardrails';
 
 const model = withGuardrails(openai('gpt-4o'), {
   outputGuardrails: [
-    outputLengthLimit({
-      maxLength: 500,
-      unit: 'characters', // or 'tokens'
-    }),
+    outputLengthLimit(500), // 500 characters max
   ],
 });
 ```
@@ -396,7 +390,7 @@ const model = withGuardrails(openai('gpt-4o'), {
     piiDetector(),
     promptInjectionDetector(),
     inputLengthLimit({ maxLength: 1000 }),
-    rateLimiting({ maxRequests: 10, windowMs: 60000 }),
+    rateLimiting({ maxRequestsPerMinute: 10, windowMs: 60000 }),
   ],
   outputGuardrails: [
     sensitiveDataFilter(),

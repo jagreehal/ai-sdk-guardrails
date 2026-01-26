@@ -7,8 +7,7 @@
  * and factual accuracy.
  */
 
-import { generateObject } from 'ai';
-import { generateText } from 'ai-sdk-ollama';
+import { generateText, Output } from 'ai';
 import { llama3_2 as model } from './model';
 import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
 import { z } from 'zod';
@@ -307,13 +306,15 @@ Respond with a JSON object matching this schema:
 }
 `;
 
-    const result = await generateObject({
+    const result = await generateText({
       model: model,
       prompt: verificationPrompt,
-      schema: verificationSchema,
+      output: Output.object({
+        schema: verificationSchema,
+      }),
     });
 
-    return result.object;
+    return result.output;
   } catch (error) {
     // Fallback to basic heuristics if LLM verification fails
     console.warn('LLM verification failed, using fallback heuristics:', error);
