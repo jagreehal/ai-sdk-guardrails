@@ -10,7 +10,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { model } from './model';
 import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
@@ -179,16 +179,18 @@ describe('Object Content Filter Example', () => {
         throwOnBlocked: false,
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: messageModel,
         prompt:
           'Create a professional project update message with subject "Project Update: Q1 Progress" and body about team achievements. Set priority to medium.',
-        schema: messageSchema,
+        output: Output.object({
+          schema: messageSchema,
+        }),
       });
 
-      expect(result.object).toBeDefined();
-      expect(result.object.subject).toBeDefined();
-      expect(result.object.body).toBeDefined();
+      expect(result.output).toBeDefined();
+      expect(result.output.subject).toBeDefined();
+      expect(result.output.body).toBeDefined();
     });
 
     it('should detect spam indicators in message', async () => {
@@ -204,14 +206,16 @@ describe('Object Content Filter Example', () => {
         },
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: messageModel,
         prompt:
           'Create a marketing email with subject "URGENT: Limited Time Offer - ACT NOW!" and body containing phrases like "limited time", "act now", "click here", "buy now". Make it high priority.',
-        schema: messageSchema,
+        output: Output.object({
+          schema: messageSchema,
+        }),
       });
 
-      expect(result.object).toBeDefined();
+      expect(result.output).toBeDefined();
       // If spam was detected, verify metadata
       if (blockedMessage) {
         expect(blockedMessage).toContain('Content issues');
@@ -231,11 +235,13 @@ describe('Object Content Filter Example', () => {
         },
       });
 
-      await generateObject({
+      await generateText({
         model: messageModel,
         prompt:
           'Create a message with subject "URGENT ACT NOW" and body "Limited time offer! Click here to buy now!"',
-        schema: messageSchema,
+        output: Output.object({
+          schema: messageSchema,
+        }),
       });
 
       // If metadata was captured, verify structure
@@ -254,17 +260,19 @@ describe('Object Content Filter Example', () => {
         throwOnBlocked: false,
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: socialModel,
         prompt:
           'Create a social media post with title "Coffee Morning" about enjoying coffee, include 3-5 hashtags like #CoffeeLovers #MorningRoutine, set visibility to public.',
-        schema: postSchema,
+        output: Output.object({
+          schema: postSchema,
+        }),
       });
 
-      expect(result.object).toBeDefined();
-      expect(result.object.title).toBeDefined();
-      expect(result.object.hashtags).toBeDefined();
-      expect(Array.isArray(result.object.hashtags)).toBe(true);
+      expect(result.output).toBeDefined();
+      expect(result.output.title).toBeDefined();
+      expect(result.output.hashtags).toBeDefined();
+      expect(Array.isArray(result.output.hashtags)).toBe(true);
     });
 
     it('should detect excessive hashtags in social media post', async () => {
@@ -280,14 +288,16 @@ describe('Object Content Filter Example', () => {
         },
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: socialModel,
         prompt:
           'Create a social media post about technology trends with title "Tech Trends 2024", include exactly 15 hashtags about technology, set visibility to public.',
-        schema: postSchema,
+        output: Output.object({
+          schema: postSchema,
+        }),
       });
 
-      expect(result.object).toBeDefined();
+      expect(result.output).toBeDefined();
       // If hashtag violation was detected, verify metadata
       if (blockedMessage) {
         expect(blockedMessage).toContain('Social media policy violations');
@@ -307,11 +317,13 @@ describe('Object Content Filter Example', () => {
         },
       });
 
-      await generateObject({
+      await generateText({
         model: socialModel,
         prompt:
           'Create a social media post with title "Tech Update" and include 15 hashtags about technology.',
-        schema: postSchema,
+        output: Output.object({
+          schema: postSchema,
+        }),
       });
 
       // If metadata was captured, verify structure

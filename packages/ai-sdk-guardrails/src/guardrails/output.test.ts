@@ -8,7 +8,8 @@ import type {
 } from 'ai';
 
 // Use the proper AI SDK types for testing
-type TestGenerateTextResult = GenerateTextResult<ToolSet, unknown>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type TestGenerateTextResult = GenerateTextResult<ToolSet, any>;
 import {
   outputLengthLimit,
   blockedContent,
@@ -23,39 +24,68 @@ import {
 
 // Helper function to create mock GenerateTextResult
 const createMockGenerateTextResult = (
-  overrides: Partial<TestGenerateTextResult> = {},
-): TestGenerateTextResult => ({
-  content: [],
-  text: 'Mock response text',
-  reasoning: [],
-  reasoningText: undefined,
-  files: [],
-  sources: [],
-  toolCalls: [],
-  staticToolCalls: [],
-  dynamicToolCalls: [],
-  toolResults: [],
-  staticToolResults: [],
-  dynamicToolResults: [],
-  finishReason: 'stop' as const,
-  usage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
-  totalUsage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
-  warnings: undefined,
-  request: {} as LanguageModelRequestMetadata,
-  response: {
-    id: 'test-id',
-    timestamp: new Date(),
-    modelId: 'test-model',
-    messages: [],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  overrides: any = {},
+): TestGenerateTextResult =>
+  ({
+    content: [],
+    text: 'Mock response text',
+    reasoning: [],
+    reasoningText: undefined,
+    files: [],
+    sources: [],
+    toolCalls: [],
+    staticToolCalls: [],
+    dynamicToolCalls: [],
+    toolResults: [],
+    staticToolResults: [],
+    dynamicToolResults: [],
+    finishReason: 'stop' as const,
+    usage: {
+      totalTokens: 10,
+      inputTokens: 5,
+      outputTokens: 5,
+      inputTokenDetails: {
+        noCacheTokens: undefined,
+        cacheReadTokens: undefined,
+        cacheWriteTokens: undefined,
+      },
+      outputTokenDetails: {
+        textTokens: undefined,
+        reasoningTokens: undefined,
+      },
+    },
+    totalUsage: {
+      totalTokens: 10,
+      inputTokens: 5,
+      outputTokens: 5,
+      inputTokenDetails: {
+        noCacheTokens: undefined,
+        cacheReadTokens: undefined,
+        cacheWriteTokens: undefined,
+      },
+      outputTokenDetails: {
+        textTokens: undefined,
+        reasoningTokens: undefined,
+      },
+    },
+    warnings: undefined,
+    request: {} as LanguageModelRequestMetadata,
+    response: {
+      id: 'test-id',
+      timestamp: new Date(),
+      modelId: 'test-model',
+      messages: [],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as LanguageModelResponseMetadata & { messages: any[] },
+    providerMetadata: {
+      generationTimeMs: 2000,
+    } as unknown as ProviderMetadata,
+    steps: [],
+    experimental_output: undefined,
+    ...overrides,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as LanguageModelResponseMetadata & { messages: any[] },
-  providerMetadata: {
-    generationTimeMs: 2000,
-  } as unknown as ProviderMetadata,
-  steps: [],
-  experimental_output: undefined,
-  ...overrides,
-});
+  }) as any as TestGenerateTextResult;
 
 // Helper function to create mock input context
 const createMockInputContext = () => ({
@@ -65,6 +95,26 @@ const createMockInputContext = () => ({
   maxOutputTokens: 100,
   temperature: 0.7,
   modelParams: {},
+});
+
+// Helper to create usage with required token details
+const createMockUsage = (
+  totalTokens: number,
+  inputTokens: number,
+  outputTokens: number,
+) => ({
+  totalTokens,
+  inputTokens,
+  outputTokens,
+  inputTokenDetails: {
+    noCacheTokens: undefined,
+    cacheReadTokens: undefined,
+    cacheWriteTokens: undefined,
+  },
+  outputTokenDetails: {
+    textTokens: undefined,
+    reasoningTokens: undefined,
+  },
 });
 
 describe('Output Guardrails', () => {
@@ -79,7 +129,7 @@ describe('Output Guardrails', () => {
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: 'Short response',
-          usage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
+          usage: createMockUsage(10, 5, 5),
           finishReason: 'stop' as const,
         }),
       });
@@ -94,7 +144,7 @@ describe('Output Guardrails', () => {
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: 'This is a very long response that exceeds the limit',
-          usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
+          usage: createMockUsage(20, 10, 10),
           finishReason: 'stop' as const,
         }),
       });
@@ -115,7 +165,7 @@ describe('Output Guardrails', () => {
         result: {
           ...createMockGenerateTextResult({
             text: undefined,
-            usage: { totalTokens: 15, inputTokens: 0, outputTokens: 15 },
+            usage: createMockUsage(15, 0, 15),
             finishReason: 'stop' as const,
           }),
           object: obj,
@@ -127,13 +177,32 @@ describe('Output Guardrails', () => {
       expect(result.metadata?.hasObject).toBe(true);
     });
 
+    it('should handle structured output from Output.object()', async () => {
+      const guardrail = outputLengthLimit(10);
+      const obj = { name: 'John', age: 30 };
+      const result = await guardrail.execute({
+        input: createMockInputContext(),
+        result: {
+          ...createMockGenerateTextResult({
+            text: undefined,
+            usage: createMockUsage(15, 0, 15),
+            finishReason: 'stop' as const,
+          }),
+          output: obj,
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+
+      expect(result.tripwireTriggered).toBe(true);
+    });
+
     it('should include performance metadata', async () => {
       const guardrail = outputLengthLimit(100);
       const result = await guardrail.execute({
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: 'Test',
-          usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
+          usage: createMockUsage(20, 10, 10),
           finishReason: 'stop' as const,
           providerMetadata: {
             generationTimeMs: 2000,
@@ -292,7 +361,7 @@ describe('Output Guardrails', () => {
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: 'I am certain this is correct',
-          usage: { totalTokens: 10, inputTokens: 0, outputTokens: 10 },
+          usage: createMockUsage(10, 0, 10),
           finishReason: 'stop' as const,
           reasoningText: 'High confidence response',
         }),
@@ -307,7 +376,7 @@ describe('Output Guardrails', () => {
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: 'I think this might be correct, but I am not sure',
-          usage: { totalTokens: 15, inputTokens: 0, outputTokens: 15 },
+          usage: createMockUsage(15, 0, 15),
           finishReason: 'stop' as const,
         }),
       });
@@ -324,7 +393,7 @@ describe('Output Guardrails', () => {
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: 'This is a confident response',
-          usage: { totalTokens: 10, inputTokens: 0, outputTokens: 10 },
+          usage: createMockUsage(10, 0, 10),
           finishReason: 'length' as const,
         }),
       });
@@ -340,7 +409,7 @@ describe('Output Guardrails', () => {
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: 'Maybe this is correct',
-          usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
+          usage: createMockUsage(20, 10, 10),
           finishReason: 'stop' as const,
           reasoningText: 'Uncertain response',
         }),
@@ -465,7 +534,7 @@ describe('Output Guardrails', () => {
 
       const output = {
         text: 'Test output',
-        usage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
+        usage: createMockUsage(10, 5, 5),
         finishReason: 'stop' as const,
       };
 
@@ -494,7 +563,7 @@ describe('Output Guardrails', () => {
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: 'Test output',
-          usage: { totalTokens: 10, inputTokens: 5, outputTokens: 5 },
+          usage: createMockUsage(10, 5, 5),
           finishReason: 'stop' as const,
         }),
       });
@@ -540,7 +609,7 @@ describe('Output Guardrails', () => {
         result: {
           ...createMockGenerateTextResult({
             text: undefined,
-            usage: { totalTokens: 10, inputTokens: 0, outputTokens: 10 },
+            usage: createMockUsage(10, 0, 10),
             finishReason: 'stop' as const,
           }),
           object: { name: 'John', age: 30 },
@@ -550,6 +619,49 @@ describe('Output Guardrails', () => {
       expect(result.tripwireTriggered).toBe(false);
       expect(result.metadata?.hasObject).toBe(true);
       expect(result.metadata?.validationPassed).toBe(true);
+      expect(mockSchema.parse).toHaveBeenCalledWith({ name: 'John', age: 30 });
+    });
+
+    it('should validate Output.object() when text is present', async () => {
+      mockSchema.parse.mockReturnValue({ valid: true });
+      const guardrail = schemaValidation(mockSchema);
+      const result = await guardrail.execute({
+        input: createMockInputContext(),
+        result: {
+          ...createMockGenerateTextResult({
+            text: 'Serialized output',
+            usage: createMockUsage(10, 0, 10),
+            finishReason: 'stop' as const,
+          }),
+          output: { name: 'John', age: 30 },
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+
+      expect(result.tripwireTriggered).toBe(false);
+      expect(result.metadata?.hasObject).toBe(true);
+      expect(mockSchema.parse).toHaveBeenCalledWith({ name: 'John', age: 30 });
+    });
+
+    it('should validate Output.object() when content text is present', async () => {
+      mockSchema.parse.mockReturnValue({ valid: true });
+      const guardrail = schemaValidation(mockSchema);
+      const result = await guardrail.execute({
+        input: createMockInputContext(),
+        result: {
+          ...createMockGenerateTextResult({
+            text: 'Serialized output',
+            usage: createMockUsage(10, 0, 10),
+            finishReason: 'stop' as const,
+            content: [{ type: 'text', text: 'Serialized output' }],
+          }),
+          output: { name: 'John', age: 30 },
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+
+      expect(result.tripwireTriggered).toBe(false);
+      expect(result.metadata?.hasObject).toBe(true);
       expect(mockSchema.parse).toHaveBeenCalledWith({ name: 'John', age: 30 });
     });
 
@@ -565,7 +677,7 @@ describe('Output Guardrails', () => {
         result: {
           ...createMockGenerateTextResult({
             text: undefined,
-            usage: { totalTokens: 10, inputTokens: 0, outputTokens: 10 },
+            usage: createMockUsage(10, 0, 10),
             finishReason: 'stop' as const,
           }),
           object: { name: 'John', age: 30 },
@@ -609,7 +721,7 @@ describe('Output Guardrails', () => {
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: 'Output text',
-          usage: { totalTokens: 50, inputTokens: 20, outputTokens: 30 },
+          usage: createMockUsage(50, 20, 30),
         }),
       });
 
@@ -622,7 +734,7 @@ describe('Output Guardrails', () => {
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: 'Output text',
-          usage: { totalTokens: 100, inputTokens: 40, outputTokens: 60 },
+          usage: createMockUsage(100, 40, 60),
         }),
       });
 
@@ -658,7 +770,7 @@ describe('Output Guardrails', () => {
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: 'Fast response',
-          usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
+          usage: createMockUsage(20, 10, 10),
         }),
       });
 
@@ -671,7 +783,7 @@ describe('Output Guardrails', () => {
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: 'Slow response',
-          usage: { totalTokens: 20, inputTokens: 10, outputTokens: 10 },
+          usage: createMockUsage(20, 10, 10),
         }),
       });
 
@@ -690,7 +802,7 @@ describe('Output Guardrails', () => {
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: 'Response with metrics',
-          usage: { totalTokens: 100, inputTokens: 40, outputTokens: 60 },
+          usage: createMockUsage(100, 40, 60),
         }),
       });
 
@@ -705,7 +817,7 @@ describe('Output Guardrails', () => {
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: 'Response',
-          usage: { totalTokens: 20, inputTokens: 0, outputTokens: 20 },
+          usage: createMockUsage(20, 0, 20),
           providerMetadata: undefined,
         }),
       });
@@ -722,7 +834,7 @@ describe('Output Guardrails', () => {
         input: createMockInputContext(),
         result: createMockGenerateTextResult({
           text: '',
-          experimental_output: null,
+          experimental_output: undefined,
         }),
       });
 

@@ -5,9 +5,9 @@ description: How to install and setup AI SDK Guardrails
 
 ## Requirements
 
-- Node.js 18+ or Bun
+- Node.js 22+ (recommended) or Bun
 - TypeScript 5.0+ (recommended)
-- Vercel AI SDK 4.0+
+- Vercel AI SDK 6.0+
 
 ## Package Installation
 
@@ -32,7 +32,7 @@ bun add ai-sdk-guardrails
 AI SDK Guardrails requires the Vercel AI SDK:
 
 ```bash
-npm install ai
+npm install ai@^6
 ```
 
 You'll also need at least one AI provider:
@@ -189,7 +189,7 @@ AI SDK Guardrails is designed to be tree-shakeable. Only import the guardrails y
 ```ts
 // Good - only imports what you use
 import { withGuardrails } from 'ai-sdk-guardrails';
-import { piiDetector } from 'ai-sdk-guardrails/guardrails';
+import { piiDetector } from 'ai-sdk-guardrails/guardrails/input';
 
 // Avoid - imports everything
 import * as guardrails from 'ai-sdk-guardrails';

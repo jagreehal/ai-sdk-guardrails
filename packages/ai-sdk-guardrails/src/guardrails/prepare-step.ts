@@ -1,5 +1,5 @@
 import type { GuardrailViolation } from './stop-conditions';
-import type { LanguageModelV2 } from '../types';
+import type { LanguageModelV3 } from '../types';
 
 /**
  * Options for guardrail-aware prepareStep
@@ -82,7 +82,7 @@ export function createGuardrailPrepareStep(
   steps: Array<{ content: unknown }>;
   stepNumber: number;
   messages: unknown[];
-  model: LanguageModelV2;
+  model: LanguageModelV3;
 }) =>
   | {
       temperature?: number;
@@ -211,7 +211,7 @@ export function createAdaptivePrepareStep(
   steps: Array<{ content: unknown }>;
   stepNumber: number;
   messages: unknown[];
-  model: LanguageModelV2;
+  model: LanguageModelV3;
 }) =>
   | {
       temperature?: number;

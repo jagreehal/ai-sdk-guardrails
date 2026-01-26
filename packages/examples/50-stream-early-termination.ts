@@ -2,7 +2,7 @@
  * Example: Early Termination Across All Generation Methods
  *
  * Demonstrates how guardrails can detect violations early and stop generation
- * across streamText, generateText, generateObject, and streamObject.
+ * across streamText and generateText (with Output.object() for structured data).
  *
  * Key Features:
  * - Progressive evaluation during streaming

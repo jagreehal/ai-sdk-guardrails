@@ -1,11 +1,5 @@
-import {
-  generateText,
-  generateObject,
-  streamText,
-  streamObject,
-  embed,
-} from 'ai';
-import type { LanguageModelV2CallOptions as LMCallOptions } from '@ai-sdk/provider';
+import { generateText, streamText, embed } from 'ai';
+import type { LanguageModelV3CallOptions as LMCallOptions } from '@ai-sdk/provider';
 import type { GuardrailTelemetrySettings } from './telemetry/types';
 import type { GuardrailResult } from './enhanced-types';
 
@@ -55,19 +49,18 @@ export type GuardrailsParams = {
 };
 
 export type GenerateTextParams = Parameters<typeof generateText>[0];
-export type GenerateObjectParams = Parameters<typeof generateObject>[0];
 export type StreamTextParams = Parameters<typeof streamText>[0];
-export type StreamObjectParams = Parameters<typeof streamObject>[0];
 export type EmbedParams = Parameters<typeof embed>[0];
 
 // Derive result types since the AI SDK types are generic and require type parameters
 export type GenerateTextResult = Awaited<ReturnType<typeof generateText>>;
-export type GenerateObjectResult = Awaited<ReturnType<typeof generateObject>>;
 export type StreamTextResult = ReturnType<typeof streamText>;
-export type StreamObjectResult = ReturnType<typeof streamObject>;
 export type EmbedResult = ReturnType<typeof embed>;
 
-// Re-export available AI SDK utility types
+// =============================================================================
+// PUBLIC API TYPES - Export unified types from 'ai' package
+// These are the recommended types for users of the library
+// =============================================================================
 export type {
   CallWarning,
   FinishReason,
@@ -76,18 +69,25 @@ export type {
   LanguageModelRequestMetadata,
   LanguageModelResponseMetadata,
   ToolSet,
+  LanguageModel,
+  LanguageModelMiddleware,
 } from 'ai';
 
-// Re-export middleware and provider types for convenience
+// =============================================================================
+// INTERNAL V3 TYPES - For middleware implementation only
+// Users should import these directly from '@ai-sdk/provider' if needed
+// These are re-exported for internal library use only
+// =============================================================================
 export type {
-  LanguageModelV2,
-  LanguageModelV2Middleware,
-  LanguageModelV2CallOptions,
-  LanguageModelV2StreamPart,
-  LanguageModelV2FinishReason,
-  LanguageModelV2CallWarning,
-  LanguageModelV2ResponseMetadata,
-  LanguageModelV2Usage,
+  LanguageModelV3,
+  LanguageModelV3Middleware,
+  LanguageModelV3CallOptions,
+  LanguageModelV3GenerateResult,
+  LanguageModelV3StreamResult,
+  LanguageModelV3StreamPart,
+  LanguageModelV3FinishReason,
+  LanguageModelV3ResponseMetadata,
+  LanguageModelV3Usage,
 } from '@ai-sdk/provider';
 
 /**
@@ -149,8 +149,31 @@ export interface RetryInstruction {
 
 // ============================================================================
 
+// ============================================================================
+// Request Context Types (for passing user/session data through guardrails)
+// ============================================================================
+
+/**
+ * Request-scoped context that can be passed through guardrail execution.
+ * Use this to pass user information, permissions, session data, etc.
+ */
+export interface RequestContext<T = Record<string, unknown>> {
+  /** User identifier for tracking/logging */
+  userId?: string;
+  /** Session identifier for multi-turn tracking */
+  sessionId?: string;
+  /** User permissions for role-based access control */
+  permissions?: string[];
+  /** Organization/tenant identifier */
+  organizationId?: string;
+  /** Custom metadata */
+  metadata?: T;
+}
+
 // Normalized internal types for better type safety and maintainability
-export interface NormalizedGuardrailContext {
+export interface NormalizedGuardrailContext<
+  TContext = Record<string, unknown>,
+> {
   /** The main prompt/input text */
   prompt: string;
   /** Chat-style messages if available */
@@ -166,22 +189,17 @@ export interface NormalizedGuardrailContext {
   temperature?: number;
   /** Additional model parameters */
   modelParams?: Record<string, unknown>;
+  /** Request-scoped context (user, session, permissions, etc.) */
+  requestContext?: RequestContext<TContext>;
 }
 
 export type InputGuardrailContext =
   | GenerateTextParams
-  | GenerateObjectParams
   | StreamTextParams
-  | StreamObjectParams
   | EmbedParams
   | NormalizedGuardrailContext;
 
-export type AIResult =
-  | GenerateTextResult
-  | GenerateObjectResult
-  | StreamTextResult
-  | StreamObjectResult
-  | EmbedResult;
+export type AIResult = GenerateTextResult | StreamTextResult | EmbedResult;
 
 export type OutputGuardrailContext = {
   input: NormalizedGuardrailContext;
@@ -382,9 +400,14 @@ export interface GuardrailExecutionSummary<M = Record<string, unknown>> {
 // Generic metadata type parameterized via usage sites
 /* intentionally removed duplicate empty interface */
 
-export interface InputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
+export interface InputGuardrailsMiddlewareConfig<
+  M = Record<string, unknown>,
+  TContext = Record<string, unknown>,
+> {
   /** Input guardrails to execute before AI calls */
   inputGuardrails: InputGuardrail<M>[];
+  /** Request-scoped context passed to all guardrails */
+  context?: RequestContext<TContext>;
   /**
    * Execution options for guardrails with error handling configuration.
    *
@@ -525,9 +548,14 @@ export interface InputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
   throwOnBlocked?: boolean;
 }
 
-export interface OutputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
+export interface OutputGuardrailsMiddlewareConfig<
+  M = Record<string, unknown>,
+  TContext = Record<string, unknown>,
+> {
   /** Output guardrails to execute after AI calls */
   outputGuardrails: OutputGuardrail<M>[];
+  /** Request-scoped context passed to all guardrails */
+  context?: RequestContext<TContext>;
   /**
    * Execution options for guardrails with error handling configuration.
    *
@@ -777,7 +805,7 @@ export interface OutputGuardrailsMiddlewareConfig<M = Record<string, unknown>> {
      * that appends retry instructions from blocked guardrails' `getRetryInstruction()` methods.
      *
      * When provided, this function has full control over the retry parameters.
-     * Must return complete LanguageModelV2CallOptions for the next attempt.
+     * Must return complete LanguageModelV3CallOptions for the next attempt.
      */
     buildRetryParams?: (args: {
       summary: GuardrailExecutionSummary<M>;

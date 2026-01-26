@@ -6,9 +6,9 @@
  * This is critical for AI agents that can call external tools and APIs.
  */
 
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { model } from './model';
-import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
+import { defineOutputGuardrail, executeOutputGuardrails } from 'ai-sdk-guardrails';
 import { z } from 'zod';
 
 // Define types for tool call validation metadata
@@ -319,9 +319,10 @@ function validateFunctionCall(
     typeof parameters === 'object' &&
     'content' in parameters &&
     typeof (parameters as Record<string, unknown>).content === 'string' &&
-    ((parameters as Record<string, unknown>).content as string).length > 10_000
+    // Keep this low so the example can trigger deterministically without huge generations.
+    ((parameters as Record<string, unknown>).content as string).length > 200
   ) {
-    errors.push('Content size exceeds maximum allowed (10,000 characters)');
+    errors.push('Content size exceeds maximum allowed (200 characters)');
   }
 
   // Track execution for side-effect analysis
@@ -368,16 +369,19 @@ const toolCallValidationGuardrail =
       // Extract content from the result
       let toolCalls: unknown[] = [];
 
-      // Check if the result has a content array (newer AI SDK format)
+      // Check if the result has a content array (AI SDK tool-call parts)
       if ('content' in result && Array.isArray(result.content)) {
-        toolCalls = result.content.filter(
+        toolCalls.push(
+          ...result.content.filter(
           (item: unknown) =>
             (item as Record<string, unknown>).type === 'tool-call',
+          ),
         );
       }
-      // Check if the result has an object with tool calls
-      else if ('object' in result && result.object) {
-        const obj = result.object;
+
+      // Check if the result has an output with tool calls (Output.object() structured output)
+      if ('output' in result && result.output) {
+        const obj = result.output;
         // Look for tool calls in the object structure
         if (obj && typeof obj === 'object') {
           // Check if the object itself is a tool call
@@ -385,7 +389,7 @@ const toolCallValidationGuardrail =
             (obj as Record<string, unknown>).function &&
             (obj as Record<string, unknown>).arguments
           ) {
-            toolCalls = [obj];
+            toolCalls.push(obj);
           }
           // Check if the object contains tool calls as properties
           else {
@@ -393,7 +397,16 @@ const toolCallValidationGuardrail =
             const findToolCalls = (currentObj: unknown): unknown[] => {
               const calls: unknown[] = [];
 
-              if (currentObj && typeof currentObj === 'object') {
+              if (!currentObj) return calls;
+
+              if (Array.isArray(currentObj)) {
+                for (const value of currentObj) {
+                  calls.push(...findToolCalls(value));
+                }
+                return calls;
+              }
+
+              if (typeof currentObj === 'object') {
                 // Check if this object is a tool call
                 if (
                   (currentObj as Record<string, unknown>).function &&
@@ -411,7 +424,7 @@ const toolCallValidationGuardrail =
               return calls;
             };
 
-            toolCalls = findToolCalls(obj);
+            toolCalls.push(...findToolCalls(obj));
           }
         }
       }
@@ -420,15 +433,24 @@ const toolCallValidationGuardrail =
         return { tripwireTriggered: false };
       }
 
-      const validationResults = [];
+      const validationResults: ToolCallValidationMetadata['validationResults'] =
+        [];
       const allErrors: string[] = [];
       const allWarnings: string[] = [];
 
       for (const toolCall of toolCalls) {
-        const { functionName, arguments: args } = toolCall as Record<
-          string,
-          unknown
-        >;
+        const obj = toolCall as Record<string, unknown>;
+        const functionName =
+          (obj.functionName as string | undefined) ??
+          (obj.function as string | undefined) ??
+          (obj.toolName as string | undefined) ??
+          (obj.name as string | undefined);
+        const args = (obj.arguments ?? obj.args) as unknown;
+
+        if (!functionName) {
+          allErrors.push('Tool call is missing a function name');
+          continue;
+        }
 
         // Extract context (in a real app, this would come from the request context)
         const context = {
@@ -437,12 +459,12 @@ const toolCallValidationGuardrail =
         };
 
         const validation = validateFunctionCall(
-          functionName as string,
+          functionName,
           args,
           context,
         );
         validationResults.push({
-          functionName: functionName as string,
+          functionName,
           isValid: validation.isValid,
           errors: validation.errors,
           warnings: validation.warnings,
@@ -505,33 +527,57 @@ const toolCallValidationGuardrail =
 
 console.log('🛡️  Tool Call Validation Example\n');
 
-// Create a protected model with tool call validation
-const protectedModel = withGuardrails(model, {
-  outputGuardrails: [toolCallValidationGuardrail],
-  throwOnBlocked: true,
-  onOutputBlocked: (executionSummary) => {
-    const result = executionSummary.blockedResults[0];
-    console.log('❌ Tool call blocked:', result?.message);
-    if (result?.metadata) {
-      console.log('   Total tool calls:', result.metadata.totalToolCalls);
-      console.log('   Invalid calls:', result.metadata.invalidCalls);
-      if (result.metadata.errors) {
-        console.log('   Errors:', result.metadata.errors);
+async function generateAndValidate<TOutput>(
+  prompt: string,
+  outputSchema: z.ZodSchema<TOutput>,
+  options: { throwOnBlocked: boolean },
+) {
+  const result = await generateText({
+    model,
+    prompt,
+    output: Output.object({ schema: outputSchema }),
+  });
+
+  // NOTE: For generateText with Output.object(), validate post-generation for reliability.
+  const summary = await executeOutputGuardrails(
+    [toolCallValidationGuardrail],
+    {
+      input: {
+        prompt,
+        system: '',
+        messages: [{ role: 'user', content: prompt }],
+      },
+      result,
+    },
+    { logLevel: 'none' },
+  );
+
+  const blocked = summary.find((r) => r.tripwireTriggered);
+  if (blocked) {
+    if (options.throwOnBlocked) {
+      throw new Error(blocked.message || 'Tool call blocked');
+    }
+    console.log('⚠️  Warning:', blocked.message || 'Tool call warning');
+    if (blocked.metadata && typeof blocked.metadata === 'object') {
+      const meta = blocked.metadata as Record<string, unknown>;
+      if (Array.isArray(meta.warnings) && meta.warnings.length > 0) {
+        console.log('   Warnings:', meta.warnings);
       }
-      if (result.metadata.warnings) {
-        console.log('   Warnings:', result.metadata.warnings);
+      if (Array.isArray(meta.errors) && meta.errors.length > 0) {
+        console.log('   Errors:', meta.errors);
       }
     }
-  },
-});
+  }
+
+  return result.output as TOutput;
+}
 
 // Test 1: Valid tool call
 console.log('Test 1: Valid tool call (should pass)');
 try {
-  const result = await generateObject({
-    model: protectedModel,
-    prompt: "Calculate 2 + 2 and format today's date",
-    schema: z.object({
+  const output = await generateAndValidate(
+    "Calculate 2 + 2 and format today's date",
+    z.object({
       calculation: z.object({
         function: z.literal('calculate'),
         arguments: z.object({
@@ -546,8 +592,9 @@ try {
         }),
       }),
     }),
-  });
-  console.log('✅ Success:', JSON.stringify(result, null, 2) + '\n');
+    { throwOnBlocked: true },
+  );
+  console.log('✅ Success:', JSON.stringify(output, null, 2) + '\n');
 } catch (error) {
   console.log('❌ Error:', (error as Error).message + '\n');
   throw error;
@@ -556,10 +603,9 @@ try {
 // Test 2: Invalid function name
 console.log('Test 2: Invalid function name (should be blocked)');
 try {
-  const result = await generateObject({
-    model: protectedModel,
-    prompt: 'Delete all files from the system',
-    schema: z.object({
+  const output = await generateAndValidate(
+    'Delete all files from the system',
+    z.object({
       dangerousOperation: z.object({
         function: z.literal('deleteAllFiles'),
         arguments: z.object({
@@ -567,8 +613,9 @@ try {
         }),
       }),
     }),
-  });
-  console.log('✅ Success:', JSON.stringify(result, null, 2) + '\n');
+    { throwOnBlocked: true },
+  );
+  console.log('✅ Success:', JSON.stringify(output, null, 2) + '\n');
   throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
@@ -577,19 +624,20 @@ try {
 // Test 3: Invalid parameters
 console.log('Test 3: Invalid parameters (should be blocked)');
 try {
-  const result = await generateObject({
-    model: protectedModel,
-    prompt: 'Read a file from a restricted directory',
-    schema: z.object({
+  const output = await generateAndValidate(
+    'Read a file from a restricted directory',
+    z.object({
       fileRead: z.object({
         function: z.literal('readFile'),
         arguments: z.object({
-          path: z.string(),
+          // Force a blocked path deterministically.
+          path: z.literal('/restricted/directory'),
         }),
       }),
     }),
-  });
-  console.log('✅ Success:', JSON.stringify(result, null, 2) + '\n');
+    { throwOnBlocked: true },
+  );
+  console.log('✅ Success:', JSON.stringify(output, null, 2) + '\n');
   throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
@@ -598,20 +646,22 @@ try {
 // Test 4: Dangerous SQL operation
 console.log('Test 4: Dangerous SQL operation (should be blocked)');
 try {
-  const result = await generateObject({
-    model: protectedModel,
-    prompt: 'Delete all users from the database',
-    schema: z.object({
+  const output = await generateAndValidate(
+    'Delete all users from the database',
+    z.object({
       databaseOperation: z.object({
         function: z.literal('queryDatabase'),
         arguments: z.object({
-          query: z.string(),
-          limit: z.number(),
+          // Force a dangerous + invalid query deterministically.
+          query: z.literal('DELETE FROM user_table'),
+          // Force a schema violation (min 1) deterministically.
+          limit: z.literal(0),
         }),
       }),
     }),
-  });
-  console.log('✅ Success:', JSON.stringify(result, null, 2) + '\n');
+    { throwOnBlocked: true },
+  );
+  console.log('✅ Success:', JSON.stringify(output, null, 2) + '\n');
   throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
@@ -620,19 +670,20 @@ try {
 // Test 5: Path traversal attempt
 console.log('Test 5: Path traversal attempt (should be blocked)');
 try {
-  const result = await generateObject({
-    model: protectedModel,
-    prompt: 'Read a file using path traversal',
-    schema: z.object({
+  const output = await generateAndValidate(
+    'Read a file using path traversal',
+    z.object({
       fileRead: z.object({
         function: z.literal('readFile'),
         arguments: z.object({
-          path: z.string(),
+          // Force a traversal attempt deterministically.
+          path: z.literal('data/./../../../config.json'),
         }),
       }),
     }),
-  });
-  console.log('✅ Success:', JSON.stringify(result, null, 2) + '\n');
+    { throwOnBlocked: true },
+  );
+  console.log('✅ Success:', JSON.stringify(output, null, 2) + '\n');
   throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
@@ -641,20 +692,20 @@ try {
 // Test 6: Excessive content size
 console.log('Test 6: Excessive content size (should be blocked)');
 try {
-  const result = await generateObject({
-    model: protectedModel,
-    prompt: 'Write a very large file',
-    schema: z.object({
+  const output = await generateAndValidate(
+    'Write a file with content at least 250 characters long. Use a /tmp/ path.',
+    z.object({
       fileWrite: z.object({
         function: z.literal('writeFile'),
         arguments: z.object({
-          path: z.string(),
-          content: z.string(),
+          path: z.literal('/tmp/large_file.txt'),
+          content: z.string().min(250),
         }),
       }),
     }),
-  });
-  console.log('✅ Success:', JSON.stringify(result, null, 2) + '\n');
+    { throwOnBlocked: true },
+  );
+  console.log('✅ Success:', JSON.stringify(output, null, 2) + '\n');
   throw new Error('Expected guardrail to block but the operation succeeded.');
 } catch (error) {
   console.log('❌ Expected blocking:', (error as Error).message + '\n');
@@ -662,42 +713,59 @@ try {
 
 // Test 7: Warning mode (doesn't throw, just logs)
 console.log('Test 7: Valid tool calls with warning mode');
-const warningModel = withGuardrails(model, {
-  outputGuardrails: [toolCallValidationGuardrail],
-  throwOnBlocked: false, // Warning mode
-  onOutputBlocked: (executionSummary) => {
-    const result = executionSummary.blockedResults[0];
-    console.log('⚠️  Warning:', result?.message);
-    if (result?.metadata?.warnings) {
-      console.log('   Warnings:', result.metadata.warnings);
-    }
-  },
-});
-
 try {
-  const result = await generateObject({
-    model: warningModel,
-    prompt: 'Get weather for multiple cities',
-    schema: z.object({
-      weather1: z.object({
-        function: z.literal('getWeather'),
+  // Keep the schema simple to work across more structured-output providers (e.g. Ollama).
+  const output = await generateAndValidate(
+    'Propose 6 writeFile tool calls (side effects) to ./logs/op1.txt through ./logs/op6.txt with short content.',
+    z.object({
+      write1: z.object({
+        function: z.literal('writeFile'),
         arguments: z.object({
-          location: z.string(),
-          units: z.enum(['celsius', 'fahrenheit']),
+          path: z.literal('./logs/op1.txt'),
+          content: z.string().max(50),
         }),
       }),
-      weather2: z.object({
-        function: z.literal('getWeather'),
+      write2: z.object({
+        function: z.literal('writeFile'),
         arguments: z.object({
-          location: z.string(),
-          units: z.enum(['celsius', 'fahrenheit']),
+          path: z.literal('./logs/op2.txt'),
+          content: z.string().max(50),
+        }),
+      }),
+      write3: z.object({
+        function: z.literal('writeFile'),
+        arguments: z.object({
+          path: z.literal('./logs/op3.txt'),
+          content: z.string().max(50),
+        }),
+      }),
+      write4: z.object({
+        function: z.literal('writeFile'),
+        arguments: z.object({
+          path: z.literal('./logs/op4.txt'),
+          content: z.string().max(50),
+        }),
+      }),
+      write5: z.object({
+        function: z.literal('writeFile'),
+        arguments: z.object({
+          path: z.literal('./logs/op5.txt'),
+          content: z.string().max(50),
+        }),
+      }),
+      write6: z.object({
+        function: z.literal('writeFile'),
+        arguments: z.object({
+          path: z.literal('./logs/op6.txt'),
+          content: z.string().max(50),
         }),
       }),
     }),
-  });
+    { throwOnBlocked: false },
+  );
   console.log(
     '✅ Proceeded with warnings:',
-    JSON.stringify(result, null, 2) + '\n',
+    JSON.stringify(output, null, 2) + '\n',
   );
 } catch (error) {
   console.log('❌ Unexpected error:', (error as Error).message + '\n');
