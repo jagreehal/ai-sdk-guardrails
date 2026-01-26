@@ -34,8 +34,8 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
-    "prettier": "^3.7.4",
-    "turbo": "^2.6.3",
+    "prettier": "^3.8.1",
+    "turbo": "^2.7.6",
     "tsx": "^4.21.0"
   },
   "engines": {

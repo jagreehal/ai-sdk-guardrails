@@ -123,13 +123,13 @@ const model = withGuardrails(openai('gpt-4o'), {
   inputGuardrails: [piiDetector()],
   outputGuardrails: [sensitiveDataFilter()],
   throwOnBlocked: false,
-  onInputBlocked: (violations) => {
+  onInputBlocked: (summary, params) => {
     // Log to monitoring service
-    console.warn('Input blocked:', violations);
+    console.warn('Input blocked:', summary.blockedResults, { params });
   },
-  onOutputBlocked: (violations) => {
+  onOutputBlocked: (summary, params, result) => {
     // Log to monitoring service
-    console.warn('Output blocked:', violations);
+    console.warn('Output blocked:', summary.blockedResults, { params, result });
   },
 });
 ```

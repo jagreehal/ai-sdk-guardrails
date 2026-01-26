@@ -4,15 +4,18 @@
  * Demonstrates how to filter and validate content within generated objects
  * to ensure they meet content policies and quality standards.
  *
- * NOTE: For generateObject scenarios, the recommended approach is to use
+ * NOTE: For generateText with Output.object() scenarios, the recommended approach is to use
  * executeOutputGuardrails() after generation for reliable validation.
  */
 
 import { z } from 'zod';
-import { generateObject } from 'ai';
-import { mistralModel as model } from './model';
+import { generateText, Output } from 'ai';
+import { model as defaultModel, mistralModel } from './model';
 import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
+
+// Prefer Mistral when configured; otherwise use local Ollama model
+const model = process.env.MISTRAL_API_KEY ? mistralModel : defaultModel;
 
 // Define types for object content filter metadata
 // Note: These interfaces are used implicitly in the guardrail metadata
@@ -218,13 +221,15 @@ console.log('==========================================\n');
 // Test 1: Clean message
 console.log('Test 1: Professional message');
 try {
-  const result = await generateObject({
+  const result = await generateText({
     model: messageModel,
     prompt:
       'Create a professional project update message with subject "Project Update: Q1 Progress" and body about team achievements. Set priority to medium.',
-    schema: messageSchema,
+    output: Output.object({
+      schema: messageSchema,
+    }),
   });
-  console.log('✅ Message generated:', JSON.stringify(result.object, null, 2));
+  console.log('✅ Message generated:', JSON.stringify(result.output, null, 2));
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
   throw error;
@@ -233,15 +238,17 @@ try {
 // Test 2: Spammy message
 console.log('\nTest 2: Marketing/spam-like message');
 try {
-  const result = await generateObject({
+  const result = await generateText({
     model: messageModel,
     prompt:
       'Create a marketing email with subject "URGENT: Limited Time Offer - ACT NOW!" and body containing phrases like "limited time", "act now", "click here", "buy now". Make it high priority.',
-    schema: messageSchema,
+    output: Output.object({
+      schema: messageSchema,
+    }),
   });
   console.log(
     '✅ Message generated (check warnings):',
-    JSON.stringify(result.object, null, 2),
+    JSON.stringify(result.output, null, 2),
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
@@ -255,13 +262,15 @@ console.log('=========================================\n');
 // Test 1: Normal post
 console.log('Test 1: Regular social media post');
 try {
-  const result = await generateObject({
+  const result = await generateText({
     model: socialModel,
     prompt:
       'Create a social media post with title "Coffee Morning" about enjoying coffee, include 3-5 hashtags like #CoffeeLovers #MorningRoutine, set visibility to public.',
-    schema: postSchema,
+    output: Output.object({
+      schema: postSchema,
+    }),
   });
-  console.log('✅ Post generated:', JSON.stringify(result.object, null, 2));
+  console.log('✅ Post generated:', JSON.stringify(result.output, null, 2));
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
   throw error;
@@ -270,15 +279,17 @@ try {
 // Test 2: Over-hashtagged post
 console.log('\nTest 2: Post with many hashtags');
 try {
-  const result = await generateObject({
+  const result = await generateText({
     model: socialModel,
     prompt:
       'Create a social media post about technology trends with title "Tech Trends 2024", include exactly 15 hashtags about technology, set visibility to public.',
-    schema: postSchema,
+    output: Output.object({
+      schema: postSchema,
+    }),
   });
   console.log(
     '✅ Post generated (check warnings):',
-    JSON.stringify(result.object, null, 2),
+    JSON.stringify(result.output, null, 2),
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
@@ -286,7 +297,7 @@ try {
 }
 
 console.log('\n📊 Summary:');
-console.log('• wrapWithOutputGuardrails works with generateObject');
+console.log('• Use executeOutputGuardrails() for generateText + Output.object() validation');
 console.log('• Filter object content for spam, inappropriate language');
 console.log('• Check for platform-specific violations');
 console.log('• Validate content quality and authenticity');

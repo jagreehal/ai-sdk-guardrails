@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { model } from './model';
 import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
@@ -57,10 +57,10 @@ const parameterValidationGuardrail = defineOutputGuardrail<{
         (item: unknown) => (item as { type: string }).type === 'tool-call',
       );
     } else if (
-      'object' in result &&
-      (result.object as { function?: string })?.function
+      'output' in result &&
+      (result.output as { function?: string })?.function
     ) {
-      toolCalls = [result.object];
+      toolCalls = [result.output];
     }
 
     if (toolCalls.length === 0) {
@@ -143,21 +143,23 @@ describe('Tool Parameter Validation Example', () => {
         throwOnBlocked: false,
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: protectedModel,
         prompt: 'Get weather for London in celsius',
-        schema: z.object({
-          weather: z.object({
-            function: z.literal('getWeather'),
-            arguments: z.object({
-              location: z.string(),
-              units: z.enum(['celsius', 'fahrenheit']),
+        output: Output.object({
+          schema: z.object({
+            weather: z.object({
+              function: z.literal('getWeather'),
+              arguments: z.object({
+                location: z.string(),
+                units: z.enum(['celsius', 'fahrenheit']),
+              }),
             }),
           }),
         }),
       });
 
-      expect(result.object).toBeDefined();
+      expect(result.output).toBeDefined();
     },
     120000,
   );
@@ -178,15 +180,17 @@ describe('Tool Parameter Validation Example', () => {
       });
 
       try {
-        await generateObject({
+        await generateText({
           model: protectedModel,
           prompt: 'Get weather for a very long location name',
-          schema: z.object({
-            weather: z.object({
-              function: z.literal('getWeather'),
-              arguments: z.object({
-                location: z.string(),
-                units: z.enum(['celsius', 'fahrenheit']),
+          output: Output.object({
+            schema: z.object({
+              weather: z.object({
+                function: z.literal('getWeather'),
+                arguments: z.object({
+                  location: z.string(),
+                  units: z.enum(['celsius', 'fahrenheit']),
+                }),
               }),
             }),
           }),
@@ -213,20 +217,22 @@ describe('Tool Parameter Validation Example', () => {
         throwOnBlocked: false,
       });
 
-      const result = await generateObject({
+      const result = await generateText({
         model: protectedModel,
         prompt: 'Read a file from the public directory',
-        schema: z.object({
-          fileRead: z.object({
-            function: z.literal('readFile'),
-            arguments: z.object({
-              path: z.string(),
+        output: Output.object({
+          schema: z.object({
+            fileRead: z.object({
+              function: z.literal('readFile'),
+              arguments: z.object({
+                path: z.string(),
+              }),
             }),
           }),
         }),
       });
 
-      expect(result.object).toBeDefined();
+      expect(result.output).toBeDefined();
     },
     120000,
   );
@@ -247,14 +253,16 @@ describe('Tool Parameter Validation Example', () => {
       });
 
       try {
-        await generateObject({
+        await generateText({
           model: protectedModel,
           prompt: 'Read /etc/passwd file',
-          schema: z.object({
-            fileRead: z.object({
-              function: z.literal('readFile'),
-              arguments: z.object({
-                path: z.string(),
+          output: Output.object({
+            schema: z.object({
+              fileRead: z.object({
+                function: z.literal('readFile'),
+                arguments: z.object({
+                  path: z.string(),
+                }),
               }),
             }),
           }),
@@ -286,14 +294,16 @@ describe('Tool Parameter Validation Example', () => {
       });
 
       try {
-        await generateObject({
+        await generateText({
           model: protectedModel,
           prompt: 'Read a file from restricted directory',
-          schema: z.object({
-            fileRead: z.object({
-              function: z.literal('readFile'),
-              arguments: z.object({
-                path: z.string(),
+          output: Output.object({
+            schema: z.object({
+              fileRead: z.object({
+                function: z.literal('readFile'),
+                arguments: z.object({
+                  path: z.string(),
+                }),
               }),
             }),
           }),
@@ -327,13 +337,15 @@ describe('Tool Parameter Validation Example', () => {
       });
 
       try {
-        await generateObject({
+        await generateText({
           model: protectedModel,
           prompt: 'Call an undefined function',
-          schema: z.object({
-            operation: z.object({
-              function: z.literal('undefinedFunction'),
-              arguments: z.object({}),
+          output: Output.object({
+            schema: z.object({
+              operation: z.object({
+                function: z.literal('undefinedFunction'),
+                arguments: z.object({}),
+              }),
             }),
           }),
         });

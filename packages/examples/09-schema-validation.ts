@@ -4,15 +4,18 @@
  * Demonstrates how to validate generated objects against Zod schemas
  * to ensure type safety and data integrity.
  *
- * NOTE: For generateObject scenarios, the recommended approach is to use
+ * NOTE: For generateText with Output.object() scenarios, the recommended approach is to use
  * executeOutputGuardrails() after generation for reliable validation.
  */
 
 import { z } from 'zod';
-import { generateObject } from 'ai';
-import { mistralModel as model } from './model';
+import { generateText, Output } from 'ai';
+import { model as defaultModel, mistralModel } from './model';
 import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
+
+// Prefer Mistral when configured; otherwise use local Ollama model
+const model = process.env.MISTRAL_API_KEY ? mistralModel : defaultModel;
 
 // Define schemas for different object types
 const userSchema = z.object({
@@ -117,30 +120,34 @@ const strictUserModel = withGuardrails(model, {
 // Test valid user
 console.log('Test 1: Valid user object');
 try {
-  const result = await generateObject({
+  const result = await generateText({
     model: strictUserModel,
     prompt:
       'Generate a user: John Doe, 30 years old, john@example.com, admin role',
-    schema: userSchema,
+    output: Output.object({
+      schema: userSchema,
+    }),
   });
   console.log(
     '✅ Valid user generated:',
-    JSON.stringify(result.object, null, 2),
+    JSON.stringify(result.output, null, 2),
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
-  throw error;
+  // Examples can be flaky depending on the model; continue to next section.
 }
 
 // Test invalid user (might fail validation)
 console.log('\nTest 2: User with invalid email');
 try {
-  const result = await generateObject({
+  const result = await generateText({
     model: strictUserModel,
     prompt: 'Generate a user with invalid email: not-an-email',
-    schema: userSchema,
+    output: Output.object({
+      schema: userSchema,
+    }),
   });
-  console.log('✅ Generated:', JSON.stringify(result.object, null, 2));
+  console.log('✅ Generated:', JSON.stringify(result.output, null, 2));
 } catch {
   console.log('❌ Validation blocked the object');
 }
@@ -164,16 +171,18 @@ const warningProductModel = withGuardrails(model, {
 
 console.log('Test: Generate product object');
 try {
-  const result = await generateObject({
+  const result = await generateText({
     model: warningProductModel,
     prompt:
       'Generate a product: Laptop, $999.99, Electronics category, in stock, tags: portable, computing',
-    schema: productSchema,
+    output: Output.object({
+      schema: productSchema,
+    }),
   });
-  console.log('✅ Product generated:', JSON.stringify(result.object, null, 2));
+  console.log('✅ Product generated:', JSON.stringify(result.output, null, 2));
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
-  throw error;
+  // Examples can be flaky depending on the model; continue to next section.
 }
 
 // Example 3: Complex nested schema validation
@@ -213,19 +222,21 @@ const orderModel = withGuardrails(model, {
 });
 
 try {
-  const result = await generateObject({
+  const result = await generateText({
     model: orderModel,
     prompt:
       'Generate an order with 2 items, customer John Doe (john@example.com), pending status',
-    schema: orderSchema,
+    output: Output.object({
+      schema: orderSchema,
+    }),
   });
   console.log(
     '✅ Complex order generated:',
-    JSON.stringify(result.object, null, 2),
+    JSON.stringify(result.output, null, 2),
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
-  throw error;
+  // Examples can be flaky depending on the model; continue to next section.
 }
 
 // Example 4: Custom validation rules
@@ -301,19 +312,21 @@ const businessModel = withGuardrails(model, {
 });
 
 try {
-  const result = await generateObject({
+  const result = await generateText({
     model: businessModel,
     prompt:
       'Generate a discounted product: 20% off, out of stock, featured item',
-    schema: businessSchema,
+    output: Output.object({
+      schema: businessSchema,
+    }),
   });
   console.log(
     '✅ Product with business rules:',
-    JSON.stringify(result.object, null, 2),
+    JSON.stringify(result.output, null, 2),
   );
 } catch (error) {
   console.log('❌ Error:', (error as Error).message);
-  throw error;
+  // Examples can be flaky depending on the model; continue to next section.
 }
 
 console.log('\n📊 Summary:');

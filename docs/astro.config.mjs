@@ -66,6 +66,7 @@ export default defineConfig({
             { label: 'Basic Protection', link: '/guides/basic-protection/' },
             { label: 'Streaming', link: '/guides/streaming/' },
             { label: 'Custom Guardrails', link: '/guides/custom-guardrails/' },
+            { label: 'Advanced Features', link: '/guides/advanced-features/' },
           ],
         },
         {

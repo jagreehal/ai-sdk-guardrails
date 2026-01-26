@@ -140,7 +140,7 @@
     - Input: Length limits, blocked keywords, PII detection, prompt injection protection, toxicity detection
     - Output: Content filtering, confidence thresholds, schema validation, performance monitoring
   - **TypeScript Support**: Full type safety and autocompletion
-  - **Vercel AI SDK Integration**: Works with `generateText`, `generateObject`, `streamText`, `streamObject`, and `embed`
+  - **Vercel AI SDK Integration**: Works with `generateText`, `streamText` (with `Output.object()` for structured data), and `embed`
   - **Developer Friendly**: Simple API with helpful error messages and sensible defaults
 
   ## Breaking Changes

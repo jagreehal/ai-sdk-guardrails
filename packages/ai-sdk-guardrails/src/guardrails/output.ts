@@ -70,11 +70,23 @@ function mapUsage(
     return undefined;
   }
 
+  // Helper to pick a number value, supporting both flat and V3 nested structures
+  // V3 usage has: { inputTokens: { total: number }, outputTokens: { total: number } }
+  // Unified usage has: { promptTokens: number, completionTokens: number }
   const pickNumber = (keys: string[]): number | undefined => {
     for (const key of keys) {
       const value = usage[key];
       if (typeof value === 'number') {
         return value;
+      }
+      // Handle V3 nested structure: { total: number, ... }
+      if (
+        value &&
+        typeof value === 'object' &&
+        'total' in value &&
+        typeof (value as { total: number }).total === 'number'
+      ) {
+        return (value as { total: number }).total;
       }
     }
     return undefined;
@@ -84,10 +96,17 @@ function mapUsage(
   const promptTokens = pickNumber(['inputTokens', 'promptTokens']);
   const completionTokens = pickNumber(['outputTokens', 'completionTokens']);
 
+  // Calculate total if not provided but components are available
+  const computedTotal =
+    totalTokens ??
+    (promptTokens !== undefined && completionTokens !== undefined
+      ? promptTokens + completionTokens
+      : undefined);
+
   if (
     promptTokens === undefined &&
     completionTokens === undefined &&
-    totalTokens === undefined
+    computedTotal === undefined
   ) {
     return undefined;
   }
@@ -95,7 +114,7 @@ function mapUsage(
   return {
     promptTokens,
     completionTokens,
-    totalTokens,
+    totalTokens: computedTotal,
   };
 }
 
@@ -137,15 +156,25 @@ export function extractContent(result: AIResult): ContentExtraction {
     const typedResult = result as BaseResult & {
       content: Array<{ type: string; text?: string }>;
       usage?: UsageRecord;
+      output?: unknown;
+      object?: unknown;
     };
     const textContent = typedResult.content
       .filter((item) => item.type === 'text' && item.text)
       .map((item) => item.text as string)
       .join('');
 
+    // Check for output/object property (AI SDK v6 Output.object() includes both content and output)
+    const objectValue =
+      typedResult.output !== null && typedResult.output !== undefined
+        ? typedResult.output
+        : typedResult.object !== null && typedResult.object !== undefined
+          ? typedResult.object
+          : null;
+
     return createContent({
       text: textContent || '',
-      object: null,
+      object: objectValue,
       usage: mapUsage(typedResult.usage),
       finishReason: typedResult.finishReason,
       generationTimeMs: extractGenerationTime(typedResult),
@@ -153,16 +182,24 @@ export function extractContent(result: AIResult): ContentExtraction {
     });
   }
 
-  // Check for text property first (prioritize text over object)
-  if ('text' in result && typeof result.text === 'string') {
-    const textResult = result as TextResult;
+  // Check for output property first (AI SDK v6 Output.object() results)
+  // Output.object() returns both text (serialized) and output (parsed), so check output first
+  if (
+    'output' in result &&
+    (result as { output?: unknown }).output !== null &&
+    (result as { output?: unknown }).output !== undefined
+  ) {
+    const outputResult = result as BaseResult & {
+      output: unknown;
+      text?: string;
+    };
     return createContent({
-      text: textResult.text || '',
-      object: null,
-      usage: mapUsage(textResult.usage as UsageRecord),
-      finishReason: textResult.finishReason,
-      generationTimeMs: extractGenerationTime(textResult),
-      reasoningText: extractReasoningText(textResult),
+      text: outputResult.text || '',
+      object: outputResult.output,
+      usage: mapUsage(outputResult.usage as UsageRecord),
+      finishReason: outputResult.finishReason,
+      generationTimeMs: extractGenerationTime(outputResult),
+      reasoningText: extractReasoningText(outputResult),
     });
   }
 
@@ -180,6 +217,19 @@ export function extractContent(result: AIResult): ContentExtraction {
       finishReason: objectResult.finishReason,
       generationTimeMs: extractGenerationTime(objectResult),
       reasoningText: extractReasoningText(objectResult),
+    });
+  }
+
+  // Check for text property (plain text responses)
+  if ('text' in result && typeof result.text === 'string') {
+    const textResult = result as TextResult;
+    return createContent({
+      text: textResult.text || '',
+      object: null,
+      usage: mapUsage(textResult.usage as UsageRecord),
+      finishReason: textResult.finishReason,
+      generationTimeMs: extractGenerationTime(textResult),
+      reasoningText: extractReasoningText(textResult),
     });
   }
 
@@ -233,11 +283,23 @@ export function normalizeUsage(
     return undefined;
   }
 
+  // Helper to pick a number value, supporting both flat and V3 nested structures
+  // V3 usage has: { inputTokens: { total: number }, outputTokens: { total: number } }
+  // Unified usage has: { promptTokens: number, completionTokens: number }
   const pickNumber = (keys: string[]): number | undefined => {
     for (const key of keys) {
       const value = usage[key];
       if (typeof value === 'number') {
         return value;
+      }
+      // Handle V3 nested structure: { total: number, ... }
+      if (
+        value &&
+        typeof value === 'object' &&
+        'total' in value &&
+        typeof (value as { total: number }).total === 'number'
+      ) {
+        return (value as { total: number }).total;
       }
     }
     return undefined;
@@ -257,10 +319,17 @@ export function normalizeUsage(
     'completion_tokens',
   ]);
 
+  // Calculate total if not provided but components are available
+  const computedTotal =
+    totalTokens ??
+    (promptTokens !== undefined && completionTokens !== undefined
+      ? promptTokens + completionTokens
+      : undefined);
+
   if (
     promptTokens === undefined &&
     completionTokens === undefined &&
-    totalTokens === undefined
+    computedTotal === undefined
   ) {
     return undefined;
   }
@@ -268,7 +337,7 @@ export function normalizeUsage(
   return {
     promptTokens,
     completionTokens,
-    totalTokens,
+    totalTokens: computedTotal,
   };
 }
 

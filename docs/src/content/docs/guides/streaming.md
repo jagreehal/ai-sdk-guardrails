@@ -12,6 +12,7 @@ Guardrails run automatically after the stream completes:
 ```ts
 import { streamText } from 'ai';
 import { withGuardrails, minLengthRequirement } from 'ai-sdk-guardrails';
+import { openai } from '@ai-sdk/openai';
 
 const model = withGuardrails(openai('gpt-4o'), {
   outputGuardrails: [minLengthRequirement(100)],
@@ -75,8 +76,7 @@ const model = withGuardrails(openai('gpt-4o'), {
 ```ts
 const model = withGuardrails(openai('gpt-4o'), {
   outputGuardrails: [minLengthRequirement(100)],
-  replaceOnBlocked: true, // Return fallback message
-  blockedMessage: 'The response did not meet quality standards.',
+  replaceOnBlocked: true, // Replace with a safe placeholder message
 });
 ```
 
@@ -84,6 +84,9 @@ const model = withGuardrails(openai('gpt-4o'), {
 
 ```ts
 import { isGuardrailsError } from 'ai-sdk-guardrails';
+import { streamText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { withGuardrails, toxicityFilter } from 'ai-sdk-guardrails';
 
 const model = withGuardrails(openai('gpt-4o'), {
   outputGuardrails: [toxicityFilter()],
@@ -107,28 +110,23 @@ try {
 Automatically retry when streaming output doesn't meet requirements:
 
 ```ts
-import { wrapWithOutputGuardrails } from 'ai-sdk-guardrails';
-
-const model = wrapWithOutputGuardrails(
-  openai('gpt-4o'),
-  [minLengthRequirement(100)],
-  {
-    retry: {
-      maxRetries: 2,
-      buildRetryParams: ({ lastParams }) => ({
-        ...lastParams,
-        maxOutputTokens: (lastParams.maxOutputTokens ?? 400) + 200,
-        prompt: [
-          ...lastParams.prompt,
-          {
-            role: 'user',
-            content: 'Please provide a more detailed response.',
-          },
-        ],
-      }),
-    },
+const model = withGuardrails(openai('gpt-4o'), {
+  outputGuardrails: [minLengthRequirement(100)],
+  retry: {
+    maxRetries: 2,
+    buildRetryParams: ({ lastParams }) => ({
+      ...lastParams,
+      maxOutputTokens: (lastParams.maxOutputTokens ?? 400) + 200,
+      prompt: [
+        ...lastParams.prompt,
+        {
+          role: 'user',
+          content: 'Please provide a more detailed response.',
+        },
+      ],
+    }),
   },
-);
+});
 
 const { textStream } = await streamText({ model, prompt: '...' });
 // Automatically retries if output is too short
@@ -139,19 +137,53 @@ const { textStream } = await streamText({ model, prompt: '...' });
 For more control, use stream transformers:
 
 ```ts
-import { experimental_streamTransformStop } from 'ai-sdk-guardrails';
+import { streamText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import {
+  createGuardrailStreamTransform,
+  toxicityFilter,
+} from 'ai-sdk-guardrails';
 
-const model = withGuardrails(openai('gpt-4o'), {
-  outputGuardrails: [
-    experimental_streamTransformStop({
-      stopCondition: (text) => text.includes('[STOP]'),
-      removeStopMarker: true,
-    }),
-  ],
+const result = await streamText({
+  model: openai('gpt-4o'),
+  prompt: '...',
+  experimental_transform: createGuardrailStreamTransform([toxicityFilter()], {
+    stopOnSeverity: 'high',
+  }),
 });
 
-// Stops streaming when "[STOP]" is detected
+// Stops streaming early when a guardrail violation is detected
 ```
+
+### Progressive Mode with Accumulated Text
+
+In progressive mode, guardrails automatically receive the accumulated text as chunks arrive. This allows guardrails to make decisions based on the full text seen so far:
+
+```ts
+import { defineOutputGuardrail } from 'ai-sdk-guardrails';
+
+const streamingAwareGuardrail = defineOutputGuardrail({
+  name: 'streaming-check',
+  execute: async ({ result }, accumulatedText) => {
+    // In progressive mode, accumulatedText contains all text seen so far
+    // In buffer mode, accumulatedText is undefined
+    const text = accumulatedText ?? result.text ?? '';
+    
+    // Check the accumulated text for violations
+    if (text.includes('forbidden')) {
+      return {
+        tripwireTriggered: true,
+        message: 'Forbidden content detected',
+        severity: 'high',
+      };
+    }
+    
+    return { tripwireTriggered: false };
+  },
+});
+```
+
+The `accumulatedText` parameter is automatically provided by the middleware when using progressive streaming mode.
 
 ## Monitoring Stream Violations
 
@@ -160,11 +192,9 @@ Track violations during streaming:
 ```ts
 const model = withGuardrails(openai('gpt-4o'), {
   outputGuardrails: [toxicityFilter()],
-  onOutputBlocked: (violations) => {
+  onOutputBlocked: (summary) => {
     // Log to monitoring service
-    violations.forEach((v) => {
-      console.log('Blocked:', v.guardrailName, v.message);
-    });
+    summary.blockedResults.forEach((r) => console.log('Blocked:', r.message));
   },
 });
 ```
@@ -182,10 +212,9 @@ const model = withGuardrails(openai('gpt-4o'), {
 const model = withGuardrails(openai('gpt-4o'), {
   outputGuardrails: [minLengthRequirement(100)],
   replaceOnBlocked: true,
-  blockedMessage: 'Response did not meet quality standards. Please try again.',
-  onOutputBlocked: async (violations) => {
+  onOutputBlocked: async (summary, params, result) => {
     // Log to monitoring
-    await logToMonitoring({ violations, timestamp: Date.now() });
+    await logToMonitoring({ summary, params, result, timestamp: Date.now() });
   },
 });
 ```
@@ -196,7 +225,7 @@ const model = withGuardrails(openai('gpt-4o'), {
 const model = withGuardrails(openai('gpt-4o'), {
   outputGuardrails: [minLengthRequirement(100)],
   streamMode: 'progressive',
-  timeout: 30000, // 30 second timeout
+  executionOptions: { timeout: 30000 }, // 30 second timeout
 });
 ```
 

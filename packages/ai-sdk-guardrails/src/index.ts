@@ -33,7 +33,9 @@ export {
 } from './guardrails';
 
 export type {
-  // Core guardrail types
+  // ==========================================================================
+  // CORE GUARDRAIL TYPES
+  // ==========================================================================
   InputGuardrail,
   OutputGuardrail,
   GuardrailExecutionSummary,
@@ -45,6 +47,8 @@ export type {
   InputGuardrailContext,
   OutputGuardrailContext,
   AIResult,
+  // Request context for passing user/session data
+  RequestContext,
   // Utility types for metadata inference
   ExtractGuardrailMetadata,
   UnionFromGuardrails,
@@ -54,25 +58,38 @@ export type {
   Logger,
   // AI SDK parameter types (derived for convenience)
   GenerateTextParams,
-  GenerateObjectParams,
   StreamTextParams,
-  StreamObjectParams,
   EmbedParams,
   // AI SDK result types (derived for convenience)
   GenerateTextResult,
-  GenerateObjectResult,
   StreamTextResult,
-  StreamObjectResult,
   EmbedResult,
-  // Core AI SDK types needed for guardrails API
-  LanguageModelV2,
-  LanguageModelV2Middleware,
-  LanguageModelV2CallOptions,
-  LanguageModelV2StreamPart,
   // Retry configuration types (v5.0)
   GuardrailRetryConfig,
   RetryInstructionContext,
   RetryInstruction,
+  // ==========================================================================
+  // UNIFIED AI SDK TYPES (Recommended for public API usage)
+  // These types work seamlessly with both V2 and V3 providers
+  // Import these from 'ai-sdk-guardrails' or directly from 'ai'
+  // ==========================================================================
+  LanguageModel,
+  LanguageModelMiddleware,
+  LanguageModelUsage,
+  FinishReason,
+  CallWarning,
+  ProviderMetadata,
+  ToolSet,
+  // ==========================================================================
+  // V3 PROVIDER TYPES (For advanced middleware implementations)
+  // For new code, prefer importing these directly from '@ai-sdk/provider'
+  // ==========================================================================
+  LanguageModelV3,
+  LanguageModelV3Middleware,
+  LanguageModelV3CallOptions,
+  LanguageModelV3GenerateResult,
+  LanguageModelV3StreamResult,
+  LanguageModelV3StreamPart,
 } from './types';
 
 // Telemetry types for OpenTelemetry integration
@@ -308,3 +325,122 @@ export {
   mapOpenAIConfigToGuardrails,
   type GuardrailsConfigFromOpenAI,
 } from './config-mapper';
+
+// ============================================================================
+// DX Enhancement Features
+// ============================================================================
+
+// Tool Parameter Validation (pre-execution guardrails)
+export {
+  withToolParameterGuardrails,
+  ToolParameterValidationError,
+  // Built-in tool parameter guardrails
+  sqlInjectionGuardrail,
+  pathTraversalGuardrail,
+  parameterLengthGuardrail,
+  toolRBACGuardrail,
+} from './guardrails/tool-parameters';
+
+export type {
+  ToolParameterGuardrail,
+  ToolValidationResult,
+  ToolValidationContext,
+  ToolParameterGuardrailsOptions,
+} from './guardrails/tool-parameters';
+
+// Stream Transform Integration (for experimental_transform)
+export {
+  createGuardrailTransform,
+  createPIIRedactionTransform,
+  createContentFilterTransform,
+  // PII patterns for custom transforms
+  PII_PATTERNS,
+} from './guardrails/stream-transform';
+
+export type {
+  GuardrailTransformOptions,
+  ViolationHandler,
+  ViolationHandlerResult,
+  StreamTransformContext,
+  StreamTextTransform,
+} from './guardrails/stream-transform';
+
+// Guardrail Composition DSL
+export {
+  when,
+  after,
+  withFallback,
+  parallel,
+  createPipeline,
+  not,
+  withRetry,
+  inputPipeline,
+  outputPipeline,
+} from './guardrails/composition';
+
+export type {
+  ComposableGuardrail,
+  GuardrailCondition,
+  PipelineResult,
+} from './guardrails/composition';
+
+// Gradual Enforcement Mode
+export {
+  withGradualEnforcement,
+  clearViolationHistory,
+  getViolationStats,
+  // Preset configurations
+  warnOnly,
+  lenientEscalation,
+  strictEscalation,
+  withGracePeriod,
+} from './guardrails/gradual-enforcement';
+
+export type {
+  EnforcementMode,
+  EscalationConfig,
+  GracePeriodConfig,
+  GradualEnforcementOptions,
+  ViolationStats,
+} from './guardrails/gradual-enforcement';
+
+// Observability & Metrics
+export {
+  createMetricsCollector,
+  createHealthCheck,
+  logExecutionSummary,
+} from './guardrails/observability';
+
+export type {
+  GuardrailMetrics,
+  MetricsCollectorOptions,
+  AggregatedMetrics,
+  GuardrailHealthStatus,
+} from './guardrails/observability';
+
+// Debug/Tracing Mode
+export {
+  createDebugWrapper,
+  formatTraceForConsole,
+  formatTraceAsJSON,
+  formatTraceSummary,
+  // Quick debug utilities
+  createConsoleDebugger,
+  envDebugMode,
+} from './guardrails/debug';
+
+export type {
+  GuardrailTraceEntry,
+  ExecutionTrace,
+  DebugOptions,
+} from './guardrails/debug';
+
+// Language Model Middleware Factory
+export {
+  createGuardrailMiddleware,
+  createInputGuardrailMiddleware,
+  createOutputGuardrailMiddleware,
+  createNoOpGuardrailMiddleware,
+} from './guardrails/middleware';
+
+export type { GuardrailMiddlewareConfig } from './guardrails/middleware';

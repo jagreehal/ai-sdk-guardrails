@@ -23,6 +23,7 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 ```ts
 import { withGuardrails, piiDetector } from 'ai-sdk-guardrails';
 import { openai } from '@ai-sdk/openai';
+import { generateText } from 'ai';
 
 const model = withGuardrails(openai('gpt-4o'), {
   inputGuardrails: [piiDetector()],

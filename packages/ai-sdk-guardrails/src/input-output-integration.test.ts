@@ -11,23 +11,38 @@ import {
 } from './guardrails';
 import { extractTextContent } from './guardrails/input';
 import { extractContent } from './guardrails/output';
-import type { LanguageModelV2, AIResult } from './types';
+import type {
+  LanguageModelV3,
+  AIResult,
+  LanguageModelV3CallOptions,
+} from './types';
+
+// V3 usage helper
+const createV3Usage = (inputTotal: number, outputTotal: number) => ({
+  inputTokens: {
+    total: inputTotal,
+    noCache: undefined,
+    cacheRead: undefined,
+    cacheWrite: undefined,
+  },
+  outputTokens: {
+    total: outputTotal,
+    text: undefined,
+    reasoning: undefined,
+  },
+});
 
 // Mock AI model for testing
-const createMockModel = (response = 'Mock AI response'): LanguageModelV2 => ({
-  specificationVersion: 'v2',
+const createMockModel = (response = 'Mock AI response'): LanguageModelV3 => ({
+  specificationVersion: 'v3',
   provider: 'test',
   modelId: 'test-model',
   supportedUrls: {},
-  async doGenerate(options) {
+  async doGenerate(options: LanguageModelV3CallOptions) {
     return {
       content: [{ type: 'text', text: response }],
-      finishReason: 'stop',
-      usage: {
-        inputTokens: 10,
-        outputTokens: 10,
-        totalTokens: 20,
-      },
+      finishReason: { unified: 'stop', raw: undefined },
+      usage: createV3Usage(10, 10),
       rawCall: {
         rawPrompt: options.prompt,
         rawSettings: {},
@@ -38,7 +53,7 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV2 => ({
       warnings: [],
     };
   },
-  async doStream(options) {
+  async doStream(options: LanguageModelV3CallOptions) {
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue({
@@ -48,12 +63,8 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV2 => ({
         });
         controller.enqueue({
           type: 'finish' as const,
-          finishReason: 'stop',
-          usage: {
-            inputTokens: 10,
-            outputTokens: 10,
-            totalTokens: 20,
-          },
+          finishReason: { unified: 'stop', raw: undefined },
+          usage: createV3Usage(10, 10),
         });
         controller.close();
       },
@@ -74,7 +85,7 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV2 => ({
 });
 
 describe('Input and Output Guardrails Integration', () => {
-  let mockModel: LanguageModelV2;
+  let mockModel: LanguageModelV3;
 
   beforeEach(() => {
     mockModel = createMockModel();
