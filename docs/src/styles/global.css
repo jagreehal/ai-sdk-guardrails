@@ -1,0 +1,231 @@
+@import "tailwindcss";
+
+/* Playground styles */
+.playground-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--sl-color-gray-6, #1e293b);
+  border: 1px solid var(--sl-color-gray-5, #334155);
+}
+
+@media (max-width: 768px) {
+  .playground-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+}
+
+.playground-editor,
+.playground-diagram {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--sl-color-gray-6, #1e293b);
+}
+
+.playground-editor {
+  border-right: 1px solid var(--sl-color-gray-5, #334155);
+}
+
+/* Light mode support */
+:root[data-theme="light"] .playground-container {
+  background: var(--sl-color-gray-7, #f1f5f9);
+  border-color: var(--sl-color-gray-5, #cbd5e1);
+}
+
+:root[data-theme="light"] .playground-editor,
+:root[data-theme="light"] .playground-diagram {
+  background: var(--sl-color-white, #ffffff);
+}
+
+:root[data-theme="light"] .playground-header {
+  background: var(--sl-color-gray-6, #e2e8f0);
+  border-color: var(--sl-color-gray-5, #cbd5e1);
+}
+
+:root[data-theme="light"] .playground-title {
+  color: var(--sl-color-gray-1, #1e293b);
+}
+
+:root[data-theme="light"] .playground-diagram-content {
+  background: var(--sl-color-white, #ffffff);
+}
+
+/* Fallback code display when CodeMirror fails to load */
+.playground-fallback-code {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 1rem;
+  background: #282c34;
+  color: #abb2bf;
+  font-family: var(--sl-font-mono, monospace);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.playground-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--sl-color-gray-5, #334155);
+  border-bottom: 1px solid var(--sl-color-gray-4, #475569);
+  min-height: 40px;
+  box-sizing: border-box;
+}
+
+.playground-title {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--sl-color-white, #f1f5f9);
+}
+
+.playground-hint {
+  font-size: 0.75rem;
+  color: var(--sl-color-gray-3, #94a3b8);
+}
+
+.playground-status {
+  font-size: 0.75rem;
+  color: var(--sl-color-accent, #3b82f6);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.playground-editor-content {
+  flex: 1;
+  overflow: auto;
+  min-height: 300px;
+  position: relative;
+}
+
+.playground-editor-content .cm-editor {
+  height: 100%;
+  min-height: 300px;
+}
+
+/* Ensure CodeMirror is visible in light mode - keep dark theme for code */
+:root[data-theme="light"] .playground-editor-content {
+  background: #282c34;
+}
+
+:root[data-theme="light"] .playground-editor-content .cm-editor {
+  background: #282c34;
+}
+
+/* Ensure cursor is visible */
+.playground-editor-content .cm-cursor {
+  border-left-color: #fff !important;
+}
+
+.playground-editor-content .cm-editor.cm-focused {
+  outline: none;
+}
+
+.playground-diagram-content {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--sl-color-gray-6, #1e293b);
+  min-height: 300px;
+}
+
+.playground-diagram-content svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Force dark text in Mermaid diagrams for contrast */
+.playground-diagram-content svg .nodeLabel,
+.playground-diagram-content svg .label,
+.playground-diagram-content svg text {
+  fill: #1e293b !important;
+  color: #1e293b !important;
+}
+
+/* Keep edge labels readable on dark background */
+.playground-diagram-content svg .edgeLabel text,
+.playground-diagram-content svg .edgeLabel .label {
+  fill: #f1f5f9 !important;
+  color: #f1f5f9 !important;
+}
+
+.playground-loading,
+.playground-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.playground-loading {
+  color: var(--sl-color-gray-3, #94a3b8);
+}
+
+.playground-error {
+  color: var(--sl-color-red, #ef4444);
+}
+
+.playground-error pre {
+  max-width: 100%;
+  overflow-x: auto;
+  font-size: 0.75rem;
+  padding: 1rem;
+  background: var(--sl-color-gray-5, #334155);
+  border-radius: 0.25rem;
+  text-align: left;
+}
+
+.playground-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid var(--sl-color-gray-5, #334155);
+  border-top-color: var(--sl-color-accent, #3b82f6);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Highlight playground link in sidebar */
+.sidebar-playground {
+  background: linear-gradient(135deg, var(--sl-color-accent-low, #1e3a5f) 0%, transparent 100%);
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  margin: 0.25rem 0;
+}
+
+/* Full-height playground page */
+.playground-page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 1rem;
+}
+
+.playground-page .playground-container {
+  height: calc(100vh - 180px);
+  min-height: 500px;
+  max-width: 1800px;
+  margin: 0 auto;
+}
