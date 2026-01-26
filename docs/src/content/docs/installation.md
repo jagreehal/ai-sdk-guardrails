@@ -231,5 +231,5 @@ module.exports = {
 ## Next Steps
 
 - [Quick Start](/quick-start/) - Build your first guarded AI application
-- [Built-in Guardrails](/guardrails/input/pii/) - Explore available guardrails
-- [API Reference](/api/with-guardrails/) - Detailed API documentation
+- [Built-in Guardrails](/reference/built-in-guardrails/) - Explore available guardrails
+- [API Reference](/reference/built-in-guardrails/) - Detailed API documentation

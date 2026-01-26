@@ -404,5 +404,5 @@ const model = withGuardrails(openai('gpt-4o'), {
 ## Next Steps
 
 - [Custom Guardrails](/guides/custom-guardrails/) - Create your own guardrails
-- [API Reference](/reference/api/) - Complete API documentation
-- [Examples](/examples/) - See guardrails in action
+- [API Reference](/reference/built-in-guardrails/) - Complete API documentation
+- [Examples](/guides/custom-guardrails/) - See guardrails in action

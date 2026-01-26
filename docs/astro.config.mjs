@@ -2,14 +2,16 @@ import starlight from '@astrojs/starlight';
 import { pluginCollapsibleSections } from '@expressive-code/plugin-collapsible-sections';
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
+import starlightThemeNext from 'starlight-theme-next';
+import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
 export default defineConfig({
-  // GitHub Pages base path (remove this if using custom domain)
-  // For local dev, this will be ignored. For GitHub Pages, it's required.
-  base: '/ai-sdk-guardrails',
   // GitHub Pages URL (update if using custom domain)
   site: 'https://jagreehal.github.io',
+  // Use base path for GitHub Pages deployment
+  // For local development, you can override with: BASE=/ pnpm dev
+  base: process.env.BASE || '/ai-sdk-guardrails',
   integrations: [
     starlight({
       title: 'AI SDK Guardrails',
@@ -42,9 +44,9 @@ export default defineConfig({
           },
         },
       ],
-      customCss: [
-        './src/styles/custom.css',
-      ],
+      customCss: ['./src/styles/global.css'],
+      plugins: [starlightThemeNext()],
+      tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
       sidebar: [
         {
           label: 'Getting Started',
@@ -83,5 +85,8 @@ export default defineConfig({
     }),
     sitemap(),
   ],
+  vite: {
+    plugins: [tailwindcss()],
+  },
   trailingSlash: 'always',
 });

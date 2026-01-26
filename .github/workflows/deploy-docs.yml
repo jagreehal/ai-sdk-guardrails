@@ -52,9 +52,6 @@ jobs:
 
       - name: Build docs
         working-directory: ./docs
-        env:
-          # Set base path for GitHub Pages
-          BASE_PATH: /ai-sdk-guardrails
         run: pnpm build
 
       - name: Setup Pages
