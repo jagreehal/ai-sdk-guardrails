@@ -20,7 +20,7 @@
     "lint": "turbo lint",
     "format": "turbo format",
     "format:check": "turbo format:check",
-    "test": "turbo test --filter=!@ai-sdk-guardrails/examples",
+    "test": "turbo test --filter=!@ai-sdk-guardrails/examples; node .github/setup.js",
     "test:all": "turbo test",
     "type-check": "turbo type-check",
     "check-exports": "turbo check-exports",
