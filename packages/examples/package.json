@@ -10,24 +10,24 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@ai-sdk/groq": "^3.0.15",
-    "@ai-sdk/mistral": "3.0.12",
-    "@ai-sdk/openai": "3.0.19",
-    "@opentelemetry/api": "^1.9.0",
-    "ai": "6.0.50",
+    "@ai-sdk/groq": "^3.0.39",
+    "@ai-sdk/mistral": "3.0.37",
+    "@ai-sdk/openai": "3.0.68",
+    "@opentelemetry/api": "^1.9.1",
+    "ai": "6.0.197",
     "ai-sdk-guardrails": "workspace:*",
-    "ai-sdk-ollama": "^3.3.0",
-    "autoevals": "^0.0.131",
-    "dotenv": "^17.2.3",
-    "mathjs": "^15.1.0",
+    "ai-sdk-ollama": "^3.8.6",
+    "autoevals": "^0.0.132",
+    "dotenv": "^17.4.2",
+    "mathjs": "^15.2.0",
     "ollama": "^0.6.3",
-    "openai": "^6.16.0",
-    "zod": "^4.3.6"
+    "openai": "^6.42.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.4",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.18",
-    "vitest-mock-extended": "^3.1.0"
+    "vitest": "^4.1.8",
+    "vitest-mock-extended": "^3.1.1"
   }
 }
