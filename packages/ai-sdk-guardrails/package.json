@@ -63,12 +63,12 @@
     "check-exports": "attw --pack . --ignore-rules false-esm no-resolution"
   },
   "dependencies": {
-    "@ai-sdk/provider": "3.0.5",
-    "ai": "6.0.50",
-    "zod": "^4.3.6"
+    "@ai-sdk/provider": "3.0.10",
+    "ai": "6.0.197",
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "@opentelemetry/api": "^1.9.0"
+    "@opentelemetry/api": "^1.9.1"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/api": {
@@ -76,27 +76,27 @@
     }
   },
   "devDependencies": {
-    "@ai-sdk/groq": "^3.0.15",
-    "@ai-sdk/mistral": "3.0.12",
-    "@ai-sdk/openai": "3.0.19",
-    "@arethetypeswrong/cli": "^0.18.2",
-    "@eslint/js": "^9.39.2",
-    "@opentelemetry/api": "^1.9.0",
+    "@ai-sdk/groq": "^3.0.39",
+    "@ai-sdk/mistral": "3.0.37",
+    "@ai-sdk/openai": "3.0.68",
+    "@arethetypeswrong/cli": "^0.18.3",
+    "@eslint/js": "^9.39.4",
+    "@opentelemetry/api": "^1.9.1",
     "@total-typescript/ts-reset": "^0.6.1",
     "@total-typescript/tsconfig": "^1.0.4",
     "@types/eslint-config-prettier": "^6.11.3",
-    "@types/node": "^25.0.10",
-    "@typescript-eslint/eslint-plugin": "^8.54.0",
-    "@typescript-eslint/parser": "^8.54.0",
-    "eslint": "^9.39.2",
+    "@types/node": "^25.9.2",
+    "@typescript-eslint/eslint-plugin": "^8.60.1",
+    "@typescript-eslint/parser": "^8.60.1",
+    "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-unicorn": "^62.0.0",
-    "globals": "^17.1.0",
-    "prettier": "^3.8.1",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
     "tsup": "^8.5.1",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.4",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.54.0",
-    "vitest": "^4.0.18"
+    "typescript-eslint": "^8.60.1",
+    "vitest": "^4.1.8"
   }
 }
