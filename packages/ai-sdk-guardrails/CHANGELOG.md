@@ -1,5 +1,13 @@
 # ai-sdk-guardrails
 
+## 5.4.1
+
+### Patch Changes
+
+- 2cad663: chore: update dependencies
+
+  Minor/patch dependency refresh via npm-check-updates (--target minor, 3-day publish cooldown) — no major version bumps.
+
 ## 5.4.0
 
 ### Minor Changes
