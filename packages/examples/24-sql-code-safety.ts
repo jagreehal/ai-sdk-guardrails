@@ -626,7 +626,8 @@ const sqlCodeSafetyGuardrail = defineOutputGuardrail<{
 console.log('🛡️  SQL Code Safety Example\n');
 
 // Create a protected model with SQL safety enforcement
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   outputGuardrails: [sqlCodeSafetyGuardrail],
   throwOnBlocked: true,
   onOutputBlocked: (executionSummary) => {
@@ -764,7 +765,8 @@ try {
 
 // Test 9: Warning mode with safety analysis
 console.log('Test 9: Warning mode with safety analysis');
-const warningModel = withGuardrails(model, {
+const warningModel = withGuardrails({
+  model,
   outputGuardrails: [sqlCodeSafetyGuardrail],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {

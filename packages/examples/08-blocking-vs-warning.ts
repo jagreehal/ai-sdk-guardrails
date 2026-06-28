@@ -46,7 +46,8 @@ async function demonstrateBlockingMode() {
     'In blocking mode, guardrail violations throw errors and stop execution.\n',
   );
 
-  const blockingModel = withGuardrails(model, {
+  const blockingModel = withGuardrails({
+    model,
     inputGuardrails: [profanityGuardrail],
     throwOnBlocked: true, // BLOCKING MODE
     onInputBlocked: (executionSummary) => {
@@ -120,7 +121,8 @@ async function demonstrateWarningMode() {
     'In warning mode, violations are logged but execution continues.\n',
   );
 
-  const warningModel = withGuardrails(model, {
+  const warningModel = withGuardrails({
+    model,
     inputGuardrails: [profanityGuardrail],
     throwOnBlocked: false, // WARNING MODE
     onInputBlocked: (executionSummary) => {
@@ -245,7 +247,8 @@ async function demonstrateConditionalMode() {
   });
 
   // Create a model that blocks only on high severity
-  const conditionalModel = withGuardrails(model, {
+  const conditionalModel = withGuardrails({
+    model,
     inputGuardrails: [severityGuardrail],
     throwOnBlocked: false, // We'll handle this manually
     onInputBlocked: (executionSummary) => {

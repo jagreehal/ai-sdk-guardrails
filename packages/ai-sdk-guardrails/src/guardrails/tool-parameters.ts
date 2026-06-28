@@ -142,6 +142,15 @@ function matchesToolName(
  *   ]
  * );
  * ```
+ *
+ * @deprecated For gating tool calls, prefer {@link guardrailApproval} with the
+ * `toolApproval` option of `generateText` / `streamText` / `Agent` (AI SDK v7).
+ * It runs inside the agent loop, so it can pause for human-in-the-loop approval
+ * and resume — which wrapping the tool cannot. The same `ToolParameterGuardrail`
+ * objects work with both. Keep using `withToolParameterGuardrails` only when you
+ * need to *rewrite* tool input via `sanitizedInput` before execution, which
+ * `toolApproval` (allow/deny only) does not do. This wrapper will be removed in a
+ * future major.
  */
 export function withToolParameterGuardrails<
   TOOLS extends ToolSet,

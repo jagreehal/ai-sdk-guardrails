@@ -282,7 +282,8 @@ const promptInjectionGuardrail = defineInputGuardrail({
 console.log('🛡️  Prompt Injection Detection Example\n');
 
 // Create a protected model with injection detection
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   inputGuardrails: [promptInjectionGuardrail],
   throwOnBlocked: true,
   onInputBlocked: (executionSummary) => {
@@ -399,7 +400,8 @@ try {
 
 // Test 8: Warning mode (doesn't throw, just logs)
 console.log('Test 8: Suspicious input with warning mode');
-const warningModel = withGuardrails(model, {
+const warningModel = withGuardrails({
+  model,
   inputGuardrails: [promptInjectionGuardrail],
   throwOnBlocked: false, // Warning mode
   onInputBlocked: (executionSummary) => {

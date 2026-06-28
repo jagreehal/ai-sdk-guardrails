@@ -9,7 +9,7 @@ import type {
 
 // Use the proper AI SDK types for testing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type TestGenerateTextResult = GenerateTextResult<ToolSet, any>;
+type TestGenerateTextResult = GenerateTextResult<ToolSet, any, any>;
 import {
   outputLengthLimit,
   blockedContent,

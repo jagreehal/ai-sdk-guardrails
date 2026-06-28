@@ -11,7 +11,7 @@ This guide shows you how to add guardrails to your AI SDK application.
 npm install ai-sdk-guardrails
 ```
 
-Requires `ai` SDK v6.0+ and Node.js 22+.
+Requires `ai` SDK v7.0+ and Node.js 22+.
 
 ## Basic Usage
 
@@ -22,7 +22,8 @@ import { withGuardrails, piiDetector } from 'ai-sdk-guardrails';
 import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector()],
 });
 
@@ -37,9 +38,14 @@ const { text } = await generateText({
 Input guardrails run before the model receives the request:
 
 ```ts
-import { piiDetector, promptInjectionDetector, blockedKeywords } from 'ai-sdk-guardrails';
+import {
+  piiDetector,
+  promptInjectionDetector,
+  blockedKeywords,
+} from 'ai-sdk-guardrails';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [
     piiDetector(),
     promptInjectionDetector(),
@@ -55,11 +61,9 @@ Output guardrails run after the model generates a response:
 ```ts
 import { sensitiveDataFilter, minLengthRequirement } from 'ai-sdk-guardrails';
 
-const model = withGuardrails(openai('gpt-4o'), {
-  outputGuardrails: [
-    sensitiveDataFilter(),
-    minLengthRequirement(50),
-  ],
+const model = withGuardrails({
+  model: openai('gpt-4o'),
+  outputGuardrails: [sensitiveDataFilter(), minLengthRequirement(50)],
 });
 ```
 
@@ -68,15 +72,10 @@ const model = withGuardrails(openai('gpt-4o'), {
 Use both input and output guardrails together:
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
-  inputGuardrails: [
-    piiDetector(),
-    promptInjectionDetector(),
-  ],
-  outputGuardrails: [
-    sensitiveDataFilter(),
-    minLengthRequirement(50),
-  ],
+const model = withGuardrails({
+  model: openai('gpt-4o'),
+  inputGuardrails: [piiDetector(), promptInjectionDetector()],
+  outputGuardrails: [sensitiveDataFilter(), minLengthRequirement(50)],
 });
 ```
 
@@ -95,17 +94,19 @@ try {
 } catch (error) {
   if (isGuardrailsError(error)) {
     console.log('Blocked:', error.message);
-    console.log('Severity:', error.severity);
   }
 }
 ```
+
+Guardrail errors extend the AI SDK's own `AISDKError`, so `AISDKError.isInstance(error)` catches them alongside other SDK errors. Input and output blocks (`GuardrailsInputError` / `GuardrailsOutputError`) carry a `blockedGuardrails` array with the name, message, and severity of each guardrail that tripped.
 
 ## Warning Mode
 
 Use callbacks instead of throwing errors (default behavior):
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector()],
   throwOnBlocked: false,
   onInputBlocked: (summary) => {
@@ -121,7 +122,8 @@ Guardrails work with streaming:
 ```ts
 import { streamText } from 'ai';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [minLengthRequirement(100)],
 });
 
@@ -140,13 +142,16 @@ for await (const chunk of textStream) {
 Load configs from [guardrails.openai.com](https://guardrails.openai.com):
 
 ```ts
-import { mapOpenAIConfigToGuardrails, loadPipelineConfig } from 'ai-sdk-guardrails';
+import {
+  mapOpenAIConfigToGuardrails,
+  loadPipelineConfig,
+} from 'ai-sdk-guardrails/config';
 
 // Load from file
 const config = await loadPipelineConfig('./guardrails-config.json');
 const guardrailsConfig = mapOpenAIConfigToGuardrails(config);
 
-const model = withGuardrails(openai('gpt-4o'), guardrailsConfig);
+const model = withGuardrails({ model: openai('gpt-4o'), ...guardrailsConfig });
 ```
 
 Or use the config directly:
@@ -166,7 +171,7 @@ const config = {
 };
 
 const guardrailsConfig = mapOpenAIConfigToGuardrails(config);
-const model = withGuardrails(openai('gpt-4o'), guardrailsConfig);
+const model = withGuardrails({ model: openai('gpt-4o'), ...guardrailsConfig });
 ```
 
 ## Next Steps

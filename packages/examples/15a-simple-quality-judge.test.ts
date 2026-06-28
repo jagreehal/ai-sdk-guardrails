@@ -98,145 +98,130 @@ Respond with just a number (1-10):`,
 });
 
 describe('Simple Quality Judge Example', () => {
-  it(
-    'should evaluate response quality using LLM judge',
-    async () => {
-      let blockedMessage: string | undefined;
-      let blockedMetadata: any;
+  it('should evaluate response quality using LLM judge', async () => {
+    let blockedMessage: string | undefined;
+    let blockedMetadata: any;
 
-      const judgedModel = withGuardrails(model, {
-        outputGuardrails: [qualityJudgeGuardrail],
-        throwOnBlocked: false, // Warning mode
-        onOutputBlocked: (executionSummary) => {
-          blockedMessage = executionSummary.blockedResults[0]?.message;
-          blockedMetadata = executionSummary.blockedResults[0]?.metadata;
-        },
-      });
+    const judgedModel = withGuardrails({
+      model,
+      outputGuardrails: [qualityJudgeGuardrail],
+      throwOnBlocked: false, // Warning mode
+      onOutputBlocked: (executionSummary) => {
+        blockedMessage = executionSummary.blockedResults[0]?.message;
+        blockedMetadata = executionSummary.blockedResults[0]?.metadata;
+      },
+    });
 
-      const result = await generateText({
-        model: judgedModel,
-        prompt: 'Explain the water cycle in a clear and informative way',
-      });
+    const result = await generateText({
+      model: judgedModel,
+      prompt: 'Explain the water cycle in a clear and informative way',
+    });
 
-      expect(result.text).toBeDefined();
-      expect(result.text.length).toBeGreaterThan(0);
-      // If quality judge triggered, verify metadata
-      if (blockedMessage) {
-        expect(blockedMessage).toContain('Response quality too low');
-        if (blockedMetadata) {
-          expect(blockedMetadata.qualityScore).toBeDefined();
-          expect(blockedMetadata.passed).toBe(false);
-        }
+    expect(result.text).toBeDefined();
+    expect(result.text.length).toBeGreaterThan(0);
+    // If quality judge triggered, verify metadata
+    if (blockedMessage) {
+      expect(blockedMessage).toContain('Response quality too low');
+      if (blockedMetadata) {
+        expect(blockedMetadata.qualityScore).toBeDefined();
+        expect(blockedMetadata.passed).toBe(false);
       }
-    },
-    120000,
-  );
+    }
+  }, 120000);
 
-  it(
-    'should provide quality score in metadata',
-    async () => {
-      let capturedMetadata: any;
+  it('should provide quality score in metadata', async () => {
+    let capturedMetadata: any;
 
-      const judgedModel = withGuardrails(model, {
-        outputGuardrails: [qualityJudgeGuardrail],
-        throwOnBlocked: false,
-        onOutputBlocked: (executionSummary) => {
-          capturedMetadata = executionSummary.blockedResults[0]?.metadata;
-        },
-      });
+    const judgedModel = withGuardrails({
+      model,
+      outputGuardrails: [qualityJudgeGuardrail],
+      throwOnBlocked: false,
+      onOutputBlocked: (executionSummary) => {
+        capturedMetadata = executionSummary.blockedResults[0]?.metadata;
+      },
+    });
 
-      const result = await generateText({
-        model: judgedModel,
-        prompt: 'What are three benefits of regular exercise?',
-      });
+    const result = await generateText({
+      model: judgedModel,
+      prompt: 'What are three benefits of regular exercise?',
+    });
 
-      expect(result.text).toBeDefined();
-      // If metadata was captured, verify structure
-      if (capturedMetadata) {
-        expect(capturedMetadata.qualityScore).toBeDefined();
-        expect(capturedMetadata.passed).toBeDefined();
-        expect(capturedMetadata.evaluatedText).toBeDefined();
-        expect(capturedMetadata.fallbackApproved).toBeDefined();
+    expect(result.text).toBeDefined();
+    // If metadata was captured, verify structure
+    if (capturedMetadata) {
+      expect(capturedMetadata.qualityScore).toBeDefined();
+      expect(capturedMetadata.passed).toBeDefined();
+      expect(capturedMetadata.evaluatedText).toBeDefined();
+      expect(capturedMetadata.fallbackApproved).toBeDefined();
+    }
+  }, 120000);
+
+  it('should handle brief responses appropriately', async () => {
+    let blockedMessage: string | undefined;
+    let blockedMetadata: any;
+
+    const judgedModel = withGuardrails({
+      model,
+      outputGuardrails: [qualityJudgeGuardrail],
+      throwOnBlocked: false,
+      onOutputBlocked: (executionSummary) => {
+        blockedMessage = executionSummary.blockedResults[0]?.message;
+        blockedMetadata = executionSummary.blockedResults[0]?.metadata;
+      },
+    });
+
+    const result = await generateText({
+      model: judgedModel,
+      prompt: 'Say just "yes" or "no" - nothing else',
+    });
+
+    expect(result.text).toBeDefined();
+    // Brief responses may trigger quality concerns
+    if (blockedMessage) {
+      expect(blockedMessage).toContain('Response quality');
+      if (blockedMetadata) {
+        expect(blockedMetadata.qualityScore).toBeDefined();
       }
-    },
-    120000,
-  );
+    }
+  }, 120000);
 
-  it(
-    'should handle brief responses appropriately',
-    async () => {
-      let blockedMessage: string | undefined;
-      let blockedMetadata: any;
+  it('should skip evaluation for very short responses', async () => {
+    let capturedMetadata: any;
 
-      const judgedModel = withGuardrails(model, {
-        outputGuardrails: [qualityJudgeGuardrail],
-        throwOnBlocked: false,
-        onOutputBlocked: (executionSummary) => {
-          blockedMessage = executionSummary.blockedResults[0]?.message;
-          blockedMetadata = executionSummary.blockedResults[0]?.metadata;
-        },
-      });
+    const judgedModel = withGuardrails({
+      model,
+      outputGuardrails: [qualityJudgeGuardrail],
+      throwOnBlocked: false,
+      onOutputBlocked: (executionSummary) => {
+        capturedMetadata = executionSummary.blockedResults[0]?.metadata;
+      },
+    });
 
-      const result = await generateText({
-        model: judgedModel,
-        prompt: 'Say just "yes" or "no" - nothing else',
-      });
+    // Generate a very short response
+    const result = await generateText({
+      model: judgedModel,
+      prompt: 'Say "OK"',
+    });
 
-      expect(result.text).toBeDefined();
-      // Brief responses may trigger quality concerns
-      if (blockedMessage) {
-        expect(blockedMessage).toContain('Response quality');
-        if (blockedMetadata) {
-          expect(blockedMetadata.qualityScore).toBeDefined();
-        }
-      }
-    },
-    120000,
-  );
+    expect(result.text).toBeDefined();
+    // Very short responses should skip evaluation
+    // The guardrail should handle this internally
+  }, 120000);
 
-  it(
-    'should skip evaluation for very short responses',
-    async () => {
-      let capturedMetadata: any;
+  it('should handle judge errors gracefully with fallback', async () => {
+    // This test verifies that if the judge fails, the response is still allowed
+    const judgedModel = withGuardrails({
+      model,
+      outputGuardrails: [qualityJudgeGuardrail],
+      throwOnBlocked: false,
+    });
 
-      const judgedModel = withGuardrails(model, {
-        outputGuardrails: [qualityJudgeGuardrail],
-        throwOnBlocked: false,
-        onOutputBlocked: (executionSummary) => {
-          capturedMetadata = executionSummary.blockedResults[0]?.metadata;
-        },
-      });
+    const result = await generateText({
+      model: judgedModel,
+      prompt: 'Explain photosynthesis',
+    });
 
-      // Generate a very short response
-      const result = await generateText({
-        model: judgedModel,
-        prompt: 'Say "OK"',
-      });
-
-      expect(result.text).toBeDefined();
-      // Very short responses should skip evaluation
-      // The guardrail should handle this internally
-    },
-    120000,
-  );
-
-  it(
-    'should handle judge errors gracefully with fallback',
-    async () => {
-      // This test verifies that if the judge fails, the response is still allowed
-      const judgedModel = withGuardrails(model, {
-        outputGuardrails: [qualityJudgeGuardrail],
-        throwOnBlocked: false,
-      });
-
-      const result = await generateText({
-        model: judgedModel,
-        prompt: 'Explain photosynthesis',
-      });
-
-      expect(result.text).toBeDefined();
-      // Even if judge fails, response should be allowed (fallback approval)
-    },
-    120000,
-  );
+    expect(result.text).toBeDefined();
+    // Even if judge fails, response should be allowed (fallback approval)
+  }, 120000);
 });

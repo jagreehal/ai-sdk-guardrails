@@ -23,17 +23,17 @@ export type GuardrailViolation =
  *
  * @example
  * ```typescript
- * const agent = withAgentGuardrails({
- *   model,
+ * const agent = new ToolLoopAgent({
+ *   ...agentGuardrails({ model,
+ *     outputGuardrails: [piiGuardrail],
+ *     stopOnGuardrailViolation: hasCriticalViolation(), // guardrail violations
+ *     stopWhen: stepCountIs(10), // composed with the guardrail stop condition
+ *   }),
  *   tools: { search: searchTool },
- *   stopWhen: stepCountIs(10), // Use stepCountIs for agent step limits
- * }, {
- *   outputGuardrails: [piiGuardrail],
- *   stopOnGuardrailViolation: criticalViolationDetected(), // Use here for guardrail violations
  * });
  * ```
  */
-export function criticalViolationDetected() {
+export function hasCriticalViolation() {
   return (violations: GuardrailViolation[]): boolean => {
     return violations.some((v) =>
       v.summary.blockedResults.some(
@@ -50,16 +50,16 @@ export function criticalViolationDetected() {
  *
  * @example
  * ```typescript
- * const agent = withAgentGuardrails({
- *   model,
+ * const agent = new ToolLoopAgent({
+ *   ...agentGuardrails({ model,
+ *     outputGuardrails: [qualityGuardrail],
+ *     stopOnGuardrailViolation: isViolationCount(3),
+ *   }),
  *   tools: { search: searchTool },
- * }, {
- *   outputGuardrails: [qualityGuardrail],
- *   stopOnGuardrailViolation: violationCountIs(3),
  * });
  * ```
  */
-export function violationCountIs(count: number) {
+export function isViolationCount(count: number) {
   return (violations: GuardrailViolation[]): boolean => {
     return violations.length >= count;
   };
@@ -76,16 +76,16 @@ export function violationCountIs(count: number) {
  *
  * @example
  * ```typescript
- * const agent = withAgentGuardrails({
- *   model,
+ * const agent = new ToolLoopAgent({
+ *   ...agentGuardrails({ model,
+ *     outputGuardrails: [securityGuardrail],
+ *     stopOnGuardrailViolation: hasViolationSeverity('high', 2),
+ *   }),
  *   tools: { search: searchTool },
- * }, {
- *   outputGuardrails: [securityGuardrail],
- *   stopOnGuardrailViolation: violationSeverityIs('high', 2),
  * });
  * ```
  */
-export function violationSeverityIs(
+export function hasViolationSeverity(
   severity: 'low' | 'medium' | 'high' | 'critical',
   minCount: number = 1,
 ) {
@@ -107,16 +107,16 @@ export function violationSeverityIs(
  *
  * @example
  * ```typescript
- * const agent = withAgentGuardrails({
- *   model,
+ * const agent = new ToolLoopAgent({
+ *   ...agentGuardrails({ model,
+ *     outputGuardrails: [piiGuardrail, qualityGuardrail],
+ *     stopOnGuardrailViolation: hasGuardrailViolation('pii-detection'),
+ *   }),
  *   tools: { search: searchTool },
- * }, {
- *   outputGuardrails: [piiGuardrail, qualityGuardrail],
- *   stopOnGuardrailViolation: specificGuardrailViolated('pii-detection'),
  * });
  * ```
  */
-export function specificGuardrailViolated(
+export function hasGuardrailViolation(
   guardrailName: string,
   minCount: number = 1,
 ) {
@@ -137,16 +137,16 @@ export function specificGuardrailViolated(
  *
  * @example
  * ```typescript
- * const agent = withAgentGuardrails({
- *   model,
+ * const agent = new ToolLoopAgent({
+ *   ...agentGuardrails({ model,
+ *     outputGuardrails: [qualityGuardrail],
+ *     stopOnGuardrailViolation: hasConsecutiveViolations(2),
+ *   }),
  *   tools: { search: searchTool },
- * }, {
- *   outputGuardrails: [qualityGuardrail],
- *   stopOnGuardrailViolation: consecutiveViolations(2),
  * });
  * ```
  */
-export function consecutiveViolations(consecutiveCount: number) {
+export function hasConsecutiveViolations(consecutiveCount: number) {
   return (violations: GuardrailViolation[]): boolean => {
     if (violations.length < consecutiveCount) return false;
 
@@ -173,16 +173,16 @@ export function consecutiveViolations(consecutiveCount: number) {
  *
  * @example
  * ```typescript
- * const agent = withAgentGuardrails({
- *   model,
+ * const agent = new ToolLoopAgent({
+ *   ...agentGuardrails({ model,
+ *     outputGuardrails: [piiGuardrail, qualityGuardrail],
+ *     stopOnGuardrailViolation: anyOf([
+ *       hasCriticalViolation(),
+ *       isViolationCount(5),
+ *       hasConsecutiveViolations(3),
+ *     ]),
+ *   }),
  *   tools: { search: searchTool },
- * }, {
- *   outputGuardrails: [piiGuardrail, qualityGuardrail],
- *   stopOnGuardrailViolation: anyOf([
- *     criticalViolationDetected(),
- *     violationCountIs(5),
- *     consecutiveViolations(3),
- *   ]),
  * });
  * ```
  */
@@ -201,15 +201,15 @@ export function anyOf(
  *
  * @example
  * ```typescript
- * const agent = withAgentGuardrails({
- *   model,
+ * const agent = new ToolLoopAgent({
+ *   ...agentGuardrails({ model,
+ *     outputGuardrails: [piiGuardrail, qualityGuardrail],
+ *     stopOnGuardrailViolation: allOf([
+ *       isViolationCount(3),
+ *       hasViolationSeverity('high'),
+ *     ]),
+ *   }),
  *   tools: { search: searchTool },
- * }, {
- *   outputGuardrails: [piiGuardrail, qualityGuardrail],
- *   stopOnGuardrailViolation: allOf([
- *     violationCountIs(3),
- *     violationSeverityIs('high'),
- *   ]),
  * });
  * ```
  */
@@ -229,15 +229,15 @@ export function allOf(
  *
  * @example
  * ```typescript
- * const agent = withAgentGuardrails({
- *   model,
- *   tools: { search: searchTool },
- * }, {
- *   outputGuardrails: [piiGuardrail, qualityGuardrail],
- *   stopOnGuardrailViolation: custom((violations) => {
- *     const avgSeverity = calculateAverageSeverity(violations);
- *     return avgSeverity > 0.7;
+ * const agent = new ToolLoopAgent({
+ *   ...agentGuardrails({ model,
+ *     outputGuardrails: [piiGuardrail, qualityGuardrail],
+ *     stopOnGuardrailViolation: custom((violations) => {
+ *       const avgSeverity = calculateAverageSeverity(violations);
+ *       return avgSeverity > 0.7;
+ *     }),
  *   }),
+ *   tools: { search: searchTool },
  * });
  * ```
  */

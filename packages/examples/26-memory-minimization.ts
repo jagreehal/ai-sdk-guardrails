@@ -560,7 +560,8 @@ const memoryMinimizationOutputGuardrail = defineOutputGuardrail<{
 console.log('🛡️  Memory Minimization Example\n');
 
 // Create a protected model with memory minimization
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   inputGuardrails: [memoryMinimizationInputGuardrail],
   outputGuardrails: [memoryMinimizationOutputGuardrail],
   throwOnBlocked: false, // Don't throw, just redact

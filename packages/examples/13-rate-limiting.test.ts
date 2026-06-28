@@ -110,7 +110,8 @@ describe('Rate Limiting Example', () => {
   describe('Basic Rate Limiting', () => {
     it('should allow requests within rate limit', async () => {
       const basicRateLimit = createRateLimitGuardrail(3, 10_000);
-      const rateLimitedModel = withGuardrails(model, {
+      const rateLimitedModel = withGuardrails({
+        model,
         inputGuardrails: [basicRateLimit],
         throwOnBlocked: true,
       });
@@ -127,7 +128,8 @@ describe('Rate Limiting Example', () => {
 
     it('should block requests exceeding rate limit in blocking mode', async () => {
       const basicRateLimit = createRateLimitGuardrail(2, 5_000);
-      const rateLimitedModel = withGuardrails(model, {
+      const rateLimitedModel = withGuardrails({
+        model,
         inputGuardrails: [basicRateLimit],
         throwOnBlocked: true,
       });
@@ -160,7 +162,8 @@ describe('Rate Limiting Example', () => {
       let blockedMetadata: any;
 
       const basicRateLimit = createRateLimitGuardrail(1, 5_000);
-      const rateLimitedModel = withGuardrails(model, {
+      const rateLimitedModel = withGuardrails({
+        model,
         inputGuardrails: [basicRateLimit],
         throwOnBlocked: true,
         onInputBlocked: (executionSummary) => {
@@ -196,7 +199,8 @@ describe('Rate Limiting Example', () => {
       const warningRateLimit = createRateLimitGuardrail(2, 5_000);
       let warningCount = 0;
 
-      const warningModel = withGuardrails(model, {
+      const warningModel = withGuardrails({
+        model,
         inputGuardrails: [warningRateLimit],
         throwOnBlocked: false, // Warning mode
         onInputBlocked: () => {
@@ -280,7 +284,8 @@ describe('Rate Limiting Example', () => {
     it('should adjust limits based on prompt complexity', async () => {
       let blockedMetadata: any;
 
-      const dynamicModel = withGuardrails(model, {
+      const dynamicModel = withGuardrails({
+        model,
         inputGuardrails: [dynamicRateLimit],
         throwOnBlocked: false,
         onInputBlocked: (executionSummary) => {
@@ -303,7 +308,8 @@ describe('Rate Limiting Example', () => {
       // Test with complex prompt
       await generateText({
         model: dynamicModel,
-        prompt: 'Please provide a detailed comprehensive analysis of machine learning algorithms including their mathematical foundations, implementation details, performance characteristics, and real-world applications across various domains',
+        prompt:
+          'Please provide a detailed comprehensive analysis of machine learning algorithms including their mathematical foundations, implementation details, performance characteristics, and real-world applications across various domains',
       });
 
       // If metadata was captured, verify structure
@@ -317,7 +323,8 @@ describe('Rate Limiting Example', () => {
     it('should provide correct metadata for different prompt types', async () => {
       let capturedMetadata: any[] = [];
 
-      const dynamicModel = withGuardrails(model, {
+      const dynamicModel = withGuardrails({
+        model,
         inputGuardrails: [dynamicRateLimit],
         throwOnBlocked: false,
         onInputBlocked: (executionSummary) => {
@@ -414,7 +421,8 @@ describe('Rate Limiting Example', () => {
         },
       });
 
-      const tokenModel = withGuardrails(model, {
+      const tokenModel = withGuardrails({
+        model,
         inputGuardrails: [tokenBucketGuardrail],
         throwOnBlocked: false,
       });
@@ -465,7 +473,8 @@ describe('Rate Limiting Example', () => {
         },
       });
 
-      const tokenModel = withGuardrails(model, {
+      const tokenModel = withGuardrails({
+        model,
         inputGuardrails: [tokenBucketGuardrail],
         throwOnBlocked: false,
         onInputBlocked: (executionSummary) => {

@@ -5,8 +5,11 @@
  * using output guardrails executed directly without model calls.
  */
 
-import { defineOutputGuardrail, executeOutputGuardrails } from 'ai-sdk-guardrails';
-import type { OutputGuardrailContext, AIResult } from '../src/types';
+import {
+  defineOutputGuardrail,
+  executeOutputGuardrails,
+} from 'ai-sdk-guardrails';
+import type { OutputGuardrailContext, AIResult } from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
 interface DetectedSensitiveType {

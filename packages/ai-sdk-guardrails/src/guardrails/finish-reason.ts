@@ -185,7 +185,7 @@ export function createGuardrailProviderMetadata(
  *
  * @example Use in middleware
  * ```typescript
- * export function createOutputGuardrailsMiddleware(config) {
+ * export function outputGuardrailsMiddleware(config) {
  *   return {
  *     wrapGenerate: async ({ doGenerate }) => {
  *       const result = await doGenerate();

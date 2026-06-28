@@ -19,9 +19,14 @@ npm install ai-sdk-guardrails
 ```ts
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { withGuardrails, piiDetector, promptInjectionDetector } from 'ai-sdk-guardrails';
+import {
+  withGuardrails,
+  piiDetector,
+  promptInjectionDetector,
+} from 'ai-sdk-guardrails';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector(), promptInjectionDetector()],
 });
 

@@ -95,7 +95,8 @@ Respond with just a number (1-10):`,
 console.log('⚖️ Simple Quality Judge Example\n');
 
 // Create a protected model with quality checking
-const judgedModel = withGuardrails(model, {
+const judgedModel = withGuardrails({
+  model,
   outputGuardrails: [qualityJudgeGuardrail],
   throwOnBlocked: false, // Warning mode
   onOutputBlocked: (executionSummary) => {

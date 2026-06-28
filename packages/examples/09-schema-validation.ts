@@ -97,7 +97,8 @@ console.log('==================================\n');
 const userValidator = createSchemaValidator(userSchema, 'user');
 
 // Blocking mode - rejects invalid objects
-const strictUserModel = withGuardrails(model, {
+const strictUserModel = withGuardrails({
+  model,
   outputGuardrails: [userValidator],
   throwOnBlocked: true,
   onOutputBlocked: (executionSummary) => {
@@ -158,7 +159,8 @@ console.log('===================================================\n');
 
 const productValidator = createSchemaValidator(productSchema, 'product');
 
-const warningProductModel = withGuardrails(model, {
+const warningProductModel = withGuardrails({
+  model,
   outputGuardrails: [productValidator],
   throwOnBlocked: false, // Warning mode
   onOutputBlocked: (executionSummary) => {
@@ -210,7 +212,8 @@ const orderSchema = z.object({
 
 const orderValidator = createSchemaValidator(orderSchema, 'order');
 
-const orderModel = withGuardrails(model, {
+const orderModel = withGuardrails({
+  model,
   outputGuardrails: [orderValidator],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {
@@ -300,7 +303,8 @@ const businessSchema = z.object({
   featured: z.boolean().optional(),
 });
 
-const businessModel = withGuardrails(model, {
+const businessModel = withGuardrails({
+  model,
   outputGuardrails: [businessRulesGuardrail],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {

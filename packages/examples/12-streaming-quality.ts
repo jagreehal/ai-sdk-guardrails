@@ -196,7 +196,8 @@ async function demonstrateQualityMonitoring() {
   console.log('📊 Stream Quality Monitoring');
   console.log('============================\n');
 
-  const qualityModel = withGuardrails(model, {
+  const qualityModel = withGuardrails({
+    model,
     outputGuardrails: [streamQualityGuardrail],
     throwOnBlocked: false,
     onOutputBlocked: (executionSummary) => {
@@ -256,7 +257,8 @@ async function demonstrateHallucinationDetection() {
   console.log('🔍 Hallucination Pattern Detection');
   console.log('===================================\n');
 
-  const hallucinationModel = withGuardrails(model, {
+  const hallucinationModel = withGuardrails({
+    model,
     outputGuardrails: [hallucinationDetector],
     throwOnBlocked: false,
     onOutputBlocked: (executionSummary) => {
@@ -298,7 +300,8 @@ async function demonstrateCombinedQualityChecks() {
   console.log('🎯 Combined Quality Checks');
   console.log('==========================\n');
 
-  const combinedModel = withGuardrails(model, {
+  const combinedModel = withGuardrails({
+    model,
     outputGuardrails: [streamQualityGuardrail, hallucinationDetector],
     throwOnBlocked: false,
     onOutputBlocked: (executionSummary) => {

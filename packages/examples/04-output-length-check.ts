@@ -5,8 +5,11 @@
  * directly without calling a model.
  */
 
-import { defineOutputGuardrail, executeOutputGuardrails } from 'ai-sdk-guardrails';
-import type { OutputGuardrailContext, AIResult } from '../src/types';
+import {
+  defineOutputGuardrail,
+  executeOutputGuardrails,
+} from 'ai-sdk-guardrails';
+import type { OutputGuardrailContext, AIResult } from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
 // Simple output length guardrail (min length)

@@ -4,7 +4,7 @@ import {
   createAdaptivePrepareStep,
 } from './prepare-step';
 import type { GuardrailViolation } from './stop-conditions';
-import type { LanguageModelV3 } from '../types';
+import type { LanguageModelV4 } from '../types';
 
 describe('createGuardrailPrepareStep', () => {
   it('should return undefined when no violations', () => {
@@ -15,7 +15,7 @@ describe('createGuardrailPrepareStep', () => {
       steps: [],
       stepNumber: 0,
       messages: [],
-      model: {} as LanguageModelV3,
+      model: {} as LanguageModelV4,
     });
 
     expect(result).toBeUndefined();
@@ -50,7 +50,7 @@ describe('createGuardrailPrepareStep', () => {
       steps: [],
       stepNumber: 1,
       messages: [],
-      model: {} as LanguageModelV3,
+      model: {} as LanguageModelV4,
     });
 
     expect(result).toBeDefined();
@@ -86,7 +86,7 @@ describe('createGuardrailPrepareStep', () => {
       steps: [],
       stepNumber: 1,
       messages: [],
-      model: {} as LanguageModelV3,
+      model: {} as LanguageModelV4,
     });
 
     expect(result?.system).toContain('Previous responses violated guidelines');
@@ -123,7 +123,7 @@ describe('createGuardrailPrepareStep', () => {
       steps: [],
       stepNumber: 1,
       messages: [],
-      model: {} as LanguageModelV3,
+      model: {} as LanguageModelV4,
     });
 
     expect(result?.stopWhen).toBeDefined();
@@ -163,7 +163,7 @@ describe('createGuardrailPrepareStep', () => {
       steps: [{ content: null }, { content: null }, { content: null }],
       stepNumber: 5,
       messages: [],
-      model: {} as LanguageModelV3,
+      model: {} as LanguageModelV4,
     });
 
     // Step 5 with lookback 1 should not consider step 0
@@ -201,7 +201,7 @@ describe('createGuardrailPrepareStep', () => {
       steps: [],
       stepNumber: 1,
       messages: [],
-      model: {} as LanguageModelV3,
+      model: {} as LanguageModelV4,
     });
 
     expect(result?.temperature).toBe(0.5);
@@ -250,7 +250,7 @@ describe('createAdaptivePrepareStep', () => {
       steps: [],
       stepNumber: 1,
       messages: [],
-      model: {} as LanguageModelV3,
+      model: {} as LanguageModelV4,
     });
 
     expect(onViolationDetected).toHaveBeenCalledWith(
@@ -297,7 +297,7 @@ describe('createAdaptivePrepareStep', () => {
       steps: [],
       stepNumber: 1,
       messages: [],
-      model: {} as LanguageModelV3,
+      model: {} as LanguageModelV4,
     });
 
     expect(result?.temperature).toBe(0.1);
@@ -374,7 +374,7 @@ describe('createAdaptivePrepareStep', () => {
       steps: [{ content: null }, { content: null }, { content: null }],
       stepNumber: 3,
       messages: [],
-      model: {} as LanguageModelV3,
+      model: {} as LanguageModelV4,
     });
 
     // After 3 violations, should stop
@@ -390,7 +390,7 @@ describe('createAdaptivePrepareStep', () => {
       steps: [],
       stepNumber: 0,
       messages: [],
-      model: {} as LanguageModelV3,
+      model: {} as LanguageModelV4,
     });
 
     expect(result).toBeUndefined();

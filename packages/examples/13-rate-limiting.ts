@@ -110,7 +110,8 @@ console.log('============================================================\n');
 
 const basicRateLimit = createRateLimitGuardrail(3, 10_000);
 
-const rateLimitedModel = withGuardrails(model, {
+const rateLimitedModel = withGuardrails({
+  model,
   inputGuardrails: [basicRateLimit],
   throwOnBlocked: true,
   onInputBlocked: (executionSummary) => {
@@ -150,7 +151,8 @@ console.log('=================================================\n');
 
 const warningRateLimit = createRateLimitGuardrail(2, 5000);
 
-const warningModel = withGuardrails(model, {
+const warningModel = withGuardrails({
+  model,
   inputGuardrails: [warningRateLimit],
   throwOnBlocked: false, // Warning mode
   onInputBlocked: (executionSummary) => {
@@ -231,7 +233,8 @@ const dynamicRateLimit = defineInputGuardrail({
   },
 });
 
-const dynamicModel = withGuardrails(model, {
+const dynamicModel = withGuardrails({
+  model,
   inputGuardrails: [dynamicRateLimit],
   throwOnBlocked: false,
   onInputBlocked: (executionSummary) => {
@@ -337,7 +340,8 @@ const tokenBucketGuardrail = defineInputGuardrail({
   },
 });
 
-const tokenModel = withGuardrails(model, {
+const tokenModel = withGuardrails({
+  model,
   inputGuardrails: [tokenBucketGuardrail],
   throwOnBlocked: false,
   onInputBlocked: (executionSummary) => {

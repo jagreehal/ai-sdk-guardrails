@@ -46,7 +46,8 @@ const profanityGuardrail = defineInputGuardrail({
 describe('Blocking vs Warning Mode', () => {
   describe('Blocking Mode', () => {
     it('should allow clean input to pass', async () => {
-      const blockingModel = withGuardrails(model, {
+      const blockingModel = withGuardrails({
+        model,
         inputGuardrails: [profanityGuardrail],
         throwOnBlocked: true, // BLOCKING MODE
       });
@@ -61,7 +62,8 @@ describe('Blocking vs Warning Mode', () => {
     });
 
     it('should throw error when input contains profanity', async () => {
-      const blockingModel = withGuardrails(model, {
+      const blockingModel = withGuardrails({
+        model,
         inputGuardrails: [profanityGuardrail],
         throwOnBlocked: true, // BLOCKING MODE
       });
@@ -75,7 +77,8 @@ describe('Blocking vs Warning Mode', () => {
     });
 
     it('should block multiple requests with violations', async () => {
-      const blockingModel = withGuardrails(model, {
+      const blockingModel = withGuardrails({
+        model,
         inputGuardrails: [profanityGuardrail],
         throwOnBlocked: true,
       });
@@ -106,7 +109,8 @@ describe('Blocking vs Warning Mode', () => {
 
   describe('Warning Mode', () => {
     it('should allow clean input to pass without warnings', async () => {
-      const warningModel = withGuardrails(model, {
+      const warningModel = withGuardrails({
+        model,
         inputGuardrails: [profanityGuardrail],
         throwOnBlocked: false, // WARNING MODE
       });
@@ -123,7 +127,8 @@ describe('Blocking vs Warning Mode', () => {
     it('should process input with profanity but trigger warning', async () => {
       let warningMessage: string | undefined;
 
-      const warningModel = withGuardrails(model, {
+      const warningModel = withGuardrails({
+        model,
         inputGuardrails: [profanityGuardrail],
         throwOnBlocked: false, // WARNING MODE
         onInputBlocked: (executionSummary) => {
@@ -145,7 +150,8 @@ describe('Blocking vs Warning Mode', () => {
     it('should process all requests but log warnings for violations', async () => {
       let warningCount = 0;
 
-      const warningModel = withGuardrails(model, {
+      const warningModel = withGuardrails({
+        model,
         inputGuardrails: [profanityGuardrail],
         throwOnBlocked: false,
         onInputBlocked: () => {
@@ -221,7 +227,8 @@ describe('Blocking vs Warning Mode', () => {
     });
 
     it('should allow clean prompts to pass', async () => {
-      const conditionalModel = withGuardrails(model, {
+      const conditionalModel = withGuardrails({
+        model,
         inputGuardrails: [severityGuardrail],
         throwOnBlocked: false,
       });
@@ -241,20 +248,26 @@ describe('Blocking vs Warning Mode', () => {
         blocked: boolean;
       }> = [];
 
-      const conditionalModel = withGuardrails(model, {
+      const conditionalModel = withGuardrails({
+        model,
         inputGuardrails: [severityGuardrail],
         throwOnBlocked: false,
         onInputBlocked: (executionSummary) => {
           const result = executionSummary.blockedResults[0];
-          const currentPrompt = severityResults[severityResults.length - 1]?.prompt;
+          const currentPrompt =
+            severityResults[severityResults.length - 1]?.prompt;
           if (currentPrompt) {
-            severityResults[severityResults.length - 1].severity = result?.severity;
+            severityResults[severityResults.length - 1].severity =
+              result?.severity;
           }
         },
       });
 
       const testCases = [
-        { prompt: 'How does authentication work?', expectedSeverity: undefined },
+        {
+          prompt: 'How does authentication work?',
+          expectedSeverity: undefined,
+        },
         { prompt: 'Debug this code for me', expectedSeverity: 'low' },
         { prompt: 'How to hack a system', expectedSeverity: 'medium' },
         { prompt: 'Attack the server', expectedSeverity: 'high' },
@@ -285,7 +298,8 @@ describe('Blocking vs Warning Mode', () => {
     it('should provide correct metadata for each severity level', async () => {
       let capturedMetadata: any[] = [];
 
-      const conditionalModel = withGuardrails(model, {
+      const conditionalModel = withGuardrails({
+        model,
         inputGuardrails: [severityGuardrail],
         throwOnBlocked: false,
         onInputBlocked: (executionSummary) => {

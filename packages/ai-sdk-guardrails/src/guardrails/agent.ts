@@ -1,131 +1,67 @@
 import {
-  ToolLoopAgent,
-  type ToolLoopAgentSettings,
+  type LanguageModel,
   type ToolSet,
-  type GenerateTextResult,
-  type Prompt,
-  type ProviderMetadata,
-  type LanguageModelUsage,
   type StopCondition,
+  type GenerateTextOnStepEndCallback,
 } from 'ai';
-import { extractContent } from './output';
-import { extractTextContent } from './input';
-import { executeInputGuardrails, executeOutputGuardrails } from '../guardrails';
+import { withGuardrails } from '../guardrails';
 import type {
   InputGuardrail,
   OutputGuardrail,
   GuardrailExecutionSummary,
-  InputGuardrailContext,
-  NormalizedGuardrailContext,
-  Logger,
-  AIResult,
+  InputGuardrailsMiddlewareConfig,
+  OutputGuardrailsMiddlewareConfig,
 } from '../types';
 
 type AnyRecord = Record<string, unknown>;
 
-// Helper function to create a minimal GenerateTextResult for guardrail validation
-function createMockGenerateTextResult<TOOLS extends ToolSet>(
-  text: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): GenerateTextResult<TOOLS, any> {
-  return {
-    content: [],
-    text,
-    reasoning: [],
-    reasoningText: undefined,
-    files: [],
-    sources: [],
-    toolCalls: [],
-    staticToolCalls: [],
-    dynamicToolCalls: [],
-    toolResults: [],
-    staticToolResults: [],
-    dynamicToolResults: [],
-    finishReason: 'stop' as const,
-    rawFinishReason: 'stop' as const,
-    output: undefined,
-    usage: {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-    } as LanguageModelUsage,
-    totalUsage: {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-    } as LanguageModelUsage,
-    warnings: undefined,
-    request: {},
-    response: {
-      messages: [],
-      id: '',
-      timestamp: new Date(),
-      modelId: '',
-    },
-    providerMetadata: undefined,
-    steps: [],
-    experimental_output: undefined,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as GenerateTextResult<TOOLS, any>;
-}
-
-// Extract the interface from the Agent class to ensure we stay in sync
-type AgentInterface<CALL_OPTIONS = never, TOOLS extends ToolSet = ToolSet> = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  generate: ToolLoopAgent<CALL_OPTIONS, TOOLS, any>['generate'];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  stream: ToolLoopAgent<CALL_OPTIONS, TOOLS, any>['stream'];
-  tools: TOOLS;
-};
-
-export interface AgentGuardrailsRetry {
-  maxRetries?: number;
-  backoffMs?: number | ((attempt: number) => number);
-  buildRetryPrompt: (args: { lastPrompt: string; reason: string }) => string;
-}
-
-export interface AgentGuardrailsConfig<MIn = AnyRecord, MOut = AnyRecord> {
-  /** Input guardrails to validate user input */
+export interface AgentGuardrailsConfig<TOOLS extends ToolSet = ToolSet> {
+  /** The language model the agent runs on, wrapped with the guardrails below. */
+  model: LanguageModel;
+  /** Input guardrails — run as model middleware on the request. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   inputGuardrails?: Array<InputGuardrail<any>>;
-  /** Output guardrails to validate assistant responses */
+  /** Output guardrails — run as model middleware on the response. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   outputGuardrails?: Array<OutputGuardrail<any>>;
-  /** Guardrails that validate tool usage (applied on tool calls) */
+  /**
+   * Output guardrails applied to tool calls/results (e.g. `toolEgressPolicy`).
+   * Folded into the model's output guardrails — they see tool-call content in the
+   * model result. For *parameter*-level pre-execution gating, set the agent's
+   * native `toolApproval` with `guardrailApproval([...])` instead.
+   */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   toolGuardrails?: Array<OutputGuardrail<any>>;
-  /** If true, throw on blocked input/output; otherwise return original result */
+  /** Throw on a blocked input/output instead of replacing. */
   throwOnBlocked?: boolean;
-  /** Replace blocked assistant text with a message */
+  /** Replace blocked output text with a message (default true). */
   replaceOnBlocked?: boolean;
-  retry?: AgentGuardrailsRetry;
+  /** Auto-retry config forwarded to the model's output-guardrail middleware. */
+  retry?: OutputGuardrailsMiddlewareConfig<AnyRecord>['retry'];
   executionOptions?: {
     parallel?: boolean;
     timeout?: number;
     continueOnFailure?: boolean;
     logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
-    logger?: Logger;
   };
-  onInputBlocked?: (
-    summary: GuardrailExecutionSummary<MIn>,
-    context: InputGuardrailContext,
-  ) => void;
-  onOutputBlocked?: (
-    summary: GuardrailExecutionSummary<MOut>,
-    context: NormalizedGuardrailContext,
-    stepIndex: number,
-  ) => void;
+  onInputBlocked?: InputGuardrailsMiddlewareConfig<AnyRecord>['onInputBlocked'];
+  onOutputBlocked?: OutputGuardrailsMiddlewareConfig<AnyRecord>['onOutputBlocked'];
   /**
-   * Enable automatic early termination when guardrails are violated.
-   * When enabled, adds stopWhen conditions to halt agent execution on:
-   * - Critical severity violations
-   * - Repeated guardrail violations (configurable threshold)
-   * - Specific guardrail patterns
+   * A `stopWhen` condition to compose with the guardrail-violation stop
+   * condition. Pass it here (not to `ToolLoopAgent`) so it is combined rather
+   * than overwritten by the returned fragment.
+   */
+  stopWhen?: StopCondition<TOOLS> | Array<StopCondition<TOOLS>>;
+  /**
+   * Halt the agent loop when output guardrails trip. The model middleware still
+   * enforces (block/replace) content; this drives *loop termination*, which has
+   * no native equivalent. Each real block recorded by the middleware (via
+   * `onOutputBlocked`) counts toward the threshold — the stop decision rides the
+   * exact same evaluation the middleware enforced, never a re-run.
    *
-   * Can be:
-   * - boolean: true enables default behavior (stop on 3 violations or critical)
-   * - number: stop after N violations
-   * - function: custom stop condition based on guardrail history
+   * - `true`   stop on 3 violations or any critical
+   * - `number` stop after N violations
+   * - fn       custom predicate over the violation history
    */
   stopOnGuardrailViolation?:
     | boolean
@@ -136,158 +72,94 @@ export interface AgentGuardrailsConfig<MIn = AnyRecord, MOut = AnyRecord> {
 }
 
 /**
- * Builds a stopWhen condition that integrates guardrail violations with user-defined stop conditions
+ * Native `ToolLoopAgentSettings` fragments contributed by the guardrails layer.
+ * Spread into your own `new ToolLoopAgent({ ... })` — the result is a *real*
+ * `ToolLoopAgent`, so streaming, structured `output`, `runtimeContext`, and
+ * `InferAgentUIMessage<typeof agent>` all keep working.
+ */
+export interface AgentGuardrailsFragments<TOOLS extends ToolSet = ToolSet> {
+  /** The model wrapped with input/output content guardrails. */
+  model: LanguageModel;
+  /** Present only when `stopOnGuardrailViolation` is set (composed with yours). */
+  stopWhen?: StopCondition<TOOLS> | Array<StopCondition<TOOLS>>;
+  /**
+   * Present only when `stopOnGuardrailViolation` is set. Stamps each recorded
+   * block with its real agent step index (does NOT re-run guardrails). If you
+   * also need your own `onStepEnd`, compose it after spreading these fragments.
+   */
+  onStepEnd?: GenerateTextOnStepEndCallback<TOOLS>;
+}
+
+/**
+ * Compose the guardrail-violation stop condition with a user-supplied one.
  */
 function buildGuardrailStopCondition<TOOLS extends ToolSet>(
   userStopWhen: StopCondition<TOOLS> | Array<StopCondition<TOOLS>> | undefined,
   stopOnViolation: AgentGuardrailsConfig['stopOnGuardrailViolation'],
   violationHistory: Array<{ step: number; summary: GuardrailExecutionSummary }>,
 ): StopCondition<TOOLS> | Array<StopCondition<TOOLS>> | undefined {
-  if (!stopOnViolation) {
-    return userStopWhen;
-  }
+  if (!stopOnViolation) return userStopWhen;
 
-  // Create guardrail-based stop condition
-  const guardrailStopCondition: StopCondition<TOOLS> = () => {
-    // Default behavior: stop on 3 violations or any critical
+  // A native StopCondition: the SDK calls it as `condition({ steps, ... })` after
+  // each step. It bases its decision on the accumulated violation history (fed by
+  // the model middleware's real onOutputBlocked), not on the step argument.
+  const guardrailStop: StopCondition<TOOLS> = () => {
     if (stopOnViolation === true) {
-      const criticalViolations = violationHistory.filter((v) =>
+      const critical = violationHistory.filter((v) =>
         v.summary.blockedResults.some(
           (r) => (r.severity ?? 'medium') === 'critical',
         ),
       );
-      return violationHistory.length >= 3 || criticalViolations.length > 0;
+      return violationHistory.length >= 3 || critical.length > 0;
     }
-
-    // Number threshold: stop after N violations
     if (typeof stopOnViolation === 'number') {
       return violationHistory.length >= stopOnViolation;
     }
-
-    // Custom function: user-defined logic
     if (typeof stopOnViolation === 'function') {
       return stopOnViolation(violationHistory);
     }
-
     return false;
   };
 
-  // Combine with user's stopWhen if provided
-  if (!userStopWhen) {
-    return guardrailStopCondition;
-  }
-
-  // If user provided an array, add our condition to it
-  if (Array.isArray(userStopWhen)) {
-    return [...userStopWhen, guardrailStopCondition];
-  }
-
-  // User provided a single condition, create array with both
-  return [userStopWhen, guardrailStopCondition];
-}
-
-function toNormalizedContextFromAgent(
-  promptOrMessages: string | Array<{ role: string; content: unknown }>,
-  system?: string,
-): NormalizedGuardrailContext {
-  const getLastByRole = <T extends { role: string }>(
-    arr: T[],
-    role: string,
-  ): T | undefined => {
-    for (let i = arr.length - 1; i >= 0; i--) {
-      if (arr[i]?.role === role) {
-        return arr[i];
-      }
-    }
-    return undefined;
-  };
-
-  // String prompt path
-  if (typeof promptOrMessages === 'string') {
-    const { prompt: p, system: s } = extractTextContent({
-      prompt: promptOrMessages,
-      system,
-      messages: [{ role: 'user', content: promptOrMessages }],
-    } as {
-      prompt: string;
-      system: string;
-      messages: Array<{ role: string; content: string }>;
-    });
-    return {
-      prompt: p,
-      system: s ?? '',
-      messages: [{ role: 'user', content: p }],
-    } as NormalizedGuardrailContext;
-  }
-
-  // UI messages path
-  if (Array.isArray(promptOrMessages)) {
-    // Flatten UI message parts into plain text for guardrail normalization
-    const uiMessages = promptOrMessages as Array<{
-      role: string;
-      content: unknown;
-    }>;
-    const flattened = uiMessages.map((m) => ({
-      role: m.role,
-      content: Array.isArray(m.content)
-        ? m.content
-            .filter((p: unknown) => (p as { type?: string })?.type === 'text')
-            .map((p: unknown) => (p as { text?: string }).text)
-            .join('') || ''
-        : (m.content ?? ''),
-    }));
-
-    const lastUser = getLastByRole(flattened, 'user') || flattened.at(-1);
-
-    // Also run through input extractor for consistent prompt/system derivation
-    const simplifiedForExtractor = {
-      messages: flattened.map((m) => ({ role: m.role, content: m.content })),
-      system: system ?? '',
-    } as { messages: Array<{ role: string; content: string }>; system: string };
-    const { prompt: extractedPrompt, system: extractedSystem } =
-      extractTextContent({
-        ...simplifiedForExtractor,
-        prompt: (lastUser?.content ?? '') as string,
-      });
-
-    const finalPrompt = lastUser?.content || extractedPrompt || '';
-
-    return {
-      prompt: finalPrompt,
-      system: extractedSystem ?? system ?? '',
-      messages: flattened,
-    } as NormalizedGuardrailContext;
-  }
-
-  const { prompt: p2, system: s2 } = extractTextContent({
-    prompt: String(promptOrMessages ?? ''),
-    system,
-    messages: [],
-  } as {
-    prompt: string;
-    system: string;
-    messages: Array<{ role: string; content: string }>;
-  });
-  return {
-    prompt: p2,
-    system: s2 ?? '',
-    messages: [],
-  } as NormalizedGuardrailContext;
+  if (!userStopWhen) return guardrailStop;
+  return Array.isArray(userStopWhen)
+    ? [...userStopWhen, guardrailStop]
+    : [userStopWhen, guardrailStop];
 }
 
 /**
- * Wraps an AI SDK Agent by applying input, per-step output, and tool guardrails.
- * Accepts full AgentSettings for forward compatibility.
+ * Build native AI SDK `ToolLoopAgentSettings` fragments that add guardrails to an
+ * agent. Spread the result into your own `ToolLoopAgent` — guardrails ride the
+ * SDK's own primitives (model middleware, `stopWhen`, `onStepEnd`,
+ * `telemetry.integrations`) rather than wrapping the agent:
+ *
+ * ```ts
+ * import { ToolLoopAgent } from 'ai';
+ * import { agentGuardrails, piiDetector, sensitiveDataFilter } from 'ai-sdk-guardrails';
+ *
+ * const agent = new ToolLoopAgent({
+ *   ...agentGuardrails({
+ *     model,
+ *     inputGuardrails: [piiDetector()],
+ *     outputGuardrails: [sensitiveDataFilter()],
+ *     stopOnGuardrailViolation: true,
+ *   }),
+ *   instructions: 'You are a helpful assistant.',
+ *   tools,
+ * });
+ *
+ * await agent.generate({ prompt: '...' }); // .stream() is guarded too
+ * ```
+ *
+ * Input/output content guardrails run as model middleware (the only layer that
+ * can block, replace, or retry the model's output). Tool *parameter* gating stays
+ * native: set `toolApproval: guardrailApproval([...])` on the agent yourself.
  */
-export function withAgentGuardrails<
-  CALL_OPTIONS = never,
-  TOOLS extends ToolSet = ToolSet,
->(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  settings: ToolLoopAgentSettings<CALL_OPTIONS, TOOLS, any>,
-  config: AgentGuardrailsConfig = {},
-): AgentInterface<CALL_OPTIONS, TOOLS> {
+export function agentGuardrails<TOOLS extends ToolSet = ToolSet>(
+  config: AgentGuardrailsConfig<TOOLS>,
+): AgentGuardrailsFragments<TOOLS> {
   const {
+    model,
     inputGuardrails = [],
     outputGuardrails = [],
     toolGuardrails = [],
@@ -297,308 +169,62 @@ export function withAgentGuardrails<
     executionOptions,
     onInputBlocked,
     onOutputBlocked,
+    stopWhen,
     stopOnGuardrailViolation,
   } = config;
 
-  // Track guardrail violations across agent execution for stopWhen integration
+  const combinedOutput = [...outputGuardrails, ...toolGuardrails];
+
+  // Stop-on-violation rides the SAME evaluation the middleware enforces. The
+  // middleware's onOutputBlocked captures the real block (its true result, tool
+  // calls, usage, metadata, context) into `pendingBlock`; onStepEnd then stamps
+  // it with the *real* agent step index and records it. No re-running of
+  // guardrails, no synthetic step result — and the recorded step index is the
+  // actual loop step, so adjacency-based conditions (hasConsecutiveViolations) work.
   const violationHistory: Array<{
     step: number;
     summary: GuardrailExecutionSummary;
   }> = [];
+  let pendingBlock: GuardrailExecutionSummary | null = null;
 
-  // Wrap tools to validate tool calls before/after execution
-  const wrappedTools = Object.fromEntries(
-    Object.entries(settings.tools ?? {}).map(([name, tool]) => {
-      const originalExecute = (
-        tool as unknown as { execute: (_input: unknown) => Promise<unknown> }
-      ).execute;
-      const wrapped = {
-        ...(tool as Record<string, unknown>),
-        execute: async (_input: unknown) => {
-          // Pre-execution tool guardrails (validate intent/params allowlist, etc.)
-          if (toolGuardrails.length > 0) {
-            const context: NormalizedGuardrailContext = {
-              prompt: JSON.stringify({ tool: name, input: _input }),
-              system: (settings as { system?: string }).system ?? '',
-              messages: [],
-            };
-            await executeOutputGuardrails(
-              toolGuardrails as OutputGuardrail<AnyRecord>[],
-              {
-                input: context,
-                // Treat tool-call as text for generic guardrails
-                result: createMockGenerateTextResult<ToolSet>(''),
-              },
-              executionOptions,
-            );
-          }
-          return originalExecute(_input);
-        },
-      };
-      return [name, wrapped];
-    }),
-  ) as unknown as TOOLS;
-
-  // Build stopWhen condition if guardrail-based early termination is enabled
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const enhancedStopWhen = (buildGuardrailStopCondition as any)(
-    settings.stopWhen,
-    stopOnGuardrailViolation,
-    violationHistory,
-  ) as StopCondition<ToolSet> | StopCondition<ToolSet>[] | undefined;
-
-  // Create the underlying agent with enhanced stopWhen
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const baseAgent = new ToolLoopAgent<CALL_OPTIONS, TOOLS, any>({
-    ...settings,
-    tools: wrappedTools,
-    ...(enhancedStopWhen
-      ? {
-          stopWhen: enhancedStopWhen as unknown as
-            | StopCondition<TOOLS>
-            | StopCondition<TOOLS>[]
-            | undefined,
+  const recordingOnOutputBlocked: OutputGuardrailsMiddlewareConfig<AnyRecord>['onOutputBlocked'] =
+    stopOnGuardrailViolation
+      ? (summary, ...rest) => {
+          pendingBlock = summary;
+          onOutputBlocked?.(summary, ...rest);
         }
-      : {}),
+      : onOutputBlocked;
+
+  const guardedModel = withGuardrails({
+    model,
+    inputGuardrails,
+    outputGuardrails: combinedOutput,
+    throwOnBlocked,
+    replaceOnBlocked,
+    retry,
+    executionOptions,
+    onInputBlocked,
+    onOutputBlocked: recordingOnOutputBlocked,
   });
 
-  async function checkInputGuardrails(normalized: NormalizedGuardrailContext) {
-    if (inputGuardrails.length === 0) {
-      return null;
-    }
+  const fragments: AgentGuardrailsFragments<TOOLS> = { model: guardedModel };
 
-    const inputResults = await executeInputGuardrails(
-      inputGuardrails as InputGuardrail<AnyRecord>[],
-      normalized,
-      executionOptions,
+  if (stopOnGuardrailViolation) {
+    fragments.onStepEnd = ((step: { stepNumber: number }) => {
+      if (pendingBlock) {
+        violationHistory.push({ step: step.stepNumber, summary: pendingBlock });
+        pendingBlock = null;
+      }
+    }) as GenerateTextOnStepEndCallback<TOOLS>;
+
+    fragments.stopWhen = buildGuardrailStopCondition<TOOLS>(
+      stopWhen,
+      stopOnGuardrailViolation,
+      violationHistory,
     );
-    const blocked = inputResults.filter((r) => r.tripwireTriggered);
-
-    if (blocked.length > 0) {
-      const summary = {
-        allResults: inputResults,
-        blockedResults: blocked,
-        totalExecutionTime: 0,
-        guardrailsExecuted: inputResults.length,
-        stats: {
-          passed: inputResults.length - blocked.length,
-          blocked: blocked.length,
-          failed: 0,
-          averageExecutionTime: 0,
-        },
-      };
-      onInputBlocked?.(summary, normalized);
-
-      if (throwOnBlocked) {
-        const msg = blocked
-          .map((b) => b.message)
-          .filter(Boolean)
-          .join(', ');
-        throw new Error(`Input blocked: ${msg || 'guardrail triggered'}`);
-      }
-      if (replaceOnBlocked) {
-        return {
-          text: `[Input blocked: ${blocked.map((b) => b.message).join(', ')}]`,
-        };
-      }
-    }
-    return null;
+  } else if (stopWhen) {
+    fragments.stopWhen = stopWhen;
   }
 
-  async function validateStepContent(
-    step: { content: unknown },
-    normalized: NormalizedGuardrailContext,
-    stepIndex: number,
-  ): Promise<GuardrailExecutionSummary | null> {
-    const content = Array.isArray(step.content) ? step.content : [];
-    let blockedSummary: GuardrailExecutionSummary | null = null;
-
-    // Tool calls validation
-    const hasToolCall = content.some(
-      (c: unknown) => (c as { type?: string })?.type === 'tool-call',
-    );
-    if (hasToolCall && toolGuardrails.length > 0) {
-      const ctx: NormalizedGuardrailContext = {
-        prompt: normalized.prompt,
-        system: normalized.system,
-        messages: normalized.messages,
-      };
-      const res = await executeOutputGuardrails(
-        toolGuardrails as OutputGuardrail<AnyRecord>[],
-        {
-          input: ctx,
-          result: createMockGenerateTextResult<ToolSet>(''),
-        },
-        executionOptions,
-      );
-      const blocked = res.filter((r) => r.tripwireTriggered);
-      if (blocked.length > 0) {
-        blockedSummary = {
-          allResults: res,
-          blockedResults: blocked,
-          totalExecutionTime: 0,
-          guardrailsExecuted: res.length,
-          stats: {
-            passed: res.length - blocked.length,
-            blocked: blocked.length,
-            failed: 0,
-            averageExecutionTime: 0,
-          },
-        } as GuardrailExecutionSummary;
-        onOutputBlocked?.(blockedSummary, normalized, stepIndex);
-        if (throwOnBlocked) {
-          throw new Error(
-            `Tool use blocked: ${blocked.map((b) => b.message).join(', ')}`,
-          );
-        }
-      }
-    }
-
-    // Assistant text validation
-    const text = content
-      .filter((c: unknown) => (c as { type?: string })?.type === 'text')
-      .map((c: unknown) => (c as { text?: string }).text ?? '')
-      .join('');
-
-    if (text && outputGuardrails.length > 0) {
-      const ctx: NormalizedGuardrailContext = {
-        prompt: normalized.prompt,
-        system: normalized.system,
-        messages: normalized.messages,
-      };
-      const out = await executeOutputGuardrails(
-        outputGuardrails as OutputGuardrail<AnyRecord>[],
-        {
-          input: ctx,
-          result: createMockGenerateTextResult<ToolSet>(text),
-        },
-        executionOptions,
-      );
-      const blocked = out.filter((r) => r.tripwireTriggered);
-      if (blocked.length > 0) {
-        blockedSummary = {
-          allResults: out,
-          blockedResults: blocked,
-          totalExecutionTime: 0,
-          guardrailsExecuted: out.length,
-          stats: {
-            passed: out.length - blocked.length,
-            blocked: blocked.length,
-            failed: 0,
-            averageExecutionTime: 0,
-          },
-        } as GuardrailExecutionSummary;
-        onOutputBlocked?.(blockedSummary, normalized, stepIndex);
-      }
-    }
-
-    return blockedSummary;
-  }
-
-  async function guardedGenerate(
-    options: Prompt & {
-      providerMetadata?: ProviderMetadata;
-    },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ): Promise<any> {
-    const normalized = toNormalizedContextFromAgent(
-      (options?.prompt ?? options?.messages) as
-        | string
-        | Array<{ role: string; content: unknown }>,
-      (settings as { system?: string }).system,
-    );
-
-    // Input guardrails first
-    const inputBlocked = await checkInputGuardrails(normalized);
-    if (inputBlocked) {
-      // Return a minimal GenerateTextResult for blocked input
-      return createMockGenerateTextResult<TOOLS>(inputBlocked.text);
-    }
-
-    let attempts = 0;
-    let promptValue = options?.prompt ?? options?.messages;
-
-    // Auto-retry loop on output guardrails
-    while (true) {
-      const result = await baseAgent.generate({
-        prompt: promptValue,
-      } as Parameters<typeof baseAgent.generate>[0]);
-
-      // Validate steps
-      if (outputGuardrails.length > 0 || toolGuardrails.length > 0) {
-        for (let i = 0; i < (result.steps?.length ?? 0); i++) {
-          const step = result.steps?.[i];
-          if (!step) {
-            continue;
-          }
-
-          const blockedSummary = await validateStepContent(step, normalized, i);
-
-          if (blockedSummary) {
-            // Track violation for stopWhen integration
-            violationHistory.push({ step: i, summary: blockedSummary });
-
-            // Retry if configured
-            if (retry && attempts < (retry.maxRetries ?? 0)) {
-              attempts += 1;
-              const wait =
-                typeof retry.backoffMs === 'function'
-                  ? retry.backoffMs(attempts)
-                  : (retry.backoffMs ?? 0);
-              if (wait > 0) {
-                await new Promise((r) => setTimeout(r, wait));
-              }
-              const reason = blockedSummary.blockedResults
-                .map((b) => b.message)
-                .filter(Boolean)
-                .join(', ');
-              const currentPromptText =
-                typeof promptValue === 'string'
-                  ? promptValue
-                  : normalized.prompt;
-              promptValue = retry.buildRetryPrompt({
-                lastPrompt: currentPromptText,
-                reason,
-              });
-              continue;
-            }
-
-            if (throwOnBlocked) {
-              throw new Error(
-                `Output blocked: ${blockedSummary.blockedResults.map((b) => b.message).join(', ')}`,
-              );
-            }
-
-            if (replaceOnBlocked) {
-              const replaced = `[Output blocked: ${blockedSummary.blockedResults.map((b) => b.message).join(', ')}]`;
-              const { text: full } = extractContent(
-                result as unknown as AIResult,
-              );
-              const finalText = full.replace('', replaced);
-              return {
-                ...result,
-                text: finalText,
-                output: result.output,
-                rawFinishReason: result.rawFinishReason ?? result.finishReason,
-              };
-            }
-          }
-        }
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return result as any;
-    }
-  }
-
-  return {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    generate: guardedGenerate as any,
-    stream: (
-      opts: Prompt & {
-        providerMetadata?: ProviderMetadata;
-      },
-    ) => baseAgent.stream(opts),
-    tools: wrappedTools as unknown as TOOLS,
-  } as unknown as AgentInterface<CALL_OPTIONS, TOOLS>;
+  return fragments;
 }

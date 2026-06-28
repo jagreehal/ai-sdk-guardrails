@@ -9,7 +9,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { defineOutputGuardrail, executeOutputGuardrails } from 'ai-sdk-guardrails';
+import {
+  defineOutputGuardrail,
+  executeOutputGuardrails,
+} from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
 // Define types for the context
@@ -221,8 +224,12 @@ describe('Sensitive Output Filter Example', () => {
       expect(redactionResult).toBeDefined();
       expect(redactionResult.metadata?.redacted).toBe(true);
       expect(redactionResult.metadata?.redactedText).toBeDefined();
-      expect(redactionResult.metadata?.redactedText).toContain('[SSN REDACTED]');
-      expect(redactionResult.metadata?.redactedText).toContain('[EMAIL REDACTED]');
+      expect(redactionResult.metadata?.redactedText).toContain(
+        '[SSN REDACTED]',
+      );
+      expect(redactionResult.metadata?.redactedText).toContain(
+        '[EMAIL REDACTED]',
+      );
     });
 
     it('should not redact when no sensitive data is present', async () => {

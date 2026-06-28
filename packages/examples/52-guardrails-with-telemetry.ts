@@ -16,7 +16,11 @@
  */
 
 import { generateText } from 'ai';
-import { withGuardrails, defineInputGuardrail, defineOutputGuardrail } from 'ai-sdk-guardrails';
+import {
+  withGuardrails,
+  defineInputGuardrail,
+  defineOutputGuardrail,
+} from 'ai-sdk-guardrails';
 import { extractTextContent } from 'ai-sdk-guardrails/guardrails/input';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 import { trace } from '@opentelemetry/api';
@@ -80,7 +84,8 @@ async function example1BasicTelemetry() {
   console.log('\n=== Example 1: Basic Telemetry ===\n');
 
   // Wrap model with guardrails and enable telemetry
-  const guardedModel = withGuardrails(llama3_2, {
+  const guardedModel = withGuardrails({
+    model: llama3_2,
     inputGuardrails: [piiDetector],
     outputGuardrails: [minLengthGuardrail],
     executionOptions: {
@@ -116,7 +121,8 @@ async function example1BasicTelemetry() {
 async function example2BlockedInput() {
   console.log('\n=== Example 2: Blocked Input (PII Detection) ===\n');
 
-  const guardedModel = withGuardrails(llama3_2, {
+  const guardedModel = withGuardrails({
+    model: llama3_2,
     inputGuardrails: [piiDetector],
     throwOnBlocked: true, // Throw error when input is blocked
     executionOptions: {
@@ -151,7 +157,8 @@ async function example3WithoutTelemetry() {
 
   // When telemetry is not configured, guardrails work normally
   // without any tracing overhead
-  const guardedModel = withGuardrails(llama3_2, {
+  const guardedModel = withGuardrails({
+    model: llama3_2,
     inputGuardrails: [piiDetector],
     outputGuardrails: [minLengthGuardrail],
     // No executionOptions.telemetry - telemetry disabled by default
@@ -173,7 +180,8 @@ async function example3WithoutTelemetry() {
 async function example4SelectiveTelemetry() {
   console.log('\n=== Example 4: Selective Telemetry (No Sensitive Data) ===\n');
 
-  const guardedModel = withGuardrails(llama3_2, {
+  const guardedModel = withGuardrails({
+    model: llama3_2,
     inputGuardrails: [piiDetector],
     outputGuardrails: [minLengthGuardrail],
     executionOptions: {
@@ -212,7 +220,8 @@ async function example5ProductionSetup() {
   const userId = 'user_123';
   const sessionId = 'session_abc';
 
-  const guardedModel = withGuardrails(llama3_2, {
+  const guardedModel = withGuardrails({
+    model: llama3_2,
     inputGuardrails: [piiDetector],
     outputGuardrails: [minLengthGuardrail],
     executionOptions: {

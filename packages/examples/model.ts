@@ -21,9 +21,6 @@ export const groqModel = groq('openai/gpt-oss-20b');
 // Mistral model (requires MISTRAL_API_KEY)
 export const mistralModel = mistral('mistral-small-latest');
 
-
-
-
 // Default model for text generation
 export const model = llama3_2;
 

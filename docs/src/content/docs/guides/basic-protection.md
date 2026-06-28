@@ -19,13 +19,14 @@ import {
   sensitiveDataFilter,
 } from 'ai-sdk-guardrails';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [
-    piiDetector(),              // Block PII in prompts
-    promptInjectionDetector(),   // Detect injection attempts
+    piiDetector(), // Block PII in prompts
+    promptInjectionDetector(), // Detect injection attempts
   ],
   outputGuardrails: [
-    sensitiveDataFilter(),       // Remove secrets from responses
+    sensitiveDataFilter(), // Remove secrets from responses
   ],
 });
 
@@ -47,6 +48,7 @@ Blocks personally identifiable information before it reaches your model:
 - ✅ Protects user privacy
 
 **What it detects:**
+
 - Email addresses
 - Phone numbers
 - Social Security Numbers
@@ -63,6 +65,7 @@ Detects attempts to manipulate the AI:
 - ✅ Protects against malicious instructions
 
 **What it detects:**
+
 - Role-playing attacks ("Ignore previous instructions")
 - Context switching attempts
 - Delimiter injection
@@ -77,6 +80,7 @@ Removes secrets and sensitive data from AI responses:
 - ✅ Removes tokens and secrets
 
 **What it filters:**
+
 - API keys (AWS, OpenAI, GitHub, etc.)
 - Private keys and certificates
 - OAuth tokens
@@ -90,7 +94,8 @@ In production, handle guardrail violations explicitly:
 ```ts
 import { isGuardrailsError } from 'ai-sdk-guardrails';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector(), promptInjectionDetector()],
   outputGuardrails: [sensitiveDataFilter()],
   throwOnBlocked: true, // Throw errors instead of silent blocking
@@ -106,7 +111,7 @@ try {
   if (isGuardrailsError(error)) {
     // Show user-friendly message
     console.error('Request blocked:', error.message);
-    // error.violations contains details
+    // error.blockedGuardrails lists each guardrail that tripped
   } else {
     // Handle other errors
     throw error;
@@ -119,7 +124,8 @@ try {
 Monitor violations without throwing errors:
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector()],
   outputGuardrails: [sensitiveDataFilter()],
   throwOnBlocked: false,

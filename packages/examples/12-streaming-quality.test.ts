@@ -202,7 +202,8 @@ describe('Streaming Quality Example', () => {
       let blockedMessage: string | undefined;
       let blockedMetadata: any;
 
-      const qualityModel = withGuardrails(model, {
+      const qualityModel = withGuardrails({
+        model,
         outputGuardrails: [streamQualityGuardrail],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -235,7 +236,8 @@ describe('Streaming Quality Example', () => {
       let blockedMessage: string | undefined;
       let blockedMetadata: any;
 
-      const qualityModel = withGuardrails(model, {
+      const qualityModel = withGuardrails({
+        model,
         outputGuardrails: [streamQualityGuardrail],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -267,7 +269,8 @@ describe('Streaming Quality Example', () => {
     it('should provide correct quality metrics', async () => {
       let blockedMetadata: any;
 
-      const qualityModel = withGuardrails(model, {
+      const qualityModel = withGuardrails({
+        model,
         outputGuardrails: [streamQualityGuardrail],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -302,7 +305,8 @@ describe('Streaming Quality Example', () => {
       let blockedMessage: string | undefined;
       let blockedMetadata: any;
 
-      const hallucinationModel = withGuardrails(model, {
+      const hallucinationModel = withGuardrails({
+        model,
         outputGuardrails: [hallucinationDetector],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -335,7 +339,8 @@ describe('Streaming Quality Example', () => {
     it('should provide correct hallucination detection metrics', async () => {
       let blockedMetadata: any;
 
-      const hallucinationModel = withGuardrails(model, {
+      const hallucinationModel = withGuardrails({
+        model,
         outputGuardrails: [hallucinationDetector],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -368,7 +373,8 @@ describe('Streaming Quality Example', () => {
     it('should apply multiple quality guardrails together', async () => {
       let blockedResults: any[] = [];
 
-      const combinedModel = withGuardrails(model, {
+      const combinedModel = withGuardrails({
+        model,
         outputGuardrails: [streamQualityGuardrail, hallucinationDetector],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -378,7 +384,8 @@ describe('Streaming Quality Example', () => {
 
       const stream = await streamText({
         model: combinedModel,
-        prompt: 'Write a detailed technical explanation about quantum computing',
+        prompt:
+          'Write a detailed technical explanation about quantum computing',
       });
 
       let fullText = '';
@@ -400,7 +407,8 @@ describe('Streaming Quality Example', () => {
     it('should provide results from all triggered guardrails', async () => {
       let blockedResults: any[] = [];
 
-      const combinedModel = withGuardrails(model, {
+      const combinedModel = withGuardrails({
+        model,
         outputGuardrails: [streamQualityGuardrail, hallucinationDetector],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -434,7 +442,8 @@ describe('Streaming Quality Example', () => {
     it('should complete stream before quality evaluation', async () => {
       let streamCompleted = false;
 
-      const qualityModel = withGuardrails(model, {
+      const qualityModel = withGuardrails({
+        model,
         outputGuardrails: [streamQualityGuardrail],
         throwOnBlocked: false,
       });

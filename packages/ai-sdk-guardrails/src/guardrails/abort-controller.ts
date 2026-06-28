@@ -29,7 +29,7 @@ export class GuardrailViolationAbort extends Error {
  * ```typescript
  * const { signal, abortOnViolation } = createGuardrailAbortController();
  *
- * const guardedModel = withGuardrails(model, {
+ * const guardedModel = withGuardrails({ model,
  *   outputGuardrails: [piiDetector()],
  *   onOutputBlocked: abortOnViolation('critical'),
  * });
@@ -62,7 +62,7 @@ export function createGuardrailAbortController() {
      * ```typescript
      * const { signal, abortOnViolation } = createGuardrailAbortController();
      *
-     * withGuardrails(model, {
+     * withGuardrails({ model,
      *   outputGuardrails: [toxicityFilter()],
      *   onOutputBlocked: abortOnViolation('high'), // Abort on high or critical
      * });
@@ -96,7 +96,7 @@ export function createGuardrailAbortController() {
      * ```typescript
      * const { signal, abortOnCondition } = createGuardrailAbortController();
      *
-     * withGuardrails(model, {
+     * withGuardrails({ model,
      *   outputGuardrails: [qualityCheck()],
      *   onOutputBlocked: abortOnCondition(
      *     (summary) => summary.blockedResults.length > 2

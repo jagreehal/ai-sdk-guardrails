@@ -79,7 +79,8 @@ const streamContentFilter = defineOutputGuardrail({
 describe('Streaming Limits Example', () => {
   describe('Streaming with Length Limits', () => {
     it('should allow short stream within limits', async () => {
-      const limitedModel = withGuardrails(model, {
+      const limitedModel = withGuardrails({
+        model,
         outputGuardrails: [streamLengthGuardrail],
         throwOnBlocked: false,
       });
@@ -102,7 +103,8 @@ describe('Streaming Limits Example', () => {
       let blockedMessage: string | undefined;
       let blockedMetadata: any;
 
-      const limitedModel = withGuardrails(model, {
+      const limitedModel = withGuardrails({
+        model,
         outputGuardrails: [streamLengthGuardrail],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -132,14 +134,16 @@ describe('Streaming Limits Example', () => {
     });
 
     it('should block long stream in blocking mode', async () => {
-      const blockingModel = withGuardrails(model, {
+      const blockingModel = withGuardrails({
+        model,
         outputGuardrails: [streamLengthGuardrail],
         throwOnBlocked: true,
       });
 
       const stream = await streamText({
         model: blockingModel,
-        prompt: 'Write a very detailed explanation about artificial intelligence',
+        prompt:
+          'Write a very detailed explanation about artificial intelligence',
       });
 
       let fullText = '';
@@ -171,7 +175,8 @@ describe('Streaming Limits Example', () => {
       let blockedMessage: string | undefined;
       let blockedMetadata: any;
 
-      const filteredModel = withGuardrails(model, {
+      const filteredModel = withGuardrails({
+        model,
         outputGuardrails: [streamContentFilter],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -203,7 +208,8 @@ describe('Streaming Limits Example', () => {
     it('should provide correct metadata for content filtering', async () => {
       let blockedMetadata: any;
 
-      const filteredModel = withGuardrails(model, {
+      const filteredModel = withGuardrails({
+        model,
         outputGuardrails: [streamContentFilter],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -236,7 +242,8 @@ describe('Streaming Limits Example', () => {
       let streamCompleted = false;
       let guardrailTriggered = false;
 
-      const limitedModel = withGuardrails(model, {
+      const limitedModel = withGuardrails({
+        model,
         outputGuardrails: [streamLengthGuardrail],
         throwOnBlocked: false,
         onOutputBlocked: () => {

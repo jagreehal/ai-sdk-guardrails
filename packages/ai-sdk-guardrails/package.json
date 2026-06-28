@@ -36,6 +36,21 @@
       "types": "./dist/guardrails/tools.d.ts",
       "import": "./dist/guardrails/tools.js",
       "require": "./dist/guardrails/tools.cjs"
+    },
+    "./governance": {
+      "types": "./dist/governance/index.d.ts",
+      "import": "./dist/governance/index.js",
+      "require": "./dist/governance/index.cjs"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js",
+      "require": "./dist/config/index.cjs"
+    },
+    "./advanced": {
+      "types": "./dist/advanced/index.d.ts",
+      "import": "./dist/advanced/index.js",
+      "require": "./dist/advanced/index.cjs"
     }
   },
   "homepage": "https://github.com/jagreehal/ai-sdk-guardrails",
@@ -63,25 +78,25 @@
     "check-exports": "attw --pack . --ignore-rules false-esm no-resolution"
   },
   "dependencies": {
-    "@ai-sdk/provider": "3.0.10",
-    "ai": "6.0.197",
+    "@ai-sdk/provider": "^4.0.0",
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "@opentelemetry/api": "^1.9.1"
+    "ai": "^7.0.0",
+    "autotel-genai": "^0.3.2"
   },
   "peerDependenciesMeta": {
-    "@opentelemetry/api": {
+    "autotel-genai": {
       "optional": true
     }
   },
   "devDependencies": {
-    "@ai-sdk/groq": "^3.0.39",
-    "@ai-sdk/mistral": "3.0.37",
-    "@ai-sdk/openai": "3.0.68",
+    "@ai-sdk/groq": "^4.0.0",
+    "@ai-sdk/mistral": "^4.0.0",
+    "@ai-sdk/openai": "^4.0.0",
+    "ai": "^7.0.0",
     "@arethetypeswrong/cli": "^0.18.3",
     "@eslint/js": "^9.39.4",
-    "@opentelemetry/api": "^1.9.1",
     "@total-typescript/ts-reset": "^0.6.1",
     "@total-typescript/tsconfig": "^1.0.4",
     "@types/eslint-config-prettier": "^6.11.3",

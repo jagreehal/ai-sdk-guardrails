@@ -25,7 +25,8 @@ import { withGuardrails, piiDetector } from 'ai-sdk-guardrails';
 import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector()],
 });
 
@@ -36,19 +37,27 @@ await generateText({ model, prompt: '...' });
 
 <CardGrid stagger>
   <Card title="Built-in Guardrails" icon="puzzle">
-    30+ guardrails for PII detection, prompt injection blocking, toxicity filtering, and content validation.
+    Guardrails for PII detection, prompt injection, toxicity filtering, and
+    schema validation.
   </Card>
-  <Card title="OpenAI Config Compatible" icon="file">
-    Load configs from guardrails.openai.com directly. Supports snake_case config format with automatic mapping.
+  <Card title="Prompt Security" icon="approve-check-circle">
+    Obfuscation-resistant injection detection, system-prompt leak detection, MCP
+    tool scanning, and prompt hardening.
   </Card>
-  <Card title="Auto-Retry" icon="refresh">
-    Retry when outputs don't meet quality standards. Configurable backoff and retry strategies.
+  <Card title="OpenAI Config Compatible" icon="document">
+    Load configs from guardrails.openai.com directly. Supports snake_case config
+    format with automatic mapping.
+  </Card>
+  <Card title="Auto-Retry" icon="random">
+    Retry when outputs don't meet quality standards. Configurable backoff and
+    retry strategies.
   </Card>
   <Card title="Streaming Support" icon="rocket">
     Progressive and buffered streaming modes with guardrail checking.
   </Card>
   <Card title="Tool Validation" icon="setting">
-    Validate tool calls, enforce policies, and control tool execution in agent workflows.
+    Validate tool calls, enforce policies, and control tool execution in agent
+    workflows.
   </Card>
   <Card title="Custom Guardrails" icon="pencil">
     Create domain-specific guardrails with a type-safe API.
@@ -62,11 +71,16 @@ Works with all AI SDK providers: OpenAI, Anthropic, Google, Mistral, Groq, Ollam
 ## Quick Example
 
 ```ts
-import { withGuardrails, piiDetector, sensitiveDataFilter } from 'ai-sdk-guardrails';
+import {
+  withGuardrails,
+  piiDetector,
+  sensitiveDataFilter,
+} from 'ai-sdk-guardrails';
 import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector()],
   outputGuardrails: [sensitiveDataFilter()],
 });

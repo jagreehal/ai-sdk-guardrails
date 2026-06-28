@@ -479,7 +479,8 @@ const roleHierarchyOutputGuardrail = defineOutputGuardrail({
 console.log('🛡️  Role Hierarchy Enforcement Example\n');
 
 // Create a protected model with role hierarchy enforcement
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   inputGuardrails: [roleHierarchyInputGuardrail],
   outputGuardrails: [roleHierarchyOutputGuardrail],
   throwOnBlocked: true,
@@ -626,7 +627,8 @@ try {
 
 // Test 9: Warning mode with violation analysis
 console.log('Test 9: Warning mode with violation analysis');
-const warningModel = withGuardrails(model, {
+const warningModel = withGuardrails({
+  model,
   inputGuardrails: [roleHierarchyInputGuardrail],
   outputGuardrails: [roleHierarchyOutputGuardrail],
   throwOnBlocked: false,

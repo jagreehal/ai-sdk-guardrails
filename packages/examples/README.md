@@ -15,7 +15,7 @@ npx tsx examples/01-input-length-limit.ts
 - Quick starts
   - [07a-simple-combined-protection.ts](./07a-simple-combined-protection.ts) — minimal input and output setup
   - [32-auto-retry-output.ts](./32-auto-retry-output.ts) — retry until output meets a rule
-  - [33-judge-auto-retry.ts](./33-judge-auto-retry.ts) — LLM-judge reasons drive auto-retry
+  - [35-judge-auto-retry.ts](./35-judge-auto-retry.ts) — LLM-judge reasons drive auto-retry
   - [34-expected-tool-use-retry.ts](./34-expected-tool-use-retry.ts) — expect tool use and retry
   - [33-blog-post-weather-assistant.ts](./33-blog-post-weather-assistant.ts) — end-to-end input/output + retry
 
@@ -41,7 +41,7 @@ npx tsx examples/01-input-length-limit.ts
   - [24-sql-code-safety.ts](./24-sql-code-safety.ts) — basic SQL safety checks
   - [23-role-hierarchy-enforcement.ts](./23-role-hierarchy-enforcement.ts) — enforce role rules in prompts
   - [39-advanced-security-guardrails.ts](./39-advanced-security-guardrails.ts) — comprehensive security guardrails
-  - [40-comprehensive-tool-security.ts](./40-comprehensive-tool-security.ts) — complete tool security with role-based access
+  - [40-tool-guardrails.ts](./40-tool-guardrails.ts) — complete tool security with role-based access
 
 ## Full Index
 
@@ -85,9 +85,9 @@ npx tsx examples/01-input-length-limit.ts
 | Auto retry output            | [32-auto-retry-output.ts](./32-auto-retry-output.ts)                                 | retry, output             |
 | Blog post weather assistant  | [33-blog-post-weather-assistant.ts](./33-blog-post-weather-assistant.ts)             | input, output, retry      |
 | Expected tool use retry      | [34-expected-tool-use-retry.ts](./34-expected-tool-use-retry.ts)                     | retry, tools              |
-| LLM judge auto-retry         | [35-judge-auto-retry.ts](./33-judge-auto-retry.ts)                                   | retry, judge, quality     |
+| LLM judge auto-retry         | [35-judge-auto-retry.ts](./35-judge-auto-retry.ts)                                   | retry, judge, quality     |
 | Agent example                | [36-agent-example.ts](./36-agent-example.ts)                                         | agent, tools              |
 | Agent composition cascade    | [37-agent-composition-cascade-failure.ts](./37-agent-composition-cascade-failure.ts) | agent, reliability        |
 | Agent routing reliability    | [38-agent-routing-reliability.ts](./38-agent-routing-reliability.ts)                 | agent, routing            |
 | Advanced security guardrails | [39-advanced-security-guardrails.ts](./39-advanced-security-guardrails.ts)           | security, comprehensive   |
-| Comprehensive tool security  | [40-comprehensive-tool-security.ts](./40-comprehensive-tool-security.ts)             | tools, security, roles    |
+| Comprehensive tool security  | [40-tool-guardrails.ts](./40-tool-guardrails.ts)             | tools, security, roles    |

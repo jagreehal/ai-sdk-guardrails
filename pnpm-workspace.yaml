@@ -2,3 +2,15 @@ packages:
   - 'packages/*'
   - 'docs'
   - 'wizard-prototype'
+
+# Allow the AI SDK v7 stable line through the 7-day minimumReleaseAge supply-chain
+# guard. These packages were published 2026-06-25 (the v7 GA); the exclusion is
+# scoped to them so every other dependency still honours the freshness window.
+minimumReleaseAgeExclude:
+  - 'ai'
+  - '@ai-sdk/*' # whole scope: provider, provider-utils, gateway, openai, groq, mistral, …
+  - 'ai-sdk-ollama'
+  # First-party optional peer + its deps (jagreehal/autotel monorepo).
+  - 'autotel'
+  - 'autotel-genai'
+  - 'autotel-audit'

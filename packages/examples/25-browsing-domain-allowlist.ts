@@ -706,7 +706,8 @@ const domainAllowlistOutputGuardrail = defineOutputGuardrail<{
 console.log('🛡️  Domain Allowlisting Example\n');
 
 // Create a protected model with domain allowlisting
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   inputGuardrails: [domainAllowlistInputGuardrail],
   outputGuardrails: [domainAllowlistOutputGuardrail],
   throwOnBlocked: true,
@@ -838,7 +839,8 @@ try {
 
 // Test 9: Warning mode with domain analysis
 console.log('Test 9: Warning mode with domain analysis');
-const warningModel = withGuardrails(model, {
+const warningModel = withGuardrails({
+  model,
   inputGuardrails: [domainAllowlistInputGuardrail],
   outputGuardrails: [domainAllowlistOutputGuardrail],
   throwOnBlocked: false,

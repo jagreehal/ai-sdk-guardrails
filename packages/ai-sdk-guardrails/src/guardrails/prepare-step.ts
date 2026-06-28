@@ -1,5 +1,5 @@
 import type { GuardrailViolation } from './stop-conditions';
-import type { LanguageModelV3 } from '../types';
+import type { LanguageModelV4 } from '../types';
 
 /**
  * Options for guardrail-aware prepareStep
@@ -63,15 +63,15 @@ export interface GuardrailPrepareStepOptions {
  * ```typescript
  * const violations: GuardrailViolation[] = [];
  *
- * const agent = withAgentGuardrails({
- *   model,
+ * const agent = new ToolLoopAgent({
+ *   ...agentGuardrails({ model,
+ *     outputGuardrails: [toxicityFilter()],
+ *     onOutputBlocked: (summary) => {
+ *       violations.push({ step: violations.length, summary });
+ *     },
+ *   }),
  *   tools: { search: searchTool },
  *   prepareStep: createGuardrailPrepareStep(violations),
- * }, {
- *   outputGuardrails: [toxicityFilter()],
- *   onOutputBlocked: (summary, context, step) => {
- *     violations.push({ step, summary });
- *   },
  * });
  * ```
  */
@@ -82,7 +82,7 @@ export function createGuardrailPrepareStep(
   steps: Array<{ content: unknown }>;
   stepNumber: number;
   messages: unknown[];
-  model: LanguageModelV3;
+  model: LanguageModelV4;
 }) =>
   | {
       temperature?: number;
@@ -211,7 +211,7 @@ export function createAdaptivePrepareStep(
   steps: Array<{ content: unknown }>;
   stepNumber: number;
   messages: unknown[];
-  model: LanguageModelV3;
+  model: LanguageModelV4;
 }) =>
   | {
       temperature?: number;

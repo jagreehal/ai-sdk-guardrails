@@ -4,3 +4,6 @@ dist
 .env
 .turbo
 .playwright-mcp
+*.tgz
+
+prototype/

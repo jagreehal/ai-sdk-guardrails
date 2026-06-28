@@ -471,232 +471,210 @@ const hallucinationDetectionGuardrail =
   });
 
 describe('Hallucination Detection Example', () => {
-  it(
-    'should allow safe, well-hedged response to pass',
-    async () => {
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [hallucinationDetectionGuardrail],
-        throwOnBlocked: false,
-      });
+  it('should allow safe, well-hedged response to pass', async () => {
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [hallucinationDetectionGuardrail],
+      throwOnBlocked: false,
+    });
 
+    const result = await generateText({
+      model: protectedModel,
+      prompt:
+        'Explain what artificial intelligence is, using hedging language for uncertain claims.',
+    });
+
+    expect(result.text).toBeDefined();
+    expect(result.text.length).toBeGreaterThan(0);
+  }, 180000);
+
+  it('should detect high-confidence factual claims without citations', async () => {
+    let blockedMessage: string | undefined;
+    let blockedMetadata: HallucinationDetectionMetadata | undefined;
+
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [hallucinationDetectionGuardrail],
+      throwOnBlocked: true,
+      onOutputBlocked: (executionSummary) => {
+        blockedMessage = executionSummary.blockedResults[0]?.message;
+        blockedMetadata = executionSummary.blockedResults[0]
+          ?.metadata as HallucinationDetectionMetadata;
+      },
+    });
+
+    try {
       const result = await generateText({
         model: protectedModel,
         prompt:
-          'Explain what artificial intelligence is, using hedging language for uncertain claims.',
+          'Provide specific statistics about AI adoption rates in 2024 with exact numbers and percentages.',
       });
-
       expect(result.text).toBeDefined();
-      expect(result.text.length).toBeGreaterThan(0);
-    },
-    180000,
-  );
-
-  it(
-    'should detect high-confidence factual claims without citations',
-    async () => {
-      let blockedMessage: string | undefined;
-      let blockedMetadata: HallucinationDetectionMetadata | undefined;
-
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [hallucinationDetectionGuardrail],
-        throwOnBlocked: true,
-        onOutputBlocked: (executionSummary) => {
-          blockedMessage = executionSummary.blockedResults[0]?.message;
-          blockedMetadata = executionSummary.blockedResults[0]
-            ?.metadata as HallucinationDetectionMetadata;
-        },
-      });
-
-      try {
-        const result = await generateText({
-          model: protectedModel,
-          prompt:
-            'Provide specific statistics about AI adoption rates in 2024 with exact numbers and percentages.',
-        });
-        expect(result.text).toBeDefined();
-        // If guardrail triggered, verify metadata
-        if (blockedMessage) {
-          expect(blockedMessage).toContain('Potential hallucination detected');
-          if (blockedMetadata) {
-            expect(blockedMetadata.confidenceScore).toBeDefined();
-            expect(blockedMetadata.riskLevel).toBeDefined();
-          }
-        }
-      } catch (error) {
-        // Expected to throw if hallucination detected
-        expect(String(error)).toContain('Output blocked by guardrail');
-        if (blockedMetadata) {
-          expect(blockedMetadata.confidenceScore).toBeLessThan(0.7);
-        }
-      }
-    },
-    240000,
-  );
-
-  it(
-    'should detect claims requiring citations',
-    async () => {
-      let blockedMessage: string | undefined;
-
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [hallucinationDetectionGuardrail],
-        throwOnBlocked: true,
-        onOutputBlocked: (executionSummary) => {
-          blockedMessage = executionSummary.blockedResults[0]?.message;
-        },
-      });
-
-      try {
-        const result = await generateText({
-          model: protectedModel,
-          prompt:
-            'Cite specific research studies about the effectiveness of machine learning algorithms.',
-        });
-        expect(result.text).toBeDefined();
-        if (blockedMessage) {
-          expect(blockedMessage).toContain('Potential hallucination detected');
-        }
-      } catch (error) {
-        expect(String(error)).toContain('Output blocked by guardrail');
-      }
-    },
-    240000,
-  );
-
-  it(
-    'should detect current events claims',
-    async () => {
-      let blockedMessage: string | undefined;
-
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [hallucinationDetectionGuardrail],
-        throwOnBlocked: true,
-        onOutputBlocked: (executionSummary) => {
-          blockedMessage = executionSummary.blockedResults[0]?.message;
-        },
-      });
-
-      try {
-        const result = await generateText({
-          model: protectedModel,
-          prompt: 'Tell me about the latest AI developments that happened this week.',
-        });
-        expect(result.text).toBeDefined();
-        if (blockedMessage) {
-          expect(blockedMessage).toContain('Potential hallucination detected');
-        }
-      } catch (error) {
-        expect(String(error)).toContain('Output blocked by guardrail');
-      }
-    },
-    240000,
-  );
-
-  it(
-    'should provide correct metadata when detecting hallucinations',
-    async () => {
-      let blockedMetadata: HallucinationDetectionMetadata | undefined;
-
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [hallucinationDetectionGuardrail],
-        throwOnBlocked: true,
-        onOutputBlocked: (executionSummary) => {
-          blockedMetadata = executionSummary.blockedResults[0]
-            ?.metadata as HallucinationDetectionMetadata;
-        },
-      });
-
-      try {
-        await generateText({
-          model: protectedModel,
-          prompt:
-            'Tell me exactly what percentage of Fortune 500 companies use AI, with precise numbers.',
-        });
-      } catch (error) {
-        expect(error).toBeDefined();
+      // If guardrail triggered, verify metadata
+      if (blockedMessage) {
+        expect(blockedMessage).toContain('Potential hallucination detected');
         if (blockedMetadata) {
           expect(blockedMetadata.confidenceScore).toBeDefined();
           expect(blockedMetadata.riskLevel).toBeDefined();
-          expect(blockedMetadata.claimsFound).toBeGreaterThan(0);
-          expect(blockedMetadata.factors).toBeDefined();
-          expect(Array.isArray(blockedMetadata.factors)).toBe(true);
         }
       }
-    },
-    240000,
-  );
-
-  it(
-    'should provide hedging suggestions in warning mode',
-    async () => {
-      let warningMessage: string | undefined;
-      let warningMetadata: HallucinationDetectionMetadata | undefined;
-
-      const warningModel = withGuardrails(model, {
-        outputGuardrails: [hallucinationDetectionGuardrail],
-        throwOnBlocked: false,
-        onOutputBlocked: (executionSummary) => {
-          warningMessage = executionSummary.blockedResults[0]?.message;
-          warningMetadata = executionSummary.blockedResults[0]
-            ?.metadata as HallucinationDetectionMetadata;
-        },
-      });
-
-      const result = await generateText({
-        model: warningModel,
-        prompt:
-          'Provide specific data about AI investment trends without hedging language.',
-      });
-
-      expect(result.text).toBeDefined();
-      // If warning was triggered, verify metadata
-      if (warningMessage) {
-        expect(warningMessage).toContain('Potential hallucination detected');
-        if (warningMetadata) {
-          expect(warningMetadata.hedgingSuggestions).toBeDefined();
-          expect(Array.isArray(warningMetadata.hedgingSuggestions)).toBe(true);
-        }
+    } catch (error) {
+      // Expected to throw if hallucination detected
+      expect(String(error)).toContain('Output blocked by guardrail');
+      if (blockedMetadata) {
+        expect(blockedMetadata.confidenceScore).toBeLessThan(0.7);
       }
-    },
-    240000,
-  );
+    }
+  }, 240000);
 
-  it(
-    'should allow well-hedged responses with qualifiers',
-    async () => {
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [hallucinationDetectionGuardrail],
-        throwOnBlocked: false,
-      });
+  it('should detect claims requiring citations', async () => {
+    let blockedMessage: string | undefined;
 
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [hallucinationDetectionGuardrail],
+      throwOnBlocked: true,
+      onOutputBlocked: (executionSummary) => {
+        blockedMessage = executionSummary.blockedResults[0]?.message;
+      },
+    });
+
+    try {
       const result = await generateText({
         model: protectedModel,
         prompt:
-          'Discuss AI trends, using words like "may", "might", "possibly", and "suggests" for uncertain information.',
+          'Cite specific research studies about the effectiveness of machine learning algorithms.',
       });
-
       expect(result.text).toBeDefined();
-      expect(result.text.length).toBeGreaterThan(0);
-    },
-    180000,
-  );
+      if (blockedMessage) {
+        expect(blockedMessage).toContain('Potential hallucination detected');
+      }
+    } catch (error) {
+      expect(String(error)).toContain('Output blocked by guardrail');
+    }
+  }, 240000);
 
-  it(
-    'should allow legitimate general information',
-    async () => {
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [hallucinationDetectionGuardrail],
-        throwOnBlocked: false,
-      });
+  it('should detect current events claims', async () => {
+    let blockedMessage: string | undefined;
 
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [hallucinationDetectionGuardrail],
+      throwOnBlocked: true,
+      onOutputBlocked: (executionSummary) => {
+        blockedMessage = executionSummary.blockedResults[0]?.message;
+      },
+    });
+
+    try {
       const result = await generateText({
         model: protectedModel,
-        prompt: 'Explain the basic concepts of machine learning in general terms.',
+        prompt:
+          'Tell me about the latest AI developments that happened this week.',
       });
-
       expect(result.text).toBeDefined();
-      expect(result.text.length).toBeGreaterThan(0);
-    },
-    180000,
-  );
+      if (blockedMessage) {
+        expect(blockedMessage).toContain('Potential hallucination detected');
+      }
+    } catch (error) {
+      expect(String(error)).toContain('Output blocked by guardrail');
+    }
+  }, 240000);
+
+  it('should provide correct metadata when detecting hallucinations', async () => {
+    let blockedMetadata: HallucinationDetectionMetadata | undefined;
+
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [hallucinationDetectionGuardrail],
+      throwOnBlocked: true,
+      onOutputBlocked: (executionSummary) => {
+        blockedMetadata = executionSummary.blockedResults[0]
+          ?.metadata as HallucinationDetectionMetadata;
+      },
+    });
+
+    try {
+      await generateText({
+        model: protectedModel,
+        prompt:
+          'Tell me exactly what percentage of Fortune 500 companies use AI, with precise numbers.',
+      });
+    } catch (error) {
+      expect(error).toBeDefined();
+      if (blockedMetadata) {
+        expect(blockedMetadata.confidenceScore).toBeDefined();
+        expect(blockedMetadata.riskLevel).toBeDefined();
+        expect(blockedMetadata.claimsFound).toBeGreaterThan(0);
+        expect(blockedMetadata.factors).toBeDefined();
+        expect(Array.isArray(blockedMetadata.factors)).toBe(true);
+      }
+    }
+  }, 240000);
+
+  it('should provide hedging suggestions in warning mode', async () => {
+    let warningMessage: string | undefined;
+    let warningMetadata: HallucinationDetectionMetadata | undefined;
+
+    const warningModel = withGuardrails({
+      model,
+      outputGuardrails: [hallucinationDetectionGuardrail],
+      throwOnBlocked: false,
+      onOutputBlocked: (executionSummary) => {
+        warningMessage = executionSummary.blockedResults[0]?.message;
+        warningMetadata = executionSummary.blockedResults[0]
+          ?.metadata as HallucinationDetectionMetadata;
+      },
+    });
+
+    const result = await generateText({
+      model: warningModel,
+      prompt:
+        'Provide specific data about AI investment trends without hedging language.',
+    });
+
+    expect(result.text).toBeDefined();
+    // If warning was triggered, verify metadata
+    if (warningMessage) {
+      expect(warningMessage).toContain('Potential hallucination detected');
+      if (warningMetadata) {
+        expect(warningMetadata.hedgingSuggestions).toBeDefined();
+        expect(Array.isArray(warningMetadata.hedgingSuggestions)).toBe(true);
+      }
+    }
+  }, 240000);
+
+  it('should allow well-hedged responses with qualifiers', async () => {
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [hallucinationDetectionGuardrail],
+      throwOnBlocked: false,
+    });
+
+    const result = await generateText({
+      model: protectedModel,
+      prompt:
+        'Discuss AI trends, using words like "may", "might", "possibly", and "suggests" for uncertain information.',
+    });
+
+    expect(result.text).toBeDefined();
+    expect(result.text.length).toBeGreaterThan(0);
+  }, 180000);
+
+  it('should allow legitimate general information', async () => {
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [hallucinationDetectionGuardrail],
+      throwOnBlocked: false,
+    });
+
+    const result = await generateText({
+      model: protectedModel,
+      prompt:
+        'Explain the basic concepts of machine learning in general terms.',
+    });
+
+    expect(result.text).toBeDefined();
+    expect(result.text.length).toBeGreaterThan(0);
+  }, 180000);
 });

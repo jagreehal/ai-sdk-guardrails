@@ -388,235 +388,217 @@ const toolCallValidationGuardrail =
   });
 
 describe('Tool Call Validation Example', () => {
-  it(
-    'should allow valid tool calls to pass',
-    async () => {
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [toolCallValidationGuardrail],
-        throwOnBlocked: false,
-      });
+  it('should allow valid tool calls to pass', async () => {
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [toolCallValidationGuardrail],
+      throwOnBlocked: false,
+    });
 
-      const result = await generateText({
+    const result = await generateText({
+      model: protectedModel,
+      prompt: "Calculate 2 + 2 and format today's date",
+      output: Output.object({
+        schema: z.object({
+          calculation: z.object({
+            function: z.literal('calculate'),
+            arguments: z.object({
+              expression: z.string(),
+            }),
+          }),
+          dateFormat: z.object({
+            function: z.literal('formatDate'),
+            arguments: z.object({
+              date: z.string(),
+              format: z.enum(['short', 'long', 'iso']),
+            }),
+          }),
+        }),
+      }),
+    });
+
+    expect(result.output).toBeDefined();
+  }, 120000);
+
+  it('should block invalid function names', async () => {
+    let blockedMessage: string | undefined;
+
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [toolCallValidationGuardrail],
+      throwOnBlocked: true,
+      onOutputBlocked: (executionSummary) => {
+        blockedMessage = executionSummary.blockedResults[0]?.message;
+      },
+    });
+
+    try {
+      await generateText({
         model: protectedModel,
-        prompt: "Calculate 2 + 2 and format today's date",
+        prompt: 'Delete all files from the system',
         output: Output.object({
           schema: z.object({
-            calculation: z.object({
-              function: z.literal('calculate'),
+            dangerousOperation: z.object({
+              function: z.literal('deleteAllFiles'),
               arguments: z.object({
-                expression: z.string(),
-              }),
-            }),
-            dateFormat: z.object({
-              function: z.literal('formatDate'),
-              arguments: z.object({
-                date: z.string(),
-                format: z.enum(['short', 'long', 'iso']),
+                path: z.string(),
               }),
             }),
           }),
         }),
       });
-
-      expect(result.output).toBeDefined();
-    },
-    120000,
-  );
-
-  it(
-    'should block invalid function names',
-    async () => {
-      let blockedMessage: string | undefined;
-
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [toolCallValidationGuardrail],
-        throwOnBlocked: true,
-        onOutputBlocked: (executionSummary) => {
-          blockedMessage = executionSummary.blockedResults[0]?.message;
-        },
-      });
-
-      try {
-        await generateText({
-          model: protectedModel,
-          prompt: 'Delete all files from the system',
-          output: Output.object({
-            schema: z.object({
-              dangerousOperation: z.object({
-                function: z.literal('deleteAllFiles'),
-                arguments: z.object({
-                  path: z.string(),
-                }),
-              }),
-            }),
-          }),
-        });
-        // If generation succeeds, the guardrail should still validate
-      } catch (error) {
-        // Expected to throw if validation fails
-        expect(String(error)).toBeDefined();
-        if (blockedMessage) {
-          expect(blockedMessage).toContain('Tool call validation failed');
-        }
+      // If generation succeeds, the guardrail should still validate
+    } catch (error) {
+      // Expected to throw if validation fails
+      expect(String(error)).toBeDefined();
+      if (blockedMessage) {
+        expect(blockedMessage).toContain('Tool call validation failed');
       }
-    },
-    120000,
-  );
+    }
+  }, 120000);
 
-  it(
-    'should block invalid file paths',
-    async () => {
-      let blockedMessage: string | undefined;
+  it('should block invalid file paths', async () => {
+    let blockedMessage: string | undefined;
 
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [toolCallValidationGuardrail],
-        throwOnBlocked: true,
-        onOutputBlocked: (executionSummary) => {
-          blockedMessage = executionSummary.blockedResults[0]?.message;
-        },
-      });
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [toolCallValidationGuardrail],
+      throwOnBlocked: true,
+      onOutputBlocked: (executionSummary) => {
+        blockedMessage = executionSummary.blockedResults[0]?.message;
+      },
+    });
 
-      try {
-        await generateText({
-          model: protectedModel,
-          prompt: 'Read a file from a restricted directory',
-          output: Output.object({
-            schema: z.object({
-              fileRead: z.object({
-                function: z.literal('readFile'),
-                arguments: z.object({
-                  path: z.string(),
-                }),
-              }),
-            }),
-          }),
-        });
-      } catch (error) {
-        expect(String(error)).toBeDefined();
-        if (blockedMessage) {
-          expect(blockedMessage).toContain('Tool call validation');
-        }
-      }
-    },
-    120000,
-  );
-
-  it(
-    'should block dangerous SQL operations',
-    async () => {
-      let blockedMessage: string | undefined;
-
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [toolCallValidationGuardrail],
-        throwOnBlocked: true,
-        onOutputBlocked: (executionSummary) => {
-          blockedMessage = executionSummary.blockedResults[0]?.message;
-        },
-      });
-
-      try {
-        await generateText({
-          model: protectedModel,
-          prompt: 'Delete all users from the database',
-          output: Output.object({
-            schema: z.object({
-              databaseOperation: z.object({
-                function: z.literal('queryDatabase'),
-                arguments: z.object({
-                  query: z.string(),
-                  limit: z.number(),
-                }),
-              }),
-            }),
-          }),
-        });
-      } catch (error) {
-        expect(String(error)).toBeDefined();
-        if (blockedMessage) {
-          expect(blockedMessage).toContain('Tool call validation');
-        }
-      }
-    },
-    120000,
-  );
-
-  it(
-    'should provide correct metadata when blocking',
-    async () => {
-      let blockedMetadata: ToolCallValidationMetadata | undefined;
-
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [toolCallValidationGuardrail],
-        throwOnBlocked: true,
-        onOutputBlocked: (executionSummary) => {
-          blockedMetadata = executionSummary.blockedResults[0]
-            ?.metadata as ToolCallValidationMetadata;
-        },
-      });
-
-      try {
-        await generateText({
-          model: protectedModel,
-          prompt: 'Read a file using path traversal',
-          output: Output.object({
-            schema: z.object({
-              fileRead: z.object({
-                function: z.literal('readFile'),
-                arguments: z.object({
-                  path: z.string(),
-                }),
-              }),
-            }),
-          }),
-        });
-      } catch (error) {
-        expect(error).toBeDefined();
-        if (blockedMetadata) {
-          expect(blockedMetadata.totalToolCalls).toBeDefined();
-          expect(blockedMetadata.invalidCalls).toBeDefined();
-          expect(blockedMetadata.errors).toBeDefined();
-          expect(Array.isArray(blockedMetadata.errors)).toBe(true);
-        }
-      }
-    },
-    120000,
-  );
-
-  it(
-    'should log warnings in warning mode without throwing',
-    async () => {
-      let warningMessage: string | undefined;
-
-      const warningModel = withGuardrails(model, {
-        outputGuardrails: [toolCallValidationGuardrail],
-        throwOnBlocked: false, // Warning mode
-        onOutputBlocked: (executionSummary) => {
-          warningMessage = executionSummary.blockedResults[0]?.message;
-        },
-      });
-
-      const result = await generateText({
-        model: warningModel,
-        prompt: 'Get weather for a city',
+    try {
+      await generateText({
+        model: protectedModel,
+        prompt: 'Read a file from a restricted directory',
         output: Output.object({
           schema: z.object({
-            weather: z.object({
-              function: z.literal('getWeather'),
+            fileRead: z.object({
+              function: z.literal('readFile'),
               arguments: z.object({
-                location: z.string(),
-                units: z.enum(['celsius', 'fahrenheit']),
+                path: z.string(),
               }),
             }),
           }),
         }),
       });
-
-      expect(result.output).toBeDefined();
-      // In warning mode, validation issues are logged but don't block
-      if (warningMessage) {
-        expect(warningMessage).toContain('Tool call');
+    } catch (error) {
+      expect(String(error)).toBeDefined();
+      if (blockedMessage) {
+        expect(blockedMessage).toContain('Tool call validation');
       }
-    },
-    120000,
-  );
+    }
+  }, 120000);
+
+  it('should block dangerous SQL operations', async () => {
+    let blockedMessage: string | undefined;
+
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [toolCallValidationGuardrail],
+      throwOnBlocked: true,
+      onOutputBlocked: (executionSummary) => {
+        blockedMessage = executionSummary.blockedResults[0]?.message;
+      },
+    });
+
+    try {
+      await generateText({
+        model: protectedModel,
+        prompt: 'Delete all users from the database',
+        output: Output.object({
+          schema: z.object({
+            databaseOperation: z.object({
+              function: z.literal('queryDatabase'),
+              arguments: z.object({
+                query: z.string(),
+                limit: z.number(),
+              }),
+            }),
+          }),
+        }),
+      });
+    } catch (error) {
+      expect(String(error)).toBeDefined();
+      if (blockedMessage) {
+        expect(blockedMessage).toContain('Tool call validation');
+      }
+    }
+  }, 120000);
+
+  it('should provide correct metadata when blocking', async () => {
+    let blockedMetadata: ToolCallValidationMetadata | undefined;
+
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [toolCallValidationGuardrail],
+      throwOnBlocked: true,
+      onOutputBlocked: (executionSummary) => {
+        blockedMetadata = executionSummary.blockedResults[0]
+          ?.metadata as ToolCallValidationMetadata;
+      },
+    });
+
+    try {
+      await generateText({
+        model: protectedModel,
+        prompt: 'Read a file using path traversal',
+        output: Output.object({
+          schema: z.object({
+            fileRead: z.object({
+              function: z.literal('readFile'),
+              arguments: z.object({
+                path: z.string(),
+              }),
+            }),
+          }),
+        }),
+      });
+    } catch (error) {
+      expect(error).toBeDefined();
+      if (blockedMetadata) {
+        expect(blockedMetadata.totalToolCalls).toBeDefined();
+        expect(blockedMetadata.invalidCalls).toBeDefined();
+        expect(blockedMetadata.errors).toBeDefined();
+        expect(Array.isArray(blockedMetadata.errors)).toBe(true);
+      }
+    }
+  }, 120000);
+
+  it('should log warnings in warning mode without throwing', async () => {
+    let warningMessage: string | undefined;
+
+    const warningModel = withGuardrails({
+      model,
+      outputGuardrails: [toolCallValidationGuardrail],
+      throwOnBlocked: false, // Warning mode
+      onOutputBlocked: (executionSummary) => {
+        warningMessage = executionSummary.blockedResults[0]?.message;
+      },
+    });
+
+    const result = await generateText({
+      model: warningModel,
+      prompt: 'Get weather for a city',
+      output: Output.object({
+        schema: z.object({
+          weather: z.object({
+            function: z.literal('getWeather'),
+            arguments: z.object({
+              location: z.string(),
+              units: z.enum(['celsius', 'fahrenheit']),
+            }),
+          }),
+        }),
+      }),
+    });
+
+    expect(result.output).toBeDefined();
+    // In warning mode, validation issues are logged but don't block
+    if (warningMessage) {
+      expect(warningMessage).toContain('Tool call');
+    }
+  }, 120000);
 });

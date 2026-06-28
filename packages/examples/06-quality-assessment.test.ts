@@ -114,7 +114,8 @@ const qualityAssessmentGuardrail = defineOutputGuardrail({
 
 describe('Quality Assessment Example', () => {
   it('should allow well-formed response to pass quality checks', async () => {
-    const qualityModel = withGuardrails(model, {
+    const qualityModel = withGuardrails({
+      model,
       outputGuardrails: [qualityAssessmentGuardrail],
       throwOnBlocked: false,
     });
@@ -132,7 +133,8 @@ describe('Quality Assessment Example', () => {
     let blockedMessage: string | undefined;
     let blockedMetadata: any;
 
-    const qualityModel = withGuardrails(model, {
+    const qualityModel = withGuardrails({
+      model,
       outputGuardrails: [qualityAssessmentGuardrail],
       throwOnBlocked: false,
       onOutputBlocked: (executionSummary) => {
@@ -157,81 +159,85 @@ describe('Quality Assessment Example', () => {
   });
 
   describe('Advanced Quality Metrics', () => {
-    const advancedQualityGuardrail = defineOutputGuardrail<AdvancedQualityMetadata>({
-      name: 'advanced-quality',
-      description: 'Advanced quality metrics including readability',
-      execute: async (params) => {
-        const { text } = extractContent(params.result);
-        const metrics: Partial<AdvancedQualityMetadata> = {};
+    const advancedQualityGuardrail =
+      defineOutputGuardrail<AdvancedQualityMetadata>({
+        name: 'advanced-quality',
+        description: 'Advanced quality metrics including readability',
+        execute: async (params) => {
+          const { text } = extractContent(params.result);
+          const metrics: Partial<AdvancedQualityMetadata> = {};
 
-        // Calculate average sentence length
-        const sentences = text.split(/[.!?]+/).filter((s) => s.trim().length > 0);
-        const avgSentenceLength =
-          sentences.length > 0
-            ? sentences.reduce((sum, s) => sum + s.split(/\s+/).length, 0) /
-              sentences.length
-            : 0;
+          // Calculate average sentence length
+          const sentences = text
+            .split(/[.!?]+/)
+            .filter((s) => s.trim().length > 0);
+          const avgSentenceLength =
+            sentences.length > 0
+              ? sentences.reduce((sum, s) => sum + s.split(/\s+/).length, 0) /
+                sentences.length
+              : 0;
 
-        metrics.avgSentenceLength = Math.round(avgSentenceLength);
+          metrics.avgSentenceLength = Math.round(avgSentenceLength);
 
-        // Calculate word variety (unique words / total words)
-        const words = text.toLowerCase().match(/\b\w+\b/g) || [];
-        const uniqueWords = new Set(words);
-        metrics.wordVariety =
-          words.length > 0
-            ? Math.round((uniqueWords.size / words.length) * 100)
-            : 0;
+          // Calculate word variety (unique words / total words)
+          const words = text.toLowerCase().match(/\b\w+\b/g) || [];
+          const uniqueWords = new Set(words);
+          metrics.wordVariety =
+            words.length > 0
+              ? Math.round((uniqueWords.size / words.length) * 100)
+              : 0;
 
-        // Check for structure (paragraphs, lists, etc.)
-        const hasParagraphs = text.includes('\n\n');
-        const hasList = /[-*•]\s/.test(text) || /\d+\.\s/.test(text);
-        metrics.hasStructure = hasParagraphs || hasList;
+          // Check for structure (paragraphs, lists, etc.)
+          const hasParagraphs = text.includes('\n\n');
+          const hasList = /[-*•]\s/.test(text) || /\d+\.\s/.test(text);
+          metrics.hasStructure = hasParagraphs || hasList;
 
-        // Quality score calculation
-        let qualityScore = 100;
-        const issues: string[] = [];
+          // Quality score calculation
+          let qualityScore = 100;
+          const issues: string[] = [];
 
-        if (avgSentenceLength > 25) {
-          qualityScore -= 10;
-          issues.push('Sentences too long');
-        }
-        if (avgSentenceLength < 5 && sentences.length > 1) {
-          qualityScore -= 10;
-          issues.push('Sentences too short');
-        }
-        if (metrics.wordVariety && metrics.wordVariety < 50) {
-          qualityScore -= 15;
-          issues.push('Low word variety');
-        }
-        if (!metrics.hasStructure && text.length > 200) {
-          qualityScore -= 10;
-          issues.push('Lacks structure');
-        }
+          if (avgSentenceLength > 25) {
+            qualityScore -= 10;
+            issues.push('Sentences too long');
+          }
+          if (avgSentenceLength < 5 && sentences.length > 1) {
+            qualityScore -= 10;
+            issues.push('Sentences too short');
+          }
+          if (metrics.wordVariety && metrics.wordVariety < 50) {
+            qualityScore -= 15;
+            issues.push('Low word variety');
+          }
+          if (!metrics.hasStructure && text.length > 200) {
+            qualityScore -= 10;
+            issues.push('Lacks structure');
+          }
 
-        metrics.qualityScore = qualityScore;
+          metrics.qualityScore = qualityScore;
 
-        const shouldBlock = qualityScore < 70;
+          const shouldBlock = qualityScore < 70;
 
-        return {
-          tripwireTriggered: shouldBlock,
-          message: shouldBlock
-            ? `Quality score too low: ${qualityScore}/100`
-            : `Quality score: ${qualityScore}/100`,
-          severity:
-            qualityScore < 50 ? 'high' : qualityScore < 70 ? 'medium' : 'low',
-          metadata: {
-            ...metrics,
-            issues,
-            qualityScore,
-          } as AdvancedQualityMetadata,
-        };
-      },
-    });
+          return {
+            tripwireTriggered: shouldBlock,
+            message: shouldBlock
+              ? `Quality score too low: ${qualityScore}/100`
+              : `Quality score: ${qualityScore}/100`,
+            severity:
+              qualityScore < 50 ? 'high' : qualityScore < 70 ? 'medium' : 'low',
+            metadata: {
+              ...metrics,
+              issues,
+              qualityScore,
+            } as AdvancedQualityMetadata,
+          };
+        },
+      });
 
     it('should calculate quality metrics for response', async () => {
       let blockedMetadata: AdvancedQualityMetadata | undefined;
 
-      const advancedModel = withGuardrails(model, {
+      const advancedModel = withGuardrails({
+        model,
         outputGuardrails: [advancedQualityGuardrail],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -310,7 +316,8 @@ describe('Quality Assessment Example', () => {
       let blockedMessage: string | undefined;
       let blockedMetadata: any;
 
-      const completenessModel = withGuardrails(model, {
+      const completenessModel = withGuardrails({
+        model,
         outputGuardrails: [completenessGuardrail],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -337,10 +344,11 @@ describe('Quality Assessment Example', () => {
     it('should detect missing examples when prompt requests them', async () => {
       // Create a response that doesn't include examples
       const testText = 'Exercise has many benefits. It improves health.';
-      
+
       // We can test the guardrail directly using executeOutputGuardrails
       // But for now, we'll test it through the model
-      const completenessModel = withGuardrails(model, {
+      const completenessModel = withGuardrails({
+        model,
         outputGuardrails: [completenessGuardrail],
         throwOnBlocked: false,
       });

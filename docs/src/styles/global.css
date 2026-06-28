@@ -1,5 +1,173 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   AI SDK Guardrails — brand theme layer
+   Customises Starlight via its official CSS custom properties (accent + gray
+   ramps, fonts), tied to the blue security-shield logo. Cool-slate neutrals
+   for a dark-tech / security feel, with domain-semantic allow/block colors.
+   ========================================================================== */
+
+/* --- Dark theme (default) --- */
+:root {
+  /* Accent: the shield-logo blue, built into a coherent ramp. */
+  --sl-color-accent-low: #0c1f44;
+  --sl-color-accent: #3b82f6;
+  --sl-color-accent-high: #c5d8ff;
+
+  /* Neutrals: cool blue-slate instead of flat gray. */
+  --sl-color-white: #f5f7fb;
+  --sl-color-gray-1: #e2e7f0;
+  --sl-color-gray-2: #b4bccd;
+  --sl-color-gray-3: #818ba3;
+  --sl-color-gray-4: #4f5a72;
+  --sl-color-gray-5: #313a4f;
+  --sl-color-gray-6: #1d2434;
+  --sl-color-gray-7: #161c29;
+  --sl-color-black: #10141f;
+
+  /* Domain-semantic colors: guardrails allow vs block. */
+  --guard-allow: #34d399;
+  --guard-block: #fb7185;
+
+  /* Typography: refined, offline-safe system stacks. */
+  --sl-font:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --sl-font-mono:
+    ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo,
+    Consolas, monospace;
+}
+
+/* --- Light theme --- */
+:root[data-theme="light"] {
+  --sl-color-accent-low: #d7e3ff;
+  --sl-color-accent: #1d4ed8;
+  --sl-color-accent-high: #14296e;
+
+  --sl-color-white: #10141f;
+  --sl-color-gray-1: #1d2434;
+  --sl-color-gray-2: #313a4f;
+  --sl-color-gray-3: #515b73;
+  --sl-color-gray-4: #828ca3;
+  --sl-color-gray-5: #c3ccdb;
+  --sl-color-gray-6: #e8ecf4;
+  --sl-color-gray-7: #f3f6fb;
+  --sl-color-black: #ffffff;
+
+  --guard-allow: #059669;
+  --guard-block: #e11d48;
+}
+
+/* --- Branded hero backdrop (splash pages only) --------------------------- */
+/* Starlight sets data-has-hero on <html> for hero pages. A single restrained
+   accent glow layered over the page background — no flashing, no motion. */
+:root[data-has-hero] body {
+  background-image:
+    radial-gradient(
+      62% 48% at 82% -4%,
+      color-mix(in oklab, var(--sl-color-accent) 20%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      42% 38% at 4% 8%,
+      color-mix(in oklab, var(--guard-allow) 9%, transparent),
+      transparent 66%
+    );
+  background-repeat: no-repeat;
+}
+
+/* Make the hero headline carry brand weight; keep it readable. */
+:root[data-has-hero] .hero h1 {
+  letter-spacing: -0.02em;
+  background: linear-gradient(
+    180deg,
+    var(--sl-color-white),
+    color-mix(in oklab, var(--sl-color-white) 72%, var(--sl-color-accent))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* --- Primary CTA: solid, confident, tactile --------------------------- */
+/* The primary action is the page's most important control, so give it a solid
+   accent fill with guaranteed-contrast text rather than the soft default pill. */
+.sl-link-button.primary {
+  background: var(--sl-color-accent);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 1px 0 color-mix(in oklab, var(--sl-color-accent) 60%, #000);
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.sl-link-button.primary:hover {
+  background: color-mix(in oklab, var(--sl-color-accent) 88%, #fff);
+  transform: translateY(-1px);
+}
+.sl-link-button.primary:active {
+  transform: translateY(0);
+}
+
+/* --- Feature cards: subtle accent edge + lift ------------------------- */
+.card {
+  border-color: var(--sl-color-gray-5);
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.card:hover {
+  border-color: color-mix(in oklab, var(--sl-color-accent) 55%, var(--sl-color-gray-5));
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--sl-color-accent) 10%, transparent);
+}
+/* Uniform accent icon chip — overrides starlight-theme-next's per-card rotating
+   border/colour so the icons stay on-brand (one accent, not a rainbow). */
+.card .icon {
+  color: var(--sl-color-accent-high);
+  background: color-mix(in oklab, var(--sl-color-accent) 14%, transparent);
+  border-color: color-mix(in oklab, var(--sl-color-accent) 38%, transparent);
+}
+
+/* --- Code blocks: tie the frame to the brand ------------------------- */
+.expressive-code .frame {
+  border-radius: 0.6rem;
+}
+.expressive-code .frame.is-terminal .header,
+.expressive-code .frame:not(.is-terminal) .header {
+  border-bottom-color: color-mix(in oklab, var(--sl-color-accent) 22%, transparent);
+}
+
+/* --- Mermaid diagrams: tint to the brand accent ----------------------- */
+/* Node fill/stroke come from mermaid's stylesheet classes (not inline), so
+   external !important rules win. Using theme-aware accent vars means the
+   diagram tracks light/dark on its own — astro-mermaid's autoTheme still drives
+   readable label/background colours from the base mermaid theme. */
+.mermaid svg .node rect,
+.mermaid svg .node circle,
+.mermaid svg .node polygon,
+.mermaid svg .node path {
+  fill: color-mix(in oklab, var(--sl-color-accent) 12%, transparent) !important;
+  stroke: var(--sl-color-accent) !important;
+}
+.mermaid svg .edgePath .path,
+.mermaid svg .flowchart-link {
+  stroke: color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-gray-3)) !important;
+}
+.mermaid svg marker path {
+  fill: color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-gray-3)) !important;
+  stroke: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sl-link-button.primary,
+  .card {
+    transition: none;
+  }
+}
+
 /* Playground styles */
 .playground-container {
   display: grid;

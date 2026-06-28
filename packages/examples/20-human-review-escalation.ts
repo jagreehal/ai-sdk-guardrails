@@ -581,7 +581,8 @@ const humanReviewOutputGuardrail = defineOutputGuardrail({
 console.log('👥 Human Review Escalation Example\n');
 
 // Create a protected model with human review escalation
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   inputGuardrails: [humanReviewInputGuardrail],
   outputGuardrails: [humanReviewOutputGuardrail],
   throwOnBlocked: false,

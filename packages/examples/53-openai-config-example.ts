@@ -12,8 +12,8 @@ import {
   loadPipelineConfig,
   runStageGuardrails,
   checkPlainText,
-} from 'ai-sdk-guardrails';
-import type { PipelineConfig } from 'ai-sdk-guardrails';
+} from 'ai-sdk-guardrails/config';
+import type { PipelineConfig } from 'ai-sdk-guardrails/config';
 
 // Example OpenAI config (matches format from guardrails.openai.com)
 const openAIConfig: PipelineConfig = {
@@ -155,5 +155,3 @@ async function exampleWithOpenAIConfig() {
 
 // Run the example
 exampleWithOpenAIConfig().catch(console.error);
-
-

@@ -181,7 +181,8 @@ const dataComplianceGuardrail = defineInputGuardrail({
 describe('Business Logic Example', () => {
   describe('Business Content Guardrail', () => {
     it('should allow appropriate business requests', async () => {
-      const businessModel = withGuardrails(model, {
+      const businessModel = withGuardrails({
+        model,
         inputGuardrails: [businessContentGuardrail],
         throwOnBlocked: false,
       });
@@ -196,7 +197,8 @@ describe('Business Logic Example', () => {
     });
 
     it('should block inappropriate topics for business context', async () => {
-      const businessModel = withGuardrails(model, {
+      const businessModel = withGuardrails({
+        model,
         inputGuardrails: [businessContentGuardrail],
         throwOnBlocked: true,
       });
@@ -212,7 +214,8 @@ describe('Business Logic Example', () => {
     it('should provide correct metadata when blocking inappropriate content', async () => {
       let blockedMetadata: any;
 
-      const businessModel = withGuardrails(model, {
+      const businessModel = withGuardrails({
+        model,
         inputGuardrails: [businessContentGuardrail],
         throwOnBlocked: true,
         onInputBlocked: (executionSummary) => {
@@ -240,7 +243,8 @@ describe('Business Logic Example', () => {
       let blockedMessage: string | undefined;
       let blockedMetadata: any;
 
-      const professionalModel = withGuardrails(model, {
+      const professionalModel = withGuardrails({
+        model,
         outputGuardrails: [professionalToneGuardrail],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -266,7 +270,8 @@ describe('Business Logic Example', () => {
     it('should provide correct metadata for tone violations', async () => {
       let blockedMetadata: any;
 
-      const professionalModel = withGuardrails(model, {
+      const professionalModel = withGuardrails({
+        model,
         outputGuardrails: [professionalToneGuardrail],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -289,71 +294,66 @@ describe('Business Logic Example', () => {
   });
 
   describe('Cost Control Guardrail', () => {
-    it(
-      'should detect high-cost operations',
-      async () => {
-        let blockedMessage: string | undefined;
-        let blockedMetadata: any;
+    it('should detect high-cost operations', async () => {
+      let blockedMessage: string | undefined;
+      let blockedMetadata: any;
 
-        const costControlModel = withGuardrails(model, {
-          inputGuardrails: [costControlGuardrail],
-          throwOnBlocked: false,
-          onInputBlocked: (executionSummary) => {
-            blockedMessage = executionSummary.blockedResults[0]?.message;
-            blockedMetadata = executionSummary.blockedResults[0]?.metadata;
-          },
-        });
+      const costControlModel = withGuardrails({
+        model,
+        inputGuardrails: [costControlGuardrail],
+        throwOnBlocked: false,
+        onInputBlocked: (executionSummary) => {
+          blockedMessage = executionSummary.blockedResults[0]?.message;
+          blockedMetadata = executionSummary.blockedResults[0]?.metadata;
+        },
+      });
 
-        const result = await generateText({
-          model: costControlModel,
-          prompt:
-            'Write a comprehensive analysis and detailed documentation about machine learning algorithms, including extensive examples and code samples for every major technique',
-        });
+      const result = await generateText({
+        model: costControlModel,
+        prompt:
+          'Write a comprehensive analysis and detailed documentation about machine learning algorithms, including extensive examples and code samples for every major technique',
+      });
 
-        expect(result.text).toBeDefined();
-        // If cost control triggered, verify metadata
-        if (blockedMessage) {
-          expect(blockedMessage).toContain('High-cost operation detected');
-          expect(blockedMetadata?.expensiveOperation).toBeDefined();
-          expect(blockedMetadata?.estimatedCost).toBeDefined();
-        }
-      },
-      120000,
-    );
+      expect(result.text).toBeDefined();
+      // If cost control triggered, verify metadata
+      if (blockedMessage) {
+        expect(blockedMessage).toContain('High-cost operation detected');
+        expect(blockedMetadata?.expensiveOperation).toBeDefined();
+        expect(blockedMetadata?.estimatedCost).toBeDefined();
+      }
+    }, 120000);
 
-    it(
-      'should provide cost estimation metadata',
-      async () => {
-        let blockedMetadata: any;
+    it('should provide cost estimation metadata', async () => {
+      let blockedMetadata: any;
 
-        const costControlModel = withGuardrails(model, {
-          inputGuardrails: [costControlGuardrail],
-          throwOnBlocked: false,
-          onInputBlocked: (executionSummary) => {
-            blockedMetadata = executionSummary.blockedResults[0]?.metadata;
-          },
-        });
+      const costControlModel = withGuardrails({
+        model,
+        inputGuardrails: [costControlGuardrail],
+        throwOnBlocked: false,
+        onInputBlocked: (executionSummary) => {
+          blockedMetadata = executionSummary.blockedResults[0]?.metadata;
+        },
+      });
 
-        await generateText({
-          model: costControlModel,
-          prompt:
-            'Generate a massive report with comprehensive analysis and detailed documentation',
-        });
+      await generateText({
+        model: costControlModel,
+        prompt:
+          'Generate a massive report with comprehensive analysis and detailed documentation',
+      });
 
-        // If metadata was captured, verify structure
-        if (blockedMetadata) {
-          expect(blockedMetadata.expensiveOperation).toBeDefined();
-          expect(blockedMetadata.estimatedTokens).toBeDefined();
-          expect(blockedMetadata.estimatedCost).toBeDefined();
-        }
-      },
-      120000,
-    );
+      // If metadata was captured, verify structure
+      if (blockedMetadata) {
+        expect(blockedMetadata.expensiveOperation).toBeDefined();
+        expect(blockedMetadata.estimatedTokens).toBeDefined();
+        expect(blockedMetadata.estimatedCost).toBeDefined();
+      }
+    }, 120000);
   });
 
   describe('Data Compliance Guardrail', () => {
     it('should block requests involving sensitive data', async () => {
-      const complianceModel = withGuardrails(model, {
+      const complianceModel = withGuardrails({
+        model,
         inputGuardrails: [dataComplianceGuardrail],
         throwOnBlocked: true,
       });
@@ -369,7 +369,8 @@ describe('Business Logic Example', () => {
     it('should provide compliance metadata when blocking', async () => {
       let blockedMetadata: any;
 
-      const complianceModel = withGuardrails(model, {
+      const complianceModel = withGuardrails({
+        model,
         inputGuardrails: [dataComplianceGuardrail],
         throwOnBlocked: true,
         onInputBlocked: (executionSummary) => {
@@ -420,7 +421,8 @@ describe('Business Logic Example', () => {
 
       let blockedMessage: string | undefined;
 
-      const businessHoursModel = withGuardrails(model, {
+      const businessHoursModel = withGuardrails({
+        model,
         inputGuardrails: [demoBusinessHours],
         throwOnBlocked: false,
         onInputBlocked: (executionSummary) => {
@@ -446,7 +448,8 @@ describe('Business Logic Example', () => {
       let inputBlockedResults: any[] = [];
       let outputBlockedResults: any[] = [];
 
-      const businessModel = withGuardrails(model, {
+      const businessModel = withGuardrails({
+        model,
         inputGuardrails: [
           businessContentGuardrail,
           dataComplianceGuardrail,
@@ -478,35 +481,32 @@ describe('Business Logic Example', () => {
       }
     });
 
-    it(
-      'should handle various business scenarios',
-      async () => {
-        const businessModel = withGuardrails(model, {
-          inputGuardrails: [
-            businessContentGuardrail,
-            dataComplianceGuardrail,
-            costControlGuardrail,
-          ] as const,
-          outputGuardrails: [professionalToneGuardrail],
-          throwOnBlocked: false,
+    it('should handle various business scenarios', async () => {
+      const businessModel = withGuardrails({
+        model,
+        inputGuardrails: [
+          businessContentGuardrail,
+          dataComplianceGuardrail,
+          costControlGuardrail,
+        ] as const,
+        outputGuardrails: [professionalToneGuardrail],
+        throwOnBlocked: false,
+      });
+
+      const testRequests = [
+        'Help me with technical documentation for our API',
+        'Can you analyze customer information and personal data?',
+        'Write a massive comprehensive report about everything',
+        'Give me some personal relationship advice',
+      ];
+
+      for (const request of testRequests) {
+        const result = await generateText({
+          model: businessModel,
+          prompt: request,
         });
-
-        const testRequests = [
-          'Help me with technical documentation for our API',
-          'Can you analyze customer information and personal data?',
-          'Write a massive comprehensive report about everything',
-          'Give me some personal relationship advice',
-        ];
-
-        for (const request of testRequests) {
-          const result = await generateText({
-            model: businessModel,
-            prompt: request,
-          });
-          expect(result.text).toBeDefined();
-        }
-      },
-      120000,
-    );
+        expect(result.text).toBeDefined();
+      }
+    }, 120000);
   });
 });

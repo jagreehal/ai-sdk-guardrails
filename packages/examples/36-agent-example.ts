@@ -9,10 +9,10 @@
  * - Tool usage: demonstrates search and analysis capabilities
  */
 
-import { tool, stepCountIs } from 'ai';
+import { ToolLoopAgent, tool, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { model } from './model';
-import { defineOutputGuardrail, withAgentGuardrails } from 'ai-sdk-guardrails';
+import { defineOutputGuardrail, agentGuardrails } from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
 console.log('🤖 Agent Class + Guardrails Example');
@@ -120,10 +120,17 @@ const qualityGuardrail = defineOutputGuardrail({
 });
 
 // Create an agent with guardrails at the Agent level
-const researchAgent = withAgentGuardrails(
-  {
+const researchAgent = new ToolLoopAgent({
+  ...agentGuardrails({
     model,
-    system: `You are an expert research assistant. Your job is to:
+    outputGuardrails: [qualityGuardrail],
+    throwOnBlocked: false,
+    replaceOnBlocked: true,
+    // The default retry auto-builds a corrective prompt from the guardrail
+    // message; pass `retry.buildRetryParams` to customise.
+    retry: { maxRetries: 2 },
+  }),
+  instructions: `You are an expert research assistant. Your job is to:
 
 1. Use the search tool to find information
 2. Use the analysis tool to process results
@@ -131,24 +138,13 @@ const researchAgent = withAgentGuardrails(
 4. Always cite your sources
 
 Be thorough and accurate in your research.`,
-    tools: {
-      search: searchTool,
-      analyze: analysisTool,
-    },
-    stopWhen: stepCountIs(5), // Allow up to 5 steps for complex research
-    toolChoice: 'auto', // Let the agent decide when to use tools
+  tools: {
+    search: searchTool,
+    analyze: analysisTool,
   },
-  {
-    outputGuardrails: [qualityGuardrail],
-    throwOnBlocked: false,
-    replaceOnBlocked: true,
-    retry: {
-      maxRetries: 2,
-      buildRetryPrompt: ({ lastPrompt, reason }) =>
-        `${lastPrompt}\n\nPlease provide a more detailed response with proper citations. Reason: ${reason}`,
-    },
-  },
-);
+  stopWhen: stepCountIs(5), // Allow up to 5 steps for complex research
+  toolChoice: 'auto', // Let the agent decide when to use tools
+});
 
 console.log('🔬 Starting research task...\n');
 

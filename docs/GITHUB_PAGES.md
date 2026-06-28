@@ -47,4 +47,3 @@ cd docs
 pnpm build
 # The dist/ folder contains the built site
 ```
-

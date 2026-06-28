@@ -177,7 +177,8 @@ const socialMediaFilter = defineOutputGuardrail({
 });
 
 // Create protected models with guardrails
-const messageModel = withGuardrails(model, {
+const messageModel = withGuardrails({
+  model,
   outputGuardrails: [messageContentFilter],
   throwOnBlocked: false, // Warning mode to see all issues
   onOutputBlocked: (executionSummary) => {
@@ -197,7 +198,8 @@ const messageModel = withGuardrails(model, {
   },
 });
 
-const socialModel = withGuardrails(model, {
+const socialModel = withGuardrails({
+  model,
   outputGuardrails: [socialMediaFilter],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {
@@ -297,7 +299,9 @@ try {
 }
 
 console.log('\n📊 Summary:');
-console.log('• Use executeOutputGuardrails() for generateText + Output.object() validation');
+console.log(
+  '• Use executeOutputGuardrails() for generateText + Output.object() validation',
+);
 console.log('• Filter object content for spam, inappropriate language');
 console.log('• Check for platform-specific violations');
 console.log('• Validate content quality and authenticity');

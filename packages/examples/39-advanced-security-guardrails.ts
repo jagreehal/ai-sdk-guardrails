@@ -7,14 +7,15 @@ import {
   toolEgressPolicy,
   costQuotaRails,
   retryAfterIntegration,
-} from '../src';
+} from 'ai-sdk-guardrails';
 import { model } from './model';
 
 console.log('🔒 Advanced Security Guardrails Demo');
 console.log('====================================\n');
 
 // Configure the model with advanced security guardrails
-const secureModel = withGuardrails(model, {
+const secureModel = withGuardrails({
+  model,
   outputGuardrails: [
     // Secret redaction - prevents leaking API keys, tokens, etc.
     secretRedaction,

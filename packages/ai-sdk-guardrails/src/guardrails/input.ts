@@ -1,5 +1,9 @@
 import { createInputGuardrail, type InputGuardrail } from '../core';
 import type { InputGuardrailContext } from '../types';
+import {
+  normalizeForDetection,
+  type DetectNormalizationOptions,
+} from './normalization';
 
 // Standardized severity levels
 const SEVERITY_LEVELS = {
@@ -718,12 +722,22 @@ export const customValidation = (
 export interface PromptInjectionOptions {
   threshold?: number;
   includeExamples?: boolean;
+  /**
+   * Normalize input before matching to defeat obfuscation (homoglyphs,
+   * zero-width characters, leetspeak, spaced letters, typos). Enabled by
+   * default. Pass `false` to match raw text, or an object to tune stages.
+   */
+  normalize?: boolean | DetectNormalizationOptions;
 }
 
 export const promptInjectionDetector = (
   options: PromptInjectionOptions = {},
 ): InputGuardrail => {
-  const { threshold = 0.5, includeExamples = false } = options;
+  const {
+    threshold = 0.5,
+    includeExamples = false,
+    normalize = true,
+  } = options;
 
   // Precompiled patterns with confidence weights
   const injectionPatterns = [
@@ -834,6 +848,61 @@ export const promptInjectionDetector = (
       weight: 0.7,
       example: 'hidden in tool response',
     },
+    // Tool-hijacking / exfiltration indicators (data-exfil & SSRF in tool args)
+    {
+      pattern: /169\.254\.169\.254/,
+      weight: 0.9,
+      example: 'cloud metadata SSRF (169.254.169.254)',
+    },
+    {
+      pattern: /\/etc\/(?:passwd|shadow)\b/,
+      weight: 0.9,
+      example: 'read /etc/passwd',
+    },
+    {
+      pattern: /~\/\.ssh\/(?:id_rsa|authorized_keys)/,
+      weight: 0.9,
+      example: 'exfiltrate ssh keys',
+    },
+    {
+      pattern: /\$\((?:whoami|hostname|printenv|cat\s)/i,
+      weight: 0.85,
+      example: 'command substitution $(whoami)',
+    },
+    {
+      pattern: /\/dev\/tcp\//,
+      weight: 0.85,
+      example: 'reverse shell /dev/tcp/',
+    },
+    // Protocol / context spoofing (MCP, editor rules files)
+    {
+      pattern: /\[\s*mcp\s+context\s+update\s*\]/i,
+      weight: 0.85,
+      example: '[MCP Context Update]',
+    },
+    {
+      pattern: /\.cursorrules\s+file\s+says/i,
+      weight: 0.8,
+      example: '.cursorrules file says',
+    },
+    // Chat-template delimiter injection — smuggling fake role/system turns.
+    {
+      pattern: /<\|(?:im_start|im_end|system|end|endoftext)\|>/i,
+      weight: 0.85,
+      example: '<|im_start|>system',
+    },
+    { pattern: /\[\/?INST\]/i, weight: 0.8, example: '[INST] ... [/INST]' },
+    { pattern: /<<\/?SYS>>/i, weight: 0.85, example: '<<SYS>>' },
+    {
+      pattern: /```\s*system\b/i,
+      weight: 0.8,
+      example: '```system fenced block',
+    },
+    {
+      pattern: /###\s*(?:system|instruction|human|assistant)\s*:/i,
+      weight: 0.75,
+      example: '### System:',
+    },
   ] as const;
 
   return createInputGuardrail(
@@ -841,9 +910,19 @@ export const promptInjectionDetector = (
     'Detects potential prompt injection attempts with confidence scoring',
     (context) => {
       const content = extractTextContent(context);
+      // Normalization is additive: a pattern matches if it hits either the raw
+      // or the normalized text, so de-obfuscation never *loses* a detection
+      // (e.g. leetspeak decoding must not mangle a literal IP like 169.254.x.x).
+      const rawText = content.allText;
+      const scanText =
+        normalize === false
+          ? rawText
+          : normalizeForDetection(rawText, normalize);
 
       const detectedPatterns = injectionPatterns
-        .filter(({ pattern }) => pattern.test(content.allText))
+        .filter(
+          ({ pattern }) => pattern.test(scanText) || pattern.test(rawText),
+        )
         .map(({ pattern, weight, example }) => ({
           pattern: pattern.source,
           weight,
@@ -885,6 +964,80 @@ export const promptInjectionDetector = (
           confidence,
           threshold,
           detectedPatternsCount: detectedPatterns.length,
+        },
+      };
+    },
+  );
+};
+
+// Shannon entropy in bits/char — high values flag encoded/obfuscated payloads.
+function shannonEntropy(text: string): number {
+  const freq = new Map<string, number>();
+  for (const char of text) {
+    freq.set(char, (freq.get(char) ?? 0) + 1);
+  }
+  let entropy = 0;
+  const len = text.length;
+  for (const count of freq.values()) {
+    const p = count / len;
+    if (p > 0) entropy -= p * Math.log2(p);
+  }
+  return entropy;
+}
+
+export interface HighEntropyOptions {
+  /** Bits/char at or above which input is flagged. Default 4.5. */
+  threshold?: number;
+  /** Skip strings shorter than this (entropy is noisy on short text). Default 40. */
+  minLength?: number;
+  severity?: SeverityLevel;
+}
+
+/**
+ * Flags input whose Shannon entropy is abnormally high — a signal of encoded or
+ * obfuscated payloads (base64 blobs, ciphertext, packed data) smuggled into a
+ * prompt. Natural language sits well below the default threshold.
+ *
+ * @example
+ * withGuardrails({ model, inputGuardrails: [highEntropyDetector()] });
+ */
+export const highEntropyDetector = (
+  options: HighEntropyOptions = {},
+): InputGuardrail => {
+  const {
+    threshold = 4.5,
+    minLength = 40,
+    severity = SEVERITY_LEVELS.MEDIUM,
+  } = options;
+
+  return createInputGuardrail(
+    'high-entropy-detector',
+    'Flags abnormally high-entropy input (likely encoded/obfuscated payloads)',
+    (context) => {
+      const { allText } = extractTextContent(context);
+
+      if (allText.length < minLength) {
+        return { tripwireTriggered: false };
+      }
+
+      const entropy = shannonEntropy(allText);
+      const triggered = entropy >= threshold;
+
+      return {
+        tripwireTriggered: triggered,
+        message: triggered
+          ? `High-entropy input (${entropy.toFixed(2)} bits/char ≥ ${threshold}) — possible encoded or obfuscated payload`
+          : undefined,
+        severity,
+        metadata: {
+          entropy,
+          threshold,
+          length: allText.length,
+        },
+        info: {
+          guardrailName: 'high-entropy-detector',
+          entropy,
+          threshold,
         },
       };
     },

@@ -19,7 +19,7 @@ import {
   defineOutputGuardrail,
   withGuardrails,
 } from 'ai-sdk-guardrails';
-import { isGuardrailsError } from '../src';
+import { isGuardrailsError } from 'ai-sdk-guardrails';
 import { extractTextContent } from 'ai-sdk-guardrails/guardrails/input';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
@@ -320,7 +320,8 @@ const weatherResponseValidator = defineOutputGuardrail({
 // =============================================================================
 
 // Create the protected weather assistant
-const weatherAssistant = withGuardrails(model, {
+const weatherAssistant = withGuardrails({
+  model,
   inputGuardrails: [
     lengthLimit, // Fast check first
     injectionDetector, // Security check
@@ -351,7 +352,8 @@ const weatherAssistant = withGuardrails(model, {
 });
 
 // Auto-retry version for demonstration (output-level retry)
-const weatherAssistantWithRetry = withGuardrails(model, {
+const weatherAssistantWithRetry = withGuardrails({
+  model,
   inputGuardrails: [
     lengthLimit,
     injectionDetector,

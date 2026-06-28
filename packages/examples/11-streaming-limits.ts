@@ -81,7 +81,8 @@ async function demonstrateStreamingWithLimits() {
   console.log('📊 Streaming with Length Limits');
   console.log('================================\n');
 
-  const limitedModel = withGuardrails(model, {
+  const limitedModel = withGuardrails({
+    model,
     outputGuardrails: [streamLengthGuardrail],
     throwOnBlocked: false, // Use warning mode for streaming
     onOutputBlocked: (executionSummary) => {
@@ -143,7 +144,8 @@ async function demonstrateStreamingContentFilter() {
   console.log('🔍 Streaming Content Filtering');
   console.log('==============================\n');
 
-  const filteredModel = withGuardrails(model, {
+  const filteredModel = withGuardrails({
+    model,
     outputGuardrails: [streamContentFilter],
     throwOnBlocked: false,
     onOutputBlocked: (executionSummary) => {
@@ -183,7 +185,8 @@ async function demonstrateBlockingMode() {
     'Note: Stream completes, then guardrails evaluate the full content\n',
   );
 
-  const blockingModel = withGuardrails(model, {
+  const blockingModel = withGuardrails({
+    model,
     outputGuardrails: [streamLengthGuardrail],
     throwOnBlocked: true, // Blocking mode
     onOutputBlocked: (executionSummary) => {

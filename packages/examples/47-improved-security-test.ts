@@ -16,7 +16,8 @@ import {
 console.log('🔧 Testing Improved Security Configuration\n');
 
 // Improved configuration based on validation results
-const improvedProtectedModel = withGuardrails(model, {
+const improvedProtectedModel = withGuardrails({
+  model,
   inputGuardrails: [
     promptInjectionDetector({
       threshold: 0.8, // Higher threshold to reduce false positives
@@ -103,7 +104,8 @@ async function testImprovedSecurity() {
 async function demonstrateImprovements() {
   console.log('📊 Configuration Comparison\n');
 
-  const originalModel = withGuardrails(model, {
+  const originalModel = withGuardrails({
+    model,
     inputGuardrails: [
       promptInjectionDetector({
         threshold: 0.6, // Original lower threshold

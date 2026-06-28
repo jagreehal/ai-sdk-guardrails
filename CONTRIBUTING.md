@@ -13,12 +13,14 @@ Thank you for your interest in contributing to AI SDK Guardrails! We welcome con
 
 1. Fork the repository
 2. Clone your fork:
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/ai-sdk-guardrails.git
    cd ai-sdk-guardrails
    ```
 
 3. Install dependencies:
+
    ```bash
    pnpm install
    ```
@@ -33,6 +35,7 @@ Thank you for your interest in contributing to AI SDK Guardrails! We welcome con
 ### Making Changes
 
 1. Create a new branch:
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -43,11 +46,13 @@ Thank you for your interest in contributing to AI SDK Guardrails! We welcome con
    - Documentation: `docs/`
 
 3. Run tests:
+
    ```bash
    pnpm test
    ```
 
 4. Run type checking:
+
    ```bash
    pnpm type-check
    ```
@@ -138,6 +143,7 @@ When adding a new guardrail:
 We use changesets for version management. When making changes that affect the published package:
 
 1. Add a changeset:
+
    ```bash
    pnpm changeset
    ```

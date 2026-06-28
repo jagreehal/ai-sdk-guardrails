@@ -5,7 +5,7 @@ import type {
   OutputGuardrailContext,
   GuardrailExecutionSummary,
   OutputGuardrail,
-} from '../src/types';
+} from 'ai-sdk-guardrails';
 import { extractTextContent } from 'ai-sdk-guardrails/guardrails/input';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 import { Factuality, init } from 'autoevals';
@@ -104,7 +104,8 @@ async function example1_FactualityCorrect() {
     minScore: 0.4,
   });
 
-  const protectedModel = withGuardrails(model, {
+  const protectedModel = withGuardrails({
+    model,
     outputGuardrails: [factualityGuardrail],
     throwOnBlocked: false,
     onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {
@@ -149,7 +150,8 @@ async function example2_FactualityIncorrect() {
     minScore: 0.4,
   });
 
-  const protectedModel = withGuardrails(model, {
+  const protectedModel = withGuardrails({
+    model,
     outputGuardrails: [factualityGuardrail],
     throwOnBlocked: true, // Will throw error when factuality check fails
   });
@@ -187,7 +189,8 @@ async function example3_FactualityNonBlocking() {
     minScore: 0.4,
   });
 
-  const protectedModel = withGuardrails(model, {
+  const protectedModel = withGuardrails({
+    model,
     outputGuardrails: [factualityGuardrail],
     throwOnBlocked: false, // Only logs, doesn't block
     onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {
@@ -263,7 +266,8 @@ async function example4_MultipleFactuality() {
     },
   });
 
-  const protectedModel = withGuardrails(model, {
+  const protectedModel = withGuardrails({
+    model,
     outputGuardrails: [
       populationGuardrail,
       capitalGuardrail,
@@ -361,7 +365,8 @@ async function example5_CustomEvaluation() {
     },
   });
 
-  const protectedModel = withGuardrails(model, {
+  const protectedModel = withGuardrails({
+    model,
     outputGuardrails: [responseQualityGuardrail],
     throwOnBlocked: false,
     onOutputBlocked: (executionSummary: GuardrailExecutionSummary) => {

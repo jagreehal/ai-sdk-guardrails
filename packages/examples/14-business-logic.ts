@@ -12,7 +12,7 @@ import {
   defineOutputGuardrail,
   withGuardrails,
 } from 'ai-sdk-guardrails';
-import type { InputGuardrail } from '../src/types';
+import type { InputGuardrail } from 'ai-sdk-guardrails';
 import { extractTextContent } from 'ai-sdk-guardrails/guardrails/input';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
@@ -208,7 +208,8 @@ const demoBusinessHours = defineInputGuardrail({
   },
 });
 
-const businessHoursModel = withGuardrails(model, {
+const businessHoursModel = withGuardrails({
+  model,
   inputGuardrails: [demoBusinessHours],
   throwOnBlocked: false,
   onInputBlocked: (executionSummary) => {
@@ -237,7 +238,8 @@ try {
 console.log('Example 2: Professional Communication Standards');
 console.log('=============================================\n');
 
-const professionalModel = withGuardrails(model, {
+const professionalModel = withGuardrails({
+  model,
   outputGuardrails: [professionalToneGuardrail],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {
@@ -267,7 +269,8 @@ try {
 console.log('Example 3: Cost Control and Budget Management');
 console.log('============================================\n');
 
-const costControlModel = withGuardrails(model, {
+const costControlModel = withGuardrails({
+  model,
   inputGuardrails: [costControlGuardrail],
   throwOnBlocked: false,
   onInputBlocked: (executionSummary) => {
@@ -300,7 +303,8 @@ try {
 console.log('Example 4: Combined Business Guardrails');
 console.log('======================================\n');
 
-const businessModel = withGuardrails(model, {
+const businessModel = withGuardrails({
+  model,
   inputGuardrails: [
     businessContentGuardrail,
     dataComplianceGuardrail,

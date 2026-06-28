@@ -135,17 +135,50 @@ const parameterValidationGuardrail = defineOutputGuardrail<{
 });
 
 describe('Tool Parameter Validation Example', () => {
-  it(
-    'should allow valid parameters to pass',
-    async () => {
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [parameterValidationGuardrail],
-        throwOnBlocked: false,
-      });
+  it('should allow valid parameters to pass', async () => {
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [parameterValidationGuardrail],
+      throwOnBlocked: false,
+    });
 
-      const result = await generateText({
+    const result = await generateText({
+      model: protectedModel,
+      prompt: 'Get weather for London in celsius',
+      output: Output.object({
+        schema: z.object({
+          weather: z.object({
+            function: z.literal('getWeather'),
+            arguments: z.object({
+              location: z.string(),
+              units: z.enum(['celsius', 'fahrenheit']),
+            }),
+          }),
+        }),
+      }),
+    });
+
+    expect(result.output).toBeDefined();
+  }, 120000);
+
+  it('should block invalid parameters that violate schema', async () => {
+    let blockedMessage: string | undefined;
+    let blockedMetadata: any;
+
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [parameterValidationGuardrail],
+      throwOnBlocked: true,
+      onOutputBlocked: (executionSummary) => {
+        blockedMessage = executionSummary.blockedResults[0]?.message;
+        blockedMetadata = executionSummary.blockedResults[0]?.metadata;
+      },
+    });
+
+    try {
+      await generateText({
         model: protectedModel,
-        prompt: 'Get weather for London in celsius',
+        prompt: 'Get weather for a very long location name',
         output: Output.object({
           schema: z.object({
             weather: z.object({
@@ -158,68 +191,61 @@ describe('Tool Parameter Validation Example', () => {
           }),
         }),
       });
-
-      expect(result.output).toBeDefined();
-    },
-    120000,
-  );
-
-  it(
-    'should block invalid parameters that violate schema',
-    async () => {
-      let blockedMessage: string | undefined;
-      let blockedMetadata: any;
-
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [parameterValidationGuardrail],
-        throwOnBlocked: true,
-        onOutputBlocked: (executionSummary) => {
-          blockedMessage = executionSummary.blockedResults[0]?.message;
-          blockedMetadata = executionSummary.blockedResults[0]?.metadata;
-        },
-      });
-
-      try {
-        await generateText({
-          model: protectedModel,
-          prompt: 'Get weather for a very long location name',
-          output: Output.object({
-            schema: z.object({
-              weather: z.object({
-                function: z.literal('getWeather'),
-                arguments: z.object({
-                  location: z.string(),
-                  units: z.enum(['celsius', 'fahrenheit']),
-                }),
-              }),
-            }),
-          }),
-        });
-        // If generation succeeds, guardrail should still validate
-      } catch (error) {
-        expect(String(error)).toBeDefined();
-        if (blockedMessage) {
-          expect(blockedMessage).toContain('Parameter validation failed');
-          if (blockedMetadata?.errors) {
-            expect(Array.isArray(blockedMetadata.errors)).toBe(true);
-          }
+      // If generation succeeds, guardrail should still validate
+    } catch (error) {
+      expect(String(error)).toBeDefined();
+      if (blockedMessage) {
+        expect(blockedMessage).toContain('Parameter validation failed');
+        if (blockedMetadata?.errors) {
+          expect(Array.isArray(blockedMetadata.errors)).toBe(true);
         }
       }
-    },
-    120000,
-  );
+    }
+  }, 120000);
 
-  it(
-    'should validate file paths against restrictions',
-    async () => {
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [parameterValidationGuardrail],
-        throwOnBlocked: false,
-      });
+  it('should validate file paths against restrictions', async () => {
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [parameterValidationGuardrail],
+      throwOnBlocked: false,
+    });
 
-      const result = await generateText({
+    const result = await generateText({
+      model: protectedModel,
+      prompt: 'Read a file from the public directory',
+      output: Output.object({
+        schema: z.object({
+          fileRead: z.object({
+            function: z.literal('readFile'),
+            arguments: z.object({
+              path: z.string(),
+            }),
+          }),
+        }),
+      }),
+    });
+
+    expect(result.output).toBeDefined();
+  }, 120000);
+
+  it('should block invalid file paths', async () => {
+    let blockedMessage: string | undefined;
+    let blockedMetadata: any;
+
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [parameterValidationGuardrail],
+      throwOnBlocked: true,
+      onOutputBlocked: (executionSummary) => {
+        blockedMessage = executionSummary.blockedResults[0]?.message;
+        blockedMetadata = executionSummary.blockedResults[0]?.metadata;
+      },
+    });
+
+    try {
+      await generateText({
         model: protectedModel,
-        prompt: 'Read a file from the public directory',
+        prompt: 'Read /etc/passwd file',
         output: Output.object({
           schema: z.object({
             fileRead: z.object({
@@ -231,135 +257,91 @@ describe('Tool Parameter Validation Example', () => {
           }),
         }),
       });
-
-      expect(result.output).toBeDefined();
-    },
-    120000,
-  );
-
-  it(
-    'should block invalid file paths',
-    async () => {
-      let blockedMessage: string | undefined;
-      let blockedMetadata: any;
-
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [parameterValidationGuardrail],
-        throwOnBlocked: true,
-        onOutputBlocked: (executionSummary) => {
-          blockedMessage = executionSummary.blockedResults[0]?.message;
-          blockedMetadata = executionSummary.blockedResults[0]?.metadata;
-        },
-      });
-
-      try {
-        await generateText({
-          model: protectedModel,
-          prompt: 'Read /etc/passwd file',
-          output: Output.object({
-            schema: z.object({
-              fileRead: z.object({
-                function: z.literal('readFile'),
-                arguments: z.object({
-                  path: z.string(),
-                }),
-              }),
-            }),
-          }),
-        });
-      } catch (error) {
-        expect(String(error)).toBeDefined();
-        if (blockedMessage) {
-          expect(blockedMessage).toContain('Parameter validation failed');
-          if (blockedMetadata?.errors) {
-            expect(blockedMetadata.errors.length).toBeGreaterThan(0);
-          }
+    } catch (error) {
+      expect(String(error)).toBeDefined();
+      if (blockedMessage) {
+        expect(blockedMessage).toContain('Parameter validation failed');
+        if (blockedMetadata?.errors) {
+          expect(blockedMetadata.errors.length).toBeGreaterThan(0);
         }
       }
-    },
-    120000,
-  );
+    }
+  }, 120000);
 
-  it(
-    'should provide correct metadata when validation fails',
-    async () => {
-      let blockedMetadata: any;
+  it('should provide correct metadata when validation fails', async () => {
+    let blockedMetadata: any;
 
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [parameterValidationGuardrail],
-        throwOnBlocked: true,
-        onOutputBlocked: (executionSummary) => {
-          blockedMetadata = executionSummary.blockedResults[0]?.metadata;
-        },
-      });
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [parameterValidationGuardrail],
+      throwOnBlocked: true,
+      onOutputBlocked: (executionSummary) => {
+        blockedMetadata = executionSummary.blockedResults[0]?.metadata;
+      },
+    });
 
-      try {
-        await generateText({
-          model: protectedModel,
-          prompt: 'Read a file from restricted directory',
-          output: Output.object({
-            schema: z.object({
-              fileRead: z.object({
-                function: z.literal('readFile'),
-                arguments: z.object({
-                  path: z.string(),
-                }),
+    try {
+      await generateText({
+        model: protectedModel,
+        prompt: 'Read a file from restricted directory',
+        output: Output.object({
+          schema: z.object({
+            fileRead: z.object({
+              function: z.literal('readFile'),
+              arguments: z.object({
+                path: z.string(),
               }),
             }),
           }),
-        });
-      } catch (error) {
-        expect(error).toBeDefined();
+        }),
+      });
+    } catch (error) {
+      expect(error).toBeDefined();
+      if (blockedMetadata) {
+        expect(blockedMetadata.functionName).toBe('readFile');
+        expect(blockedMetadata.errors).toBeDefined();
+        expect(Array.isArray(blockedMetadata.errors)).toBe(true);
+        expect(blockedMetadata.invalidParameters).toBeDefined();
+      }
+    }
+  }, 120000);
+
+  it('should block functions without schemas', async () => {
+    let blockedMessage: string | undefined;
+    let blockedMetadata: any;
+
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [parameterValidationGuardrail],
+      throwOnBlocked: true,
+      onOutputBlocked: (executionSummary) => {
+        blockedMessage = executionSummary.blockedResults[0]?.message;
+        blockedMetadata = executionSummary.blockedResults[0]?.metadata;
+      },
+    });
+
+    try {
+      await generateText({
+        model: protectedModel,
+        prompt: 'Call an undefined function',
+        output: Output.object({
+          schema: z.object({
+            operation: z.object({
+              function: z.literal('undefinedFunction'),
+              arguments: z.object({}),
+            }),
+          }),
+        }),
+      });
+    } catch (error) {
+      expect(String(error)).toBeDefined();
+      if (blockedMessage) {
+        expect(blockedMessage).toContain('has no parameter schema defined');
         if (blockedMetadata) {
-          expect(blockedMetadata.functionName).toBe('readFile');
-          expect(blockedMetadata.errors).toBeDefined();
-          expect(Array.isArray(blockedMetadata.errors)).toBe(true);
-          expect(blockedMetadata.invalidParameters).toBeDefined();
+          expect(blockedMetadata.availableFunctions).toBeDefined();
+          expect(Array.isArray(blockedMetadata.availableFunctions)).toBe(true);
         }
       }
-    },
-    120000,
-  );
-
-  it(
-    'should block functions without schemas',
-    async () => {
-      let blockedMessage: string | undefined;
-      let blockedMetadata: any;
-
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [parameterValidationGuardrail],
-        throwOnBlocked: true,
-        onOutputBlocked: (executionSummary) => {
-          blockedMessage = executionSummary.blockedResults[0]?.message;
-          blockedMetadata = executionSummary.blockedResults[0]?.metadata;
-        },
-      });
-
-      try {
-        await generateText({
-          model: protectedModel,
-          prompt: 'Call an undefined function',
-          output: Output.object({
-            schema: z.object({
-              operation: z.object({
-                function: z.literal('undefinedFunction'),
-                arguments: z.object({}),
-              }),
-            }),
-          }),
-        });
-      } catch (error) {
-        expect(String(error)).toBeDefined();
-        if (blockedMessage) {
-          expect(blockedMessage).toContain('has no parameter schema defined');
-          if (blockedMetadata) {
-            expect(blockedMetadata.availableFunctions).toBeDefined();
-            expect(Array.isArray(blockedMetadata.availableFunctions)).toBe(true);
-          }
-        }
-      }
-    },
-    120000,
-  );
+    }
+  }, 120000);
 });

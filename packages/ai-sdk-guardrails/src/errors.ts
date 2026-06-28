@@ -1,21 +1,33 @@
+import { AISDKError } from '@ai-sdk/provider';
+
+// Marker symbol for cross-version `instanceof`-free detection, mirroring the AI
+// SDK's own error convention (see `AISDKError`). Any GuardrailsError is also an
+// AISDKError, so `AISDKError.isInstance(err)` catches guardrail errors too.
+const marker = 'ai-sdk-guardrails.error';
+const symbol = Symbol.for(marker);
+
 /**
- * Base class for all guardrails-related errors.
- * Provides a foundation for the hierarchical error system.
+ * Base class for all guardrails-related errors. Extends the AI SDK's
+ * {@link AISDKError} so guardrail failures sit in the same error hierarchy as the
+ * rest of the SDK and are catchable via `AISDKError.isInstance(err)`.
  */
-export abstract class GuardrailsError extends Error {
-  abstract override readonly name: string;
+export abstract class GuardrailsError extends AISDKError {
+  private readonly [symbol] = true; // used in isInstance
+
   abstract readonly code: string;
 
   public readonly timestamp: Date;
   public readonly metadata: Record<string, unknown>;
 
-  constructor(message: string, metadata: Record<string, unknown> = {}) {
-    super(message);
+  constructor(
+    name: string,
+    message: string,
+    metadata: Record<string, unknown> = {},
+    cause?: unknown,
+  ) {
+    super({ name, message, cause });
     this.timestamp = new Date();
     this.metadata = metadata;
-
-    // Ensure the name is set correctly for stack traces
-    Object.setPrototypeOf(this, new.target.prototype);
   }
 
   /**
@@ -33,12 +45,20 @@ export abstract class GuardrailsError extends Error {
   }
 
   /**
-   * Check if this error is of a specific type
+   * Check if this error is of a specific guardrails error subclass.
    */
   is<T extends GuardrailsError>(
     errorClass: new (...args: any[]) => T,
   ): this is T {
     return this instanceof errorClass;
+  }
+
+  /**
+   * Checks whether the given value is a guardrails error, across package
+   * versions (marker-based, like `AISDKError.isInstance`).
+   */
+  static override isInstance(error: unknown): error is GuardrailsError {
+    return AISDKError.hasMarker(error, marker);
   }
 }
 
@@ -46,7 +66,6 @@ export abstract class GuardrailsError extends Error {
  * Thrown when guardrail validation fails
  */
 export class GuardrailValidationError extends GuardrailsError {
-  override readonly name = 'GuardrailValidationError';
   readonly code = 'GUARDRAIL_VALIDATION_FAILED';
 
   public readonly guardrailName: string;
@@ -58,7 +77,11 @@ export class GuardrailValidationError extends GuardrailsError {
     metadata: Record<string, unknown> = {},
   ) {
     const message = `Guardrail "${guardrailName}" validation failed: ${validationErrors.map((e) => e.message).join(', ')}`;
-    super(message, { ...metadata, guardrailName, validationErrors });
+    super('GuardrailValidationError', message, {
+      ...metadata,
+      guardrailName,
+      validationErrors,
+    });
 
     this.guardrailName = guardrailName;
     this.validationErrors = validationErrors;
@@ -69,7 +92,6 @@ export class GuardrailValidationError extends GuardrailsError {
  * Thrown when guardrail execution encounters an error
  */
 export class GuardrailExecutionError extends GuardrailsError {
-  override readonly name = 'GuardrailExecutionError';
   readonly code = 'GUARDRAIL_EXECUTION_FAILED';
 
   public readonly guardrailName: string;
@@ -84,11 +106,12 @@ export class GuardrailExecutionError extends GuardrailsError {
       ? `Guardrail "${guardrailName}" execution failed: ${originalError.message}`
       : `Guardrail "${guardrailName}" execution failed`;
 
-    super(message, {
-      ...metadata,
-      guardrailName,
-      originalError: originalError?.message,
-    });
+    super(
+      'GuardrailExecutionError',
+      message,
+      { ...metadata, guardrailName, originalError: originalError?.message },
+      originalError,
+    );
 
     this.guardrailName = guardrailName;
     this.originalError = originalError;
@@ -99,7 +122,6 @@ export class GuardrailExecutionError extends GuardrailsError {
  * Thrown when a guardrail times out during execution
  */
 export class GuardrailTimeoutError extends GuardrailsError {
-  override readonly name = 'GuardrailTimeoutError';
   readonly code = 'GUARDRAIL_TIMEOUT';
 
   public readonly guardrailName: string;
@@ -111,7 +133,11 @@ export class GuardrailTimeoutError extends GuardrailsError {
     metadata: Record<string, unknown> = {},
   ) {
     const message = `Guardrail "${guardrailName}" timed out after ${timeoutMs}ms`;
-    super(message, { ...metadata, guardrailName, timeoutMs });
+    super('GuardrailTimeoutError', message, {
+      ...metadata,
+      guardrailName,
+      timeoutMs,
+    });
 
     this.guardrailName = guardrailName;
     this.timeoutMs = timeoutMs;
@@ -122,7 +148,6 @@ export class GuardrailTimeoutError extends GuardrailsError {
  * Thrown when guardrail configuration is invalid
  */
 export class GuardrailConfigurationError extends GuardrailsError {
-  override readonly name = 'GuardrailConfigurationError';
   readonly code = 'GUARDRAIL_CONFIG_INVALID';
 
   public readonly configPath?: string;
@@ -134,7 +159,11 @@ export class GuardrailConfigurationError extends GuardrailsError {
     metadata: Record<string, unknown> = {},
   ) {
     const message = `Guardrail configuration error${configPath ? ` in ${configPath}` : ''}: ${configErrors.join(', ')}`;
-    super(message, { ...metadata, configPath, configErrors });
+    super('GuardrailConfigurationError', message, {
+      ...metadata,
+      configPath,
+      configErrors,
+    });
 
     this.configPath = configPath;
     this.configErrors = configErrors;
@@ -145,7 +174,6 @@ export class GuardrailConfigurationError extends GuardrailsError {
  * Thrown when input to guardrails is blocked/rejected
  */
 export class GuardrailsInputError extends GuardrailsError {
-  override readonly name = 'GuardrailsInputError';
   readonly code = 'INPUT_BLOCKED';
 
   public readonly blockedGuardrails: Array<{
@@ -160,7 +188,7 @@ export class GuardrailsInputError extends GuardrailsError {
   ) {
     const guardrailNames = blockedGuardrails.map((g) => g.name).join(', ');
     const message = `Input blocked by guardrail${blockedGuardrails.length > 1 ? 's' : ''}: ${guardrailNames}`;
-    super(message, { ...metadata, blockedGuardrails });
+    super('GuardrailsInputError', message, { ...metadata, blockedGuardrails });
 
     this.blockedGuardrails = blockedGuardrails;
   }
@@ -170,7 +198,6 @@ export class GuardrailsInputError extends GuardrailsError {
  * Thrown when output from AI model is blocked/rejected
  */
 export class GuardrailsOutputError extends GuardrailsError {
-  override readonly name = 'GuardrailsOutputError';
   readonly code = 'OUTPUT_BLOCKED';
 
   public readonly blockedGuardrails: Array<{
@@ -185,7 +212,7 @@ export class GuardrailsOutputError extends GuardrailsError {
   ) {
     const guardrailNames = blockedGuardrails.map((g) => g.name).join(', ');
     const message = `Output blocked by guardrail${blockedGuardrails.length > 1 ? 's' : ''}: ${guardrailNames}`;
-    super(message, { ...metadata, blockedGuardrails });
+    super('GuardrailsOutputError', message, { ...metadata, blockedGuardrails });
 
     this.blockedGuardrails = blockedGuardrails;
   }
@@ -195,7 +222,6 @@ export class GuardrailsOutputError extends GuardrailsError {
  * Thrown when middleware encounters an error
  */
 export class MiddlewareError extends GuardrailsError {
-  override readonly name = 'MiddlewareError';
   readonly code = 'MIDDLEWARE_ERROR';
 
   public readonly middlewareType: 'input' | 'output';
@@ -212,12 +238,17 @@ export class MiddlewareError extends GuardrailsError {
       ? `${middlewareType} middleware ${phase} error: ${originalError.message}`
       : `${middlewareType} middleware ${phase} error`;
 
-    super(message, {
-      ...metadata,
-      middlewareType,
-      phase,
-      originalError: originalError?.message,
-    });
+    super(
+      'MiddlewareError',
+      message,
+      {
+        ...metadata,
+        middlewareType,
+        phase,
+        originalError: originalError?.message,
+      },
+      originalError,
+    );
 
     this.middlewareType = middlewareType;
     this.phase = phase;
@@ -236,10 +267,11 @@ export interface ValidationError {
 }
 
 /**
- * Utility function to check if an error is a guardrails error
+ * Utility function to check if an error is a guardrails error.
+ * Equivalent to {@link GuardrailsError.isInstance}.
  */
 export function isGuardrailsError(error: unknown): error is GuardrailsError {
-  return error instanceof GuardrailsError;
+  return GuardrailsError.isInstance(error);
 }
 
 /**

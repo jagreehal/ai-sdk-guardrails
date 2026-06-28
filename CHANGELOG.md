@@ -45,7 +45,8 @@
 
   // Guardrails will use the same tracer and functionId automatically
   // You can still override with guardrail-specific settings:
-  const guardedModel = withGuardrails(model, {
+  const guardedModel = withGuardrails({
+    model,
     inputGuardrails: [piiDetector],
     executionOptions: {
       telemetry: {
