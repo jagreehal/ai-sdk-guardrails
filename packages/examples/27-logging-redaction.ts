@@ -755,7 +755,8 @@ const loggingRedactionOutputGuardrail = defineOutputGuardrail<{
 console.log('🛡️  Logging Redaction Example\n');
 
 // Create a protected model with logging redaction
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   inputGuardrails: [loggingRedactionInputGuardrail],
   outputGuardrails: [loggingRedactionOutputGuardrail],
   throwOnBlocked: false, // Don't throw, just redact

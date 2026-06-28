@@ -101,7 +101,8 @@ const outputLengthGuardrail = defineOutputGuardrail<{ length: number }>({
 
 describe('Simple Combined Protection Example', () => {
   it('should allow normal request to pass all guardrails', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [lengthGuardrail, keywordGuardrail] as const,
       outputGuardrails: [outputLengthGuardrail],
       throwOnBlocked: false,
@@ -117,14 +118,17 @@ describe('Simple Combined Protection Example', () => {
   });
 
   it('should block long input with length guardrail', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [lengthGuardrail, keywordGuardrail] as const,
       outputGuardrails: [outputLengthGuardrail],
       throwOnBlocked: true,
     });
 
     const longPrompt =
-      'This is a very long prompt that exceeds the character limit. '.repeat(10);
+      'This is a very long prompt that exceeds the character limit. '.repeat(
+        10,
+      );
 
     await expect(
       generateText({
@@ -135,7 +139,8 @@ describe('Simple Combined Protection Example', () => {
   });
 
   it('should block input containing harmful keyword', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [lengthGuardrail, keywordGuardrail] as const,
       outputGuardrails: [outputLengthGuardrail],
       throwOnBlocked: true,
@@ -152,7 +157,8 @@ describe('Simple Combined Protection Example', () => {
   it('should trigger output warning for brief response', async () => {
     let outputBlockedMessage: string | undefined;
 
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [lengthGuardrail, keywordGuardrail] as const,
       outputGuardrails: [outputLengthGuardrail],
       throwOnBlocked: false,
@@ -175,7 +181,8 @@ describe('Simple Combined Protection Example', () => {
   });
 
   it('should apply multiple input guardrails in sequence', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [lengthGuardrail, keywordGuardrail] as const,
       outputGuardrails: [outputLengthGuardrail],
       throwOnBlocked: true,
@@ -194,7 +201,8 @@ describe('Simple Combined Protection Example', () => {
   it('should provide correct metadata from blocked guardrails', async () => {
     let inputBlockedResults: any[] = [];
 
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [lengthGuardrail, keywordGuardrail] as const,
       outputGuardrails: [outputLengthGuardrail],
       throwOnBlocked: true,

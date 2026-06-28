@@ -139,7 +139,12 @@ function extractFromCandidateArrays(candidates: unknown[]): string[] {
   return names;
 }
 
-function tryHeuristicProviderExtraction(result: AIResult): string[] {
+/**
+ * Best-effort extraction of observed tool-call names from an AI result, checking
+ * the AI SDK `content` array, a `toolCalls` array, and common provider-metadata
+ * spots. Shared by the tool guardrails and the plan-risk guardrail.
+ */
+export function extractToolNamesFromResult(result: AIResult): string[] {
   const names = new Set<string>();
   const resultWithUnknownProps = result as AIResult & Record<string, unknown>;
   const md =
@@ -203,7 +208,7 @@ function extractProviderTools(
   if (mode === 'auto' || mode === 'provider') {
     const providerTools = providerExtractor
       ? providerExtractor(result)
-      : tryHeuristicProviderExtraction(result);
+      : extractToolNamesFromResult(result);
     if (providerTools.length > 0) {
       return { tools: providerTools, usedProvider: true };
     }

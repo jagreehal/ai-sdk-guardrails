@@ -471,7 +471,8 @@ const hallucinationDetectionGuardrail =
 console.log('🛡️  Hallucination Detection Example\n');
 
 // Create a protected model with hallucination detection
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   outputGuardrails: [hallucinationDetectionGuardrail],
   throwOnBlocked: true,
   onOutputBlocked: (executionSummary) => {
@@ -611,7 +612,8 @@ try {
 
 // Test 8: Warning mode with hedging suggestions
 console.log('Test 8: Warning mode with hedging suggestions');
-const warningModel = withGuardrails(model, {
+const warningModel = withGuardrails({
+  model,
   outputGuardrails: [hallucinationDetectionGuardrail],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {

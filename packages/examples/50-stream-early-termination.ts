@@ -45,7 +45,8 @@ const piiGuardrail = defineOutputGuardrail({
   },
 });
 
-const guardedStreamModel = withGuardrails(model, {
+const guardedStreamModel = withGuardrails({
+  model,
   outputGuardrails: [piiGuardrail],
   streamMode: 'progressive', // CRITICAL: Enable progressive evaluation
   stopOnGuardrailViolation: true, // Stop on 2 violations or any critical

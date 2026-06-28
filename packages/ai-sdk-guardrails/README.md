@@ -19,9 +19,7 @@ import { withGuardrails, piiDetector } from 'ai-sdk-guardrails';
 const model = openai('gpt-4o'); // or any other AI model
 
 // Everything else stays the same
-const safeModel = withGuardrails(model, {
-  inputGuardrails: [piiDetector()],
-});
+const safeModel = withGuardrails({ model, inputGuardrails: [piiDetector()] });
 
 // Your existing code, telemetry, and logging still works
 await generateText({ model: safeModel, prompt: '...' });
@@ -68,7 +66,8 @@ Real problems that guardrails solve:
 ✅ **With guardrails:**
 
 ```ts
-const model = withGuardrails(baseModel, {
+const model = withGuardrails({
+  model: baseModel,
   inputGuardrails: [piiDetector()], // Blocks before API call
 });
 // → Request blocked → No PII leak → No cost → Compliant
@@ -95,7 +94,8 @@ import {
   promptInjectionDetector,
 } from 'ai-sdk-guardrails';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector(), promptInjectionDetector()],
 });
 
@@ -116,7 +116,8 @@ import {
   minLengthRequirement,
 } from 'ai-sdk-guardrails';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector()], // Block PII in prompts
   outputGuardrails: [
     sensitiveDataFilter(), // Remove secrets from responses
@@ -130,7 +131,8 @@ const model = withGuardrails(openai('gpt-4o'), {
 ```ts
 import { streamText } from 'ai';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [minLengthRequirement(100)],
 });
 
@@ -146,7 +148,8 @@ for await (const chunk of textStream) {
 ```ts
 import { isGuardrailsError } from 'ai-sdk-guardrails';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector(), promptInjectionDetector()],
   outputGuardrails: [sensitiveDataFilter()],
   throwOnBlocked: true, // Throw errors instead of silent blocking
@@ -189,31 +192,33 @@ flowchart LR
 
 ### Input Guardrails (Run Before Model)
 
-| Guardrail                   | Purpose                          | Example             |
-| --------------------------- | -------------------------------- | ------------------- |
-| `piiDetector()`             | Block emails, phones, SSNs       | Compliance, privacy |
-| `promptInjectionDetector()` | Detect injection attempts        | Security            |
-| `blockedKeywords()`         | Block specific terms             | Content policy      |
-| `inputLengthLimit()`        | Enforce max input length         | Cost control        |
-| `rateLimiting()`            | Per-user rate limits             | Abuse prevention    |
-| `profanityFilter()`         | Block offensive language         | Content moderation  |
-| `toxicityDetector()`        | Detect toxic content             | Safety              |
-| `allowedToolsGuardrail()`   | Restrict which tools can be used | Tool security       |
+| Guardrail                   | Purpose                                  | Example             |
+| --------------------------- | ---------------------------------------- | ------------------- |
+| `piiDetector()`             | Block emails, phones, SSNs               | Compliance, privacy |
+| `promptInjectionDetector()` | Detect injection (obfuscation-resistant) | Security            |
+| `blockedKeywords()`         | Block specific terms                     | Content policy      |
+| `inputLengthLimit()`        | Enforce max input length                 | Cost control        |
+| `rateLimiting()`            | Per-user rate limits                     | Abuse prevention    |
+| `profanityFilter()`         | Block offensive language                 | Content moderation  |
+| `toxicityDetector()`        | Detect toxic content                     | Safety              |
+| `allowedToolsGuardrail()`   | Restrict which tools can be used         | Tool security       |
+| `highEntropyDetector()`     | Flag encoded/obfuscated payloads         | Security            |
 
 ### Output Guardrails (Run After Model)
 
-| Guardrail                 | Purpose                     | Example                   |
-| ------------------------- | --------------------------- | ------------------------- |
-| `sensitiveDataFilter()`   | Remove secrets, API keys    | Security                  |
-| `minLengthRequirement()`  | Enforce minimum length      | Quality control           |
-| `outputLengthLimit()`     | Enforce maximum length      | Cost/UX control           |
-| `toxicityFilter()`        | Block toxic responses       | Safety                    |
-| `jsonValidation()`        | Validate JSON structure     | Structured output         |
-| `schemaValidation()`      | Validate against Zod schema | Type safety               |
-| `confidenceThreshold()`   | Require minimum confidence  | Quality                   |
-| `hallucinationDetector()` | Detect uncertain claims     | Accuracy                  |
-| `secretRedaction()`       | Redact secrets from output  | Security                  |
-| `mcpSecurityGuardrail()`  | MCP tool security           | Prevent data exfiltration |
+| Guardrail                    | Purpose                                | Example                   |
+| ---------------------------- | -------------------------------------- | ------------------------- |
+| `sensitiveDataFilter()`      | Remove secrets, API keys               | Security                  |
+| `minLengthRequirement()`     | Enforce minimum length                 | Quality control           |
+| `outputLengthLimit()`        | Enforce maximum length                 | Cost/UX control           |
+| `toxicityFilter()`           | Block toxic responses                  | Safety                    |
+| `jsonValidation()`           | Validate JSON structure                | Structured output         |
+| `schemaValidation()`         | Validate against Zod schema            | Type safety               |
+| `confidenceThreshold()`      | Require minimum confidence             | Quality                   |
+| `hallucinationDetector()`    | Detect uncertain claims                | Accuracy                  |
+| `secretRedaction()`          | Redact secrets from output             | Security                  |
+| `systemPromptLeakDetector()` | Catch the model echoing its own prompt | Prompt protection         |
+| `mcpSecurityGuardrail()`     | MCP tool security                      | Prevent data exfiltration |
 
 ### MCP Security Guardrails
 
@@ -222,7 +227,8 @@ Protect against prompt injection and data exfiltration when using Model Context 
 ```ts
 import { mcpSecurityGuardrail, mcpResponseSanitizer } from 'ai-sdk-guardrails';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [
     mcpSecurityGuardrail({
       detectExfiltration: true, // Detect data exfiltration attempts
@@ -279,7 +285,8 @@ const minQuality = defineOutputGuardrail({
   },
 });
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [businessHours],
   outputGuardrails: [minQuality],
 });
@@ -290,33 +297,28 @@ const model = withGuardrails(openai('gpt-4o'), {
 Automatically retry when output doesn't meet requirements:
 
 ```ts
-import {
-  wrapWithOutputGuardrails,
-  minLengthRequirement,
-} from 'ai-sdk-guardrails';
+import { withGuardrails, minLengthRequirement } from 'ai-sdk-guardrails';
 
-const model = wrapWithOutputGuardrails(
-  openai('gpt-4o'),
-  [minLengthRequirement(100)],
-  {
-    retry: {
-      maxRetries: 2,
-      buildRetryParams: ({ lastParams }) => ({
-        ...lastParams,
-        // Increase max tokens on retry
-        maxOutputTokens: (lastParams.maxOutputTokens ?? 400) + 200,
-        // Add context about the failure
-        prompt: [
-          ...lastParams.prompt,
-          {
-            role: 'user',
-            content: 'Please provide a more detailed response.',
-          },
-        ],
-      }),
-    },
+const model = withGuardrails({
+  model: openai('gpt-4o'),
+  outputGuardrails: [minLengthRequirement(100)],
+  retry: {
+    maxRetries: 2,
+    buildRetryParams: ({ lastParams }) => ({
+      ...lastParams,
+      // Increase max tokens on retry
+      maxOutputTokens: (lastParams.maxOutputTokens ?? 400) + 200,
+      // Add context about the failure
+      prompt: [
+        ...lastParams.prompt,
+        {
+          role: 'user',
+          content: 'Please provide a more detailed response.',
+        },
+      ],
+    }),
   },
-);
+});
 ```
 
 ### Reusable Configurations
@@ -347,7 +349,8 @@ const claude = productionGuards(anthropic('claude-3-sonnet'));
 Control when guardrails run during streaming:
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [minLengthRequirement(100)],
   streamMode: 'progressive', // Run guardrails as tokens arrive
   replaceOnBlocked: true, // Replace blocked output with fallback
@@ -359,32 +362,116 @@ const model = withGuardrails(openai('gpt-4o'), {
 
 ### Agent Support
 
-Guardrails work with AI SDK Agents:
+`agentGuardrails({ model, ...config })` returns native `ToolLoopAgentSettings` fragments —
+spread them into your **own** `ToolLoopAgent`. The result is a real agent, so
+streaming, structured `output`, `runtimeContext`, and `InferAgentUIMessage` all work:
 
 ```ts
-import { withAgentGuardrails } from 'ai-sdk-guardrails';
-import { tool } from 'ai';
+import { ToolLoopAgent, tool } from 'ai';
+import {
+  agentGuardrails,
+  piiDetector,
+  sensitiveDataFilter,
+  toolEgressPolicy,
+} from 'ai-sdk-guardrails';
 
-const agent = withAgentGuardrails(
-  {
+const agent = new ToolLoopAgent({
+  ...agentGuardrails({
     model: openai('gpt-4o'),
-    tools: { search: searchTool },
-    system: 'You are a helpful assistant.',
-  },
-  {
     inputGuardrails: [piiDetector()],
     outputGuardrails: [sensitiveDataFilter()],
+    // OutputGuardrails applied to tool calls (folded into the model's output guards):
     toolGuardrails: [
       toolEgressPolicy({
         allowedHosts: ['api.company.com'],
         scanForUrls: true,
       }),
     ],
-  },
-);
+  }),
+  instructions: 'You are a helpful assistant.',
+  tools: { search: searchTool },
+});
 
-const result = await agent.generate({ prompt: '...' });
+const result = await agent.generate({ prompt: '...' }); // .stream() is guarded too
 ```
+
+> Guardrails ride the SDK's own primitives — input/output guards run as model
+> middleware, tool-parameter gating uses native `toolApproval`
+> (`guardrailApproval([...])`), loop-stop uses `stopWhen`. Nothing wraps your agent.
+
+## Tool Approval (AI SDK v7)
+
+AI SDK v7 added a first-class `toolApproval` hook to `generateText`, `streamText`,
+and `ToolLoopAgent`. It runs **inside the agent loop**, so it can deny a tool call
+outright or pause for human review and resume — something wrapping the model cannot do.
+
+Guardrails split cleanly across two axes — use the right tool for each:
+
+| Axis                   | Question                                                           | Mechanism                            |
+| ---------------------- | ------------------------------------------------------------------ | ------------------------------------ |
+| **Content safety**     | Is this text/output safe? (PII, toxicity, injection)               | `withGuardrails` middleware          |
+| **Tool authorization** | Can this caller run this tool with these args? (RBAC, SQL, egress) | `guardrailApproval` → `toolApproval` |
+
+`guardrailApproval()` adapts your existing tool-parameter guardrails into the
+`toolApproval` slot. It drops straight into a `ToolLoopAgent` (the recommended
+agent API) — the tool set is inferred, no casts:
+
+```ts
+import { ToolLoopAgent, tool } from 'ai';
+import {
+  guardrailApproval,
+  sqlInjectionGuardrail,
+  toolRBACGuardrail,
+} from 'ai-sdk-guardrails';
+
+const agent = new ToolLoopAgent({
+  model: openai('gpt-4o'),
+  instructions: 'You are a database assistant.',
+  tools: {
+    executeSQL: tool({
+      /* ... */
+    }),
+  },
+  toolApproval: guardrailApproval(
+    [
+      sqlInjectionGuardrail({ toolName: 'executeSQL' }), // critical → denied
+      toolRBACGuardrail({
+        toolName: 'executeSQL',
+        requiredPermissions: ['db:write'],
+      }),
+    ],
+    {
+      requestContext: { permissions: ['db:read'] },
+      onDecision: ({ toolName, status }) => console.log(toolName, status),
+    },
+  ),
+});
+
+const result = await agent.generate({ prompt: 'Show me last quarter revenue' });
+```
+
+The same value works unchanged on `generateText` / `streamText`:
+
+```ts
+await generateText({ model, tools, toolApproval: guardrailApproval([...]), prompt });
+```
+
+**Decision mapping** (first failing guardrail wins):
+
+| Guardrail result                                            | `toolApproval` decision             |
+| ----------------------------------------------------------- | ----------------------------------- |
+| `valid: true`                                               | `approved`                          |
+| `valid: false`, severity ≥ `denyAtOrAbove` (default `high`) | `denied` (tool never runs)          |
+| `valid: false`, severity below the threshold                | `user-approval` (pause for a human) |
+| no guardrail matches the tool                               | `not-applicable`                    |
+
+Tune with `denyAtOrAbove`, force a path with `onBlock: 'deny' | 'user-approval'`, and
+observe every decision via `onDecision`. See
+[example 54](../examples/54-tool-approval-guardrails.ts).
+
+> Need to **rewrite** tool input before it runs (e.g. sanitize a query) rather than
+> just allow/deny? Use `withToolParameterGuardrails` instead — `toolApproval` is
+> allow/deny only.
 
 ## Advanced Stopping Mechanisms
 
@@ -395,11 +482,12 @@ Control exactly **when and how** guardrails stop execution with powerful, compos
 Clean, standard API for canceling AI operations:
 
 ```ts
-import { createGuardrailAbortController } from 'ai-sdk-guardrails';
+import { createGuardrailAbortController } from 'ai-sdk-guardrails/advanced';
 
 const { signal, abortOnViolation } = createGuardrailAbortController();
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [toxicityFilter()],
   onOutputBlocked: abortOnViolation('critical'), // Abort on critical violations
 });
@@ -420,7 +508,7 @@ await streamText({ model, prompt: '...', abortSignal: signal });
 Stop streaming at the **source** (most efficient):
 
 ```ts
-import { createGuardrailStreamTransform } from 'ai-sdk-guardrails';
+import { createGuardrailStreamTransform } from 'ai-sdk-guardrails/advanced';
 
 const result = streamText({
   model,
@@ -452,7 +540,7 @@ Reduce overhead with smart token-based checking:
 import {
   createTokenBudgetTransform,
   createTokenAwareGuardrailTransform,
-} from 'ai-sdk-guardrails';
+} from 'ai-sdk-guardrails/advanced';
 
 experimental_transform: [
   // Hard token limit
@@ -481,15 +569,19 @@ experimental_transform: [
 Self-correcting behavior across multi-step agent execution:
 
 ```ts
-import {
-  createAdaptivePrepareStep,
-  type GuardrailViolation,
-} from 'ai-sdk-guardrails';
+import { createAdaptivePrepareStep } from 'ai-sdk-guardrails/advanced';
+import type { GuardrailViolation } from 'ai-sdk-guardrails';
 
 const violations: GuardrailViolation[] = [];
 
-const agent = new Agent({
-  model,
+const agent = new ToolLoopAgent({
+  ...agentGuardrails({
+    model,
+    outputGuardrails: [toxicityFilter()],
+    onOutputBlocked: (summary) => {
+      violations.push({ step: violations.length, summary });
+    },
+  }),
   tools: { search: searchTool },
   prepareStep: createAdaptivePrepareStep({
     violations,
@@ -499,14 +591,6 @@ const agent = new Agent({
       system: `${violations.length} violations detected. Be careful.`,
     }),
   }),
-});
-
-// Track violations
-withAgentGuardrails(agent, {
-  outputGuardrails: [toxicityFilter()],
-  onOutputBlocked: (summary, context, step) => {
-    violations.push({ step, summary });
-  },
 });
 ```
 
@@ -522,7 +606,7 @@ withAgentGuardrails(agent, {
 Prevent dangerous tool execution before or during execution:
 
 ```ts
-import { wrapToolWithAbortion } from 'ai-sdk-guardrails';
+import { wrapToolWithAbortion } from 'ai-sdk-guardrails/advanced';
 
 const safeTool = wrapToolWithAbortion(
   dangerousApiTool,
@@ -549,7 +633,7 @@ const safeTool = wrapToolWithAbortion(
 Better observability with proper finish reasons and metadata:
 
 ```ts
-import { createFinishReasonEnhancement } from 'ai-sdk-guardrails';
+import { createFinishReasonEnhancement } from 'ai-sdk-guardrails/advanced';
 
 // Automatically set in middleware, or manually:
 const enhanced = createFinishReasonEnhancement(summary, result);
@@ -599,7 +683,8 @@ import {
 } from 'ai-sdk-guardrails';
 
 // Conservative production setup (high security)
-const secureModel = withGuardrails(openai('gpt-4o'), {
+const secureModel = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [
     promptInjectionDetector({ threshold: 0.6, includeExamples: true }),
   ],
@@ -652,7 +737,8 @@ function getSecurityConfig(env: 'production' | 'staging' | 'development') {
   return configs[env];
 }
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [mcpSecurityGuardrail(getSecurityConfig('production'))],
 });
 ```
@@ -681,7 +767,8 @@ See complete examples:
 ### Throw Errors on Block
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector()],
   throwOnBlocked: true, // Throw errors instead of silent blocking
 });
@@ -691,7 +778,8 @@ try {
 } catch (error) {
   if (isGuardrailsError(error)) {
     console.error('Blocked:', error.message);
-    // error.results gives details per guardrail
+    // GuardrailsInputError / GuardrailsOutputError expose `blockedGuardrails`
+    // with the name, message, and severity of each guardrail that tripped.
   }
 }
 ```
@@ -708,15 +796,19 @@ try {
 
 ### Primary Functions
 
-| Function                  | Purpose                                  |
-| ------------------------- | ---------------------------------------- |
-| `withGuardrails`          | Wrap model with guardrails (main API)    |
-| `createGuardrails`        | Create reusable guardrail configurations |
-| `withAgentGuardrails`     | Wrap AI SDK Agents with guardrails       |
-| `defineInputGuardrail`    | Create custom input guardrail            |
-| `defineOutputGuardrail`   | Create custom output guardrail           |
-| `executeInputGuardrails`  | Run input guardrails programmatically    |
-| `executeOutputGuardrails` | Run output guardrails programmatically   |
+| Function                       | Purpose                                     |
+| ------------------------------ | ------------------------------------------- |
+| `withGuardrails`               | Wrap model with guardrails (main API)       |
+| `createGuardrails`             | Create reusable guardrail configurations    |
+| `agentGuardrails`              | Native settings fragments for ToolLoopAgent |
+| `guardrailApproval`            | Gate tool calls via v7 `toolApproval`       |
+| `defineInputGuardrail`         | Create custom input guardrail               |
+| `defineOutputGuardrail`        | Create custom output guardrail              |
+| `hardenSystemPrompt`           | Wrap a system prompt with defensive rules   |
+| `evaluatePromptDefense`        | Grade a system prompt's OWASP-LLM coverage  |
+| `scanMcpTool` / `scanMcpTools` | Scan MCP tool definitions for threats       |
+| `executeInputGuardrails`       | Run input guardrails programmatically       |
+| `executeOutputGuardrails`      | Run output guardrails programmatically      |
 
 ### Error Utilities
 
@@ -791,31 +883,45 @@ Browse 48+ runnable examples: [examples/README.md](../examples/README.md) |
 
 ## Migration from v3.x
 
-API naming has been improved in v4.x (old names still work but are deprecated):
+v6 removed the old v3.x names. Update imports and call sites:
 
 ```ts
-// Before (v3.x - still works but deprecated)
+// v3.x (removed)
 import { wrapWithGuardrails, InputBlockedError } from 'ai-sdk-guardrails';
 const model = wrapWithGuardrails(openai('gpt-4o'), { ... });
 
-// After (v4.x - recommended)
+// v6
 import { withGuardrails, GuardrailsInputError } from 'ai-sdk-guardrails';
-const model = withGuardrails(openai('gpt-4o'), { ... });
+const model = withGuardrails({ model: openai('gpt-4o'), ... });
 ```
 
-Changes:
+Name changes:
 
-- `wrapWithGuardrails` → `withGuardrails`
-- `wrapAgentWithGuardrails` → `withAgentGuardrails`
+- `wrapWithGuardrails(model, config)` → `withGuardrails({ model, ...config })`
+- `withAgentGuardrails(settings, config)` → `new ToolLoopAgent({ ...agentGuardrails({ model, ...config }), ...settings })`
 - `InputBlockedError` → `GuardrailsInputError`
 - `OutputBlockedError` → `GuardrailsOutputError`
 
 ## Compatibility
 
 - **Runtime**: Node.js 18+ recommended
-- **AI SDK**: Compatible with AI SDK 5.x (`ai@^5`)
+- **AI SDK**: v6 requires AI SDK 7 (`ai@^7`, `@ai-sdk/provider@^4`). Stay on
+  `ai-sdk-guardrails@5.x` for AI SDK 6.
 - **TypeScript**: Full type safety with TypeScript 5+
 - **Works with any model**: OpenAI, Anthropic, Mistral, Groq, etc.
+
+### Upgrading to v6 (AI SDK 7)
+
+The public API is source-compatible — `withGuardrails`, `defineInputGuardrail`,
+`defineOutputGuardrail`, and every built-in guardrail keep the same signatures.
+What changes:
+
+- Bump your peer dependency to `ai@^7` (now emits `LanguageModelV4` middleware).
+- Advanced provider types are exported under their V4 names
+  (`LanguageModelV4Middleware`, …); the old `LanguageModelV3*` names remain as
+  deprecated aliases.
+- New: `guardrailApproval()` for the v7 [`toolApproval`](#tool-approval-ai-sdk-v7)
+  hook. For tool gating, prefer it over `withToolParameterGuardrails`.
 
 ## Why This Library?
 

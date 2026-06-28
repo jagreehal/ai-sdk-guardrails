@@ -10,16 +10,18 @@
  * All without changing the guardrail code!
  */
 
-// Core imports (unchanged)
-import { defineInputGuardrail } from '../src/guardrails';
+// Core authoring (root export)
+import { defineInputGuardrail } from 'ai-sdk-guardrails';
 
-// Enhancement imports (new capabilities)
-import { defaultRegistry } from '../src/registry';
-import { registerGuardrails } from '../src/adapters/spec-adapter';
-import { runGuardrails } from '../src/enhanced-runtime';
+// Config-driven runtime: registry + declarative execution (published subpath)
+import {
+  defaultRegistry,
+  registerGuardrails,
+  runGuardrails,
+} from 'ai-sdk-guardrails/config';
 
-// Enhanced Prompt Injection Detection
-import { enhancedPromptInjectionDetector } from 'ai-sdk-guardrails/guardrails/enhanced-prompt-injection';
+// Advanced multi-signal prompt-injection detector (published subpath)
+import { enhancedPromptInjectionDetector } from 'ai-sdk-guardrails/advanced';
 
 // ============================================================================
 // Step 1: Define guardrails (exactly as they are today)

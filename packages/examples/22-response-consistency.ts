@@ -271,7 +271,8 @@ const consistencyValidationGuardrail =
 console.log('🔄 Response Consistency Validation Example\n');
 
 // Create a protected model with consistency validation
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   outputGuardrails: [consistencyValidationGuardrail],
   throwOnBlocked: false, // Use warning mode to see all issues
   onOutputBlocked: (executionSummary) => {

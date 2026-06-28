@@ -111,7 +111,8 @@ const qualityAssessmentGuardrail = defineOutputGuardrail({
 console.log('✨ Quality Assessment Example\n');
 
 // Create a model with quality assessment
-const qualityModel = withGuardrails(model, {
+const qualityModel = withGuardrails({
+  model,
   outputGuardrails: [qualityAssessmentGuardrail],
   throwOnBlocked: false, // Use warning mode to see issues
   onOutputBlocked: (executionSummary) => {
@@ -231,7 +232,8 @@ const advancedQualityGuardrail = defineOutputGuardrail({
   },
 });
 
-const advancedModel = withGuardrails(model, {
+const advancedModel = withGuardrails({
+  model,
   outputGuardrails: [advancedQualityGuardrail],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {
@@ -307,7 +309,8 @@ const completenessGuardrail = defineOutputGuardrail({
   },
 });
 
-const completenessModel = withGuardrails(model, {
+const completenessModel = withGuardrails({
+  model,
   outputGuardrails: [completenessGuardrail],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {

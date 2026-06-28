@@ -49,11 +49,11 @@ function mapToInputGuardrail(
       }
 
       // Build context for OpenAI guardrails
-      // Extract model if available (only LanguageModelV3, not EmbeddingModelV2)
+      // Extract model if available (only LanguageModelV4, not EmbeddingModelV2)
       let llm: GuardrailContext['llm'] = undefined;
       if ('model' in params) {
         const model = params.model;
-        // Only use if it's a LanguageModelV3 (has doGenerate method)
+        // Only use if it's a LanguageModelV4 (has doGenerate method)
         if (model && typeof model === 'object' && 'doGenerate' in model) {
           llm = model as GuardrailContext['llm'];
         }
@@ -111,7 +111,7 @@ function mapToOutputGuardrail(
       let llm: GuardrailContext['llm'] = undefined;
       if (params.input && 'model' in params.input) {
         const model = params.input.model;
-        // Only use if it's a LanguageModelV3 (has doGenerate method)
+        // Only use if it's a LanguageModelV4 (has doGenerate method)
         if (model && typeof model === 'object' && 'doGenerate' in model) {
           llm = model as GuardrailContext['llm'];
         }

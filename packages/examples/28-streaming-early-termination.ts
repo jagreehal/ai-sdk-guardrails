@@ -135,7 +135,7 @@ const streamingState = new Map<
       content: string;
     }>;
     lastViolation: number;
-    consecutiveViolations: number;
+    hasConsecutiveViolations: number;
     terminated: boolean;
     terminationReason?: string;
   }
@@ -310,12 +310,12 @@ function updateStreamingState(
       });
     }
     state.lastViolation = now;
-    state.consecutiveViolations++;
+    state.hasConsecutiveViolations++;
   } else {
     // Reset consecutive violations if no violations in this update
     const now = Date.now();
     if (now - state.lastViolation > STREAMING_THRESHOLDS.violationWindow) {
-      state.consecutiveViolations = 0;
+      state.hasConsecutiveViolations = 0;
     }
   }
 
@@ -329,7 +329,7 @@ function initializeStreamingSession(sessionId: string): void {
     content: '',
     violations: [],
     lastViolation: 0,
-    consecutiveViolations: 0,
+    hasConsecutiveViolations: 0,
     terminated: false,
   });
 }
@@ -469,7 +469,8 @@ const streamingOutputGuardrail = defineOutputGuardrail<{
 console.log('🔄 Streaming Early Termination Example\n');
 
 // Create a protected model with streaming termination
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   inputGuardrails: [streamingInputGuardrail],
   outputGuardrails: [streamingOutputGuardrail],
   throwOnBlocked: false,

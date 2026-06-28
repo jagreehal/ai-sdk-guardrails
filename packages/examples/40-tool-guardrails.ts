@@ -6,7 +6,7 @@ import {
   allowedToolsGuardrail,
   toolEgressPolicy,
   type AllowedToolsOptions,
-} from '../src';
+} from 'ai-sdk-guardrails';
 
 console.log('🛡️  Comprehensive Tool Security Demo');
 console.log('====================================\n');
@@ -206,7 +206,8 @@ async function testSecurityPolicies() {
     console.log(`\n📋 Testing ${policyName.toUpperCase()} security policy`);
     console.log('='.repeat(50));
 
-    const secureModel = withGuardrails(model, {
+    const secureModel = withGuardrails({
+      model,
       inputGuardrails: [allowedToolsGuardrail(policy)],
       outputGuardrails: [
         toolEgressPolicy({
@@ -245,7 +246,8 @@ async function testNaturalLanguageDetection() {
   console.log('\n\n🔍 Testing Natural Language Tool Detection');
   console.log('==========================================\n');
 
-  const nlModel = withGuardrails(model, {
+  const nlModel = withGuardrails({
+    model,
     inputGuardrails: [
       allowedToolsGuardrail({
         allowedTools: ['calculator', 'search'],
@@ -292,7 +294,8 @@ async function testCustomValidation() {
   console.log('\n\n⚙️  Testing Custom Validation Logic');
   console.log('===================================\n');
 
-  const customModel = withGuardrails(model, {
+  const customModel = withGuardrails({
+    model,
     inputGuardrails: [
       allowedToolsGuardrail({
         allowedTools: ['calculator', 'search', 'sendEmail'],
@@ -347,7 +350,8 @@ async function testConfigurationValidation() {
 
   // Test 1: Empty allowedTools should throw error
   try {
-    withGuardrails(model, {
+    withGuardrails({
+      model,
       inputGuardrails: [
         allowedToolsGuardrail({
           allowedTools: [], // Empty array should throw error
@@ -361,7 +365,8 @@ async function testConfigurationValidation() {
 
   // Test 2: Valid configuration should work
   try {
-    withGuardrails(model, {
+    withGuardrails({
+      model,
       inputGuardrails: [
         allowedToolsGuardrail({
           allowedTools: ['calculator'],

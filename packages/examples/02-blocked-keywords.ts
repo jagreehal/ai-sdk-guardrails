@@ -42,7 +42,8 @@ const blockedKeywordsGuardrail = defineInputGuardrail({
 console.log('🚫 Blocked Keywords Example\n');
 
 // Create a protected model with keyword blocking
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   inputGuardrails: [blockedKeywordsGuardrail],
   throwOnBlocked: true,
   onInputBlocked: (executionSummary) => {

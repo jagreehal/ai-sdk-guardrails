@@ -322,7 +322,8 @@ const secretLeakageGuardrail = defineOutputGuardrail<SecretLeakageMetadata>({
 console.log('🛡️  Secret Leakage Scan Example\n');
 
 // Create a protected model with secret leakage scanning
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   outputGuardrails: [secretLeakageGuardrail],
   throwOnBlocked: true,
   onOutputBlocked: (executionSummary) => {
@@ -454,7 +455,8 @@ try {
 
 // Test 8: Warning mode with redaction
 console.log('Test 8: Warning mode with redaction (should log but continue)');
-const warningModel = withGuardrails(model, {
+const warningModel = withGuardrails({
+  model,
   outputGuardrails: [secretLeakageGuardrail],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {

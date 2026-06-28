@@ -23,10 +23,15 @@ export function createInputGuardrail(
   return { name, description, execute };
 }
 
-export function createOutputGuardrail(
+export function createOutputGuardrail<
+  M extends Record<string, unknown> = Record<string, unknown>,
+>(
   name: string,
-  execute: OutputGuardrail['execute'],
-): OutputGuardrail {
+  // `NoInfer` keeps M from being inferred off the callback, so existing
+  // non-parameterized callers stay at the default metadata shape while typed
+  // guardrails (e.g. budget, plan-risk) opt in via an explicit type argument.
+  execute: OutputGuardrail<NoInfer<M>>['execute'],
+): OutputGuardrail<M> {
   return { name, execute };
 }
 

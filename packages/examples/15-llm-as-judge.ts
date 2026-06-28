@@ -476,7 +476,8 @@ try {
 console.log('Example 4: Multiple LLM Judges');
 console.log('==============================\n');
 
-const multiJudgeModel = withGuardrails(model, {
+const multiJudgeModel = withGuardrails({
+  model,
   outputGuardrails: [
     llmJudgeGuardrail,
     factualAccuracyJudge,

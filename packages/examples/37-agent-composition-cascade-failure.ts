@@ -13,7 +13,7 @@
  * With guardrails: Each agent is validated, preventing cascade failures
  */
 
-import { generateText } from 'ai';
+import { generateText, ToolLoopAgent } from 'ai';
 import { z } from 'zod';
 import type {
   LanguageModelV2Message,
@@ -23,9 +23,9 @@ import type {
 import { model } from './model';
 import { withGuardrails } from 'ai-sdk-guardrails';
 import { expectedToolUse } from 'ai-sdk-guardrails/guardrails/tools';
-import { createOutputGuardrail } from '../src/core';
+import { createOutputGuardrail } from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
-import { withAgentGuardrails } from 'ai-sdk-guardrails/guardrails/agent';
+import { agentGuardrails } from 'ai-sdk-guardrails';
 
 const toTextParts = (content: unknown): LanguageModelV2TextPart[] => {
   if (Array.isArray(content)) {
@@ -219,7 +219,8 @@ async function runWithGuardrails() {
 
   try {
     // Research Agent with tool usage guardrail
-    const guardedResearchModel = withGuardrails(model, {
+    const guardedResearchModel = withGuardrails({
+      model,
       outputGuardrails: [expectedToolUse({ tools: 'search' })],
       retry: {
         maxRetries: 2,
@@ -248,7 +249,8 @@ async function runWithGuardrails() {
     );
 
     // Analysis Agent with structure guardrail
-    const guardedAnalysisModel = withGuardrails(model, {
+    const guardedAnalysisModel = withGuardrails({
+      model,
       outputGuardrails: [structuredAnalysis],
       retry: {
         maxRetries: 2,
@@ -277,7 +279,8 @@ async function runWithGuardrails() {
     );
 
     // Report Agent with citation guardrail
-    const guardedReportModel = withGuardrails(model, {
+    const guardedReportModel = withGuardrails({
+      model,
       outputGuardrails: [requireCitations],
       retry: {
         maxRetries: 2,
@@ -317,52 +320,35 @@ async function runAgentWrapper() {
   console.log('------------------------------------');
 
   // Create guarded agents using the new agent wrapper
-  const researchAgent = withAgentGuardrails(
-    {
+  const researchAgent = new ToolLoopAgent({
+    ...agentGuardrails({
       model,
-      tools: searchTool,
-      system: 'You are a research assistant. Always use available tools.',
-    },
-    {
       outputGuardrails: [expectedToolUse({ tools: 'search' })],
-      retry: {
-        maxRetries: 2,
-        buildRetryPrompt: ({ lastPrompt, reason }) =>
-          `${lastPrompt}\n\nIMPORTANT: ${reason}. You must use the search tool to gather data.`,
-      },
-    },
-  );
+      retry: { maxRetries: 2 },
+    }),
+    tools: searchTool,
+    instructions: 'You are a research assistant. Always use available tools.',
+  });
 
-  const analysisAgent = withAgentGuardrails(
-    {
+  const analysisAgent = new ToolLoopAgent({
+    ...agentGuardrails({
       model,
-      system:
-        'You are an analyst. Provide structured analysis with key points and conclusion.',
-    },
-    {
       outputGuardrails: [structuredAnalysis],
-      retry: {
-        maxRetries: 2,
-        buildRetryPrompt: ({ lastPrompt, reason }) =>
-          `${lastPrompt}\n\nIMPORTANT: ${reason}. Format: Key Points: • point 1 • point 2\nConclusion: summary`,
-      },
-    },
-  );
+      retry: { maxRetries: 2 },
+    }),
+    instructions:
+      'You are an analyst. Provide structured analysis with key points and conclusion.',
+  });
 
-  const reportAgent = withAgentGuardrails(
-    {
+  const reportAgent = new ToolLoopAgent({
+    ...agentGuardrails({
       model,
-      system: 'You are a report writer. Always include citations and sources.',
-    },
-    {
       outputGuardrails: [requireCitations],
-      retry: {
-        maxRetries: 2,
-        buildRetryPrompt: ({ lastPrompt, reason }) =>
-          `${lastPrompt}\n\nIMPORTANT: ${reason}. Include sources and citations in your report.`,
-      },
-    },
-  );
+      retry: { maxRetries: 2 },
+    }),
+    instructions:
+      'You are a report writer. Always include citations and sources.',
+  });
 
   try {
     // Research Agent with tool usage validation
@@ -411,12 +397,14 @@ async function runOrchestratorWorker() {
   console.log('------------------------------------------');
 
   // Worker agents with different specializations
-  const marketWorker = withGuardrails(model, {
+  const marketWorker = withGuardrails({
+    model,
     outputGuardrails: [expectedToolUse({ tools: 'search' })],
     throwOnBlocked: false,
   });
 
-  const techWorker = withGuardrails(model, {
+  const techWorker = withGuardrails({
+    model,
     outputGuardrails: [structuredAnalysis],
     throwOnBlocked: false,
   });

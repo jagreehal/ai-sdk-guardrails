@@ -89,7 +89,8 @@ const piiDetectionGuardrail = defineInputGuardrail<PIIMetadata>({
 
 describe('PII Detection Example', () => {
   it('should allow clean prompt without PII to pass', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [piiDetectionGuardrail],
       throwOnBlocked: true,
     });
@@ -104,7 +105,8 @@ describe('PII Detection Example', () => {
   });
 
   it('should block prompt containing email address', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [piiDetectionGuardrail],
       throwOnBlocked: true,
     });
@@ -118,7 +120,8 @@ describe('PII Detection Example', () => {
   });
 
   it('should block prompt containing SSN', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [piiDetectionGuardrail],
       throwOnBlocked: true,
     });
@@ -132,7 +135,8 @@ describe('PII Detection Example', () => {
   });
 
   it('should block prompt containing phone number', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [piiDetectionGuardrail],
       throwOnBlocked: true,
     });
@@ -146,7 +150,8 @@ describe('PII Detection Example', () => {
   });
 
   it('should detect multiple PII types in one prompt', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [piiDetectionGuardrail],
       throwOnBlocked: true,
     });
@@ -166,7 +171,8 @@ describe('PII Detection Example', () => {
   it('should provide correct metadata when blocking', async () => {
     let blockedMetadata: PIIMetadata | undefined;
 
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [piiDetectionGuardrail],
       throwOnBlocked: true,
       onInputBlocked: (executionSummary) => {
@@ -186,9 +192,9 @@ describe('PII Detection Example', () => {
       expect(blockedMetadata).toBeDefined();
       expect(blockedMetadata?.count).toBeGreaterThan(0);
       expect(blockedMetadata?.detectedTypes.length).toBeGreaterThan(0);
-      expect(blockedMetadata?.detectedTypes.some((t) => t.type === 'Email')).toBe(
-        true,
-      );
+      expect(
+        blockedMetadata?.detectedTypes.some((t) => t.type === 'Email'),
+      ).toBe(true);
       expect(
         blockedMetadata?.detectedTypes.some((t) => t.type === 'Phone'),
       ).toBe(true);
@@ -228,7 +234,8 @@ describe('PII Detection Example', () => {
     });
 
     it('should process prompt with redaction instead of blocking', async () => {
-      const redactionModel = withGuardrails(model, {
+      const redactionModel = withGuardrails({
+        model,
         inputGuardrails: [redactionGuardrail],
         throwOnBlocked: false,
       });

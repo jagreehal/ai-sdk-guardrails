@@ -94,7 +94,8 @@ console.log('🛡️  LLM-as-Judge Auto-Retry Example');
 console.log('');
 let feedback = '';
 
-const judgedModel = withGuardrails(model, {
+const judgedModel = withGuardrails({
+  model,
   outputGuardrails: [llmJudgeGuardrail],
   throwOnBlocked: false,
   replaceOnBlocked: false,

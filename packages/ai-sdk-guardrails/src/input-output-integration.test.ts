@@ -5,16 +5,13 @@ import {
   defineOutputGuardrail,
   executeInputGuardrails,
   executeOutputGuardrails,
-  wrapWithInputGuardrails,
-  wrapWithOutputGuardrails,
-  wrapWithGuardrails,
 } from './guardrails';
 import { extractTextContent } from './guardrails/input';
 import { extractContent } from './guardrails/output';
 import type {
-  LanguageModelV3,
+  LanguageModelV4,
   AIResult,
-  LanguageModelV3CallOptions,
+  LanguageModelV4CallOptions,
 } from './types';
 
 // V3 usage helper
@@ -33,12 +30,12 @@ const createV3Usage = (inputTotal: number, outputTotal: number) => ({
 });
 
 // Mock AI model for testing
-const createMockModel = (response = 'Mock AI response'): LanguageModelV3 => ({
-  specificationVersion: 'v3',
+const createMockModel = (response = 'Mock AI response'): LanguageModelV4 => ({
+  specificationVersion: 'v4',
   provider: 'test',
   modelId: 'test-model',
   supportedUrls: {},
-  async doGenerate(options: LanguageModelV3CallOptions) {
+  async doGenerate(options: LanguageModelV4CallOptions) {
     return {
       content: [{ type: 'text', text: response }],
       finishReason: { unified: 'stop', raw: undefined },
@@ -53,7 +50,7 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV3 => ({
       warnings: [],
     };
   },
-  async doStream(options: LanguageModelV3CallOptions) {
+  async doStream(options: LanguageModelV4CallOptions) {
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue({
@@ -85,7 +82,7 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV3 => ({
 });
 
 describe('Input and Output Guardrails Integration', () => {
-  let mockModel: LanguageModelV3;
+  let mockModel: LanguageModelV4;
 
   beforeEach(() => {
     mockModel = createMockModel();

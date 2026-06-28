@@ -86,7 +86,8 @@ const piiDetectionGuardrail = defineInputGuardrail<PIIMetadata>({
 console.log('🔒 PII Detection Example\n');
 
 // Create a protected model with PII detection
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   inputGuardrails: [piiDetectionGuardrail],
   throwOnBlocked: true,
   onInputBlocked: (executionSummary) => {
@@ -203,7 +204,8 @@ const redactionGuardrail = defineInputGuardrail<{
   },
 });
 
-const redactionModel = withGuardrails(model, {
+const redactionModel = withGuardrails({
+  model,
   inputGuardrails: [redactionGuardrail],
   throwOnBlocked: false,
 });

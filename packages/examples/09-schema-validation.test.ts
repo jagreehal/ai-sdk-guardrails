@@ -91,7 +91,8 @@ describe('Schema Validation Example', () => {
     const userValidator = createSchemaValidator(userSchema, 'user');
 
     it('should allow valid user object to pass', async () => {
-      const strictUserModel = withGuardrails(model, {
+      const strictUserModel = withGuardrails({
+        model,
         outputGuardrails: [userValidator],
         throwOnBlocked: true,
       });
@@ -114,7 +115,8 @@ describe('Schema Validation Example', () => {
     it('should block invalid user object in blocking mode', async () => {
       let blockedMessage: string | undefined;
 
-      const strictUserModel = withGuardrails(model, {
+      const strictUserModel = withGuardrails({
+        model,
         outputGuardrails: [userValidator],
         throwOnBlocked: true,
         onOutputBlocked: (executionSummary) => {
@@ -147,7 +149,8 @@ describe('Schema Validation Example', () => {
     it('should process product object with warnings in warning mode', async () => {
       let warningMessage: string | undefined;
 
-      const warningProductModel = withGuardrails(model, {
+      const warningProductModel = withGuardrails({
+        model,
         outputGuardrails: [productValidator],
         throwOnBlocked: false, // Warning mode
         onOutputBlocked: (executionSummary) => {
@@ -198,7 +201,8 @@ describe('Schema Validation Example', () => {
       let validationMessage: string | undefined;
       let validationMetadata: SchemaValidationMetadata | undefined;
 
-      const orderModel = withGuardrails(model, {
+      const orderModel = withGuardrails({
+        model,
         outputGuardrails: [orderValidator],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -290,7 +294,8 @@ describe('Schema Validation Example', () => {
       let violationMessage: string | undefined;
       let violationMetadata: any;
 
-      const businessModel = withGuardrails(model, {
+      const businessModel = withGuardrails({
+        model,
         outputGuardrails: [businessRulesGuardrail],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {

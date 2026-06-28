@@ -145,7 +145,7 @@ function defaultGenerateTraceId(): string {
  *
  * const debuggedGuardrails = myGuardrails.map(g => debug.wrap(g));
  *
- * const model = withGuardrails(baseModel, {
+ * const model = withGuardrails({ model: baseModel,
  *   inputGuardrails: debuggedGuardrails,
  * });
  * ```

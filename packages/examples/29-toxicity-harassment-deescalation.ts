@@ -438,7 +438,7 @@ const userInteractionHistory = new Map<
       severity: string;
     }>;
     lastViolation: number;
-    consecutiveViolations: number;
+    hasConsecutiveViolations: number;
   }
 >();
 
@@ -457,7 +457,7 @@ function checkUserEscalation(
   const userHistory = userInteractionHistory.get(userId) || {
     violations: [],
     lastViolation: 0,
-    consecutiveViolations: 0,
+    hasConsecutiveViolations: 0,
   };
 
   // Add current violation
@@ -472,7 +472,7 @@ function checkUserEscalation(
     (v) => now - v.timestamp < TOXICITY_THRESHOLDS.cooldownPeriod * 1000,
   );
 
-  userHistory.consecutiveViolations = recentViolations.length;
+  userHistory.hasConsecutiveViolations = recentViolations.length;
   userHistory.lastViolation = now;
 
   // Clean old violations
@@ -484,7 +484,7 @@ function checkUserEscalation(
 
   // Determine actions needed
   const needsCooldown =
-    userHistory.consecutiveViolations >=
+    userHistory.hasConsecutiveViolations >=
     TOXICITY_THRESHOLDS.maxConsecutiveViolations;
   const needsHumanReview =
     toxicityScore >= TOXICITY_THRESHOLDS.requireHumanReview;
@@ -650,7 +650,8 @@ const toxicityOutputGuardrail = defineOutputGuardrail<{
 console.log('🛡️  Toxicity & Harassment De-escalation Example\n');
 
 // Create a protected model with toxicity detection
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   inputGuardrails: [toxicityInputGuardrail],
   outputGuardrails: [toxicityOutputGuardrail],
   throwOnBlocked: false,

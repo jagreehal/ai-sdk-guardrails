@@ -52,6 +52,7 @@ pnpm turbo build --filter=@ai-sdk-guardrails/docs
 ```
 
 **Compatible with:**
+
 - GitHub Pages
 - Vercel
 - Netlify

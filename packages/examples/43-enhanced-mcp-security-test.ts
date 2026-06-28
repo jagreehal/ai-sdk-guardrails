@@ -23,7 +23,7 @@ import {
   promptInjectionDetector,
   toolEgressPolicy,
 } from 'ai-sdk-guardrails';
-import type { OutputGuardrailContext } from '../src/types';
+import type { OutputGuardrailContext } from 'ai-sdk-guardrails';
 
 console.log('🔒 Enhanced MCP Security Test Suite\n');
 console.log(
@@ -40,7 +40,8 @@ const guardrailOptions = {
 };
 
 // Create a model with enhanced MCP security protection
-const enhancedSecureModel = withGuardrails(model, {
+const enhancedSecureModel = withGuardrails({
+  model,
   inputGuardrails: [
     promptInjectionDetector({ threshold: 0.6, includeExamples: true }),
   ],

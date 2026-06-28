@@ -20,16 +20,28 @@ Create or adjust a pipeline at https://guardrails.openai.com, then click **Downl
   "version": 1,
   "pre_flight": {
     "version": 1,
-    "guardrails": [{ "name": "Contains PII", "config": { "entities": ["EMAIL_ADDRESS"] } }]
+    "guardrails": [
+      { "name": "Contains PII", "config": { "entities": ["EMAIL_ADDRESS"] } },
+    ],
   },
   "input": {
     "version": 1,
-    "guardrails": [{ "name": "Prompt Injection Detection", "config": { "confidence_threshold": 0.65 } }]
+    "guardrails": [
+      {
+        "name": "Prompt Injection Detection",
+        "config": { "confidence_threshold": 0.65 },
+      },
+    ],
   },
   "output": {
     "version": 1,
-    "guardrails": [{ "name": "Moderation", "config": { "categories": ["hate", "violence"] } }]
-  }
+    "guardrails": [
+      {
+        "name": "Moderation",
+        "config": { "categories": ["hate", "violence"] },
+      },
+    ],
+  },
 }
 ```
 
@@ -44,42 +56,39 @@ import {
   loadPipelineConfig,
   runStageGuardrails,
   runGuardrails,
-} from 'ai-sdk-guardrails';
+} from 'ai-sdk-guardrails/config';
 import { openai } from '@ai-sdk/openai';
 
 // Load from file path, JSON string, or object literal
 const pipeline = await loadPipelineConfig('./guardrails_config.json');
 
 // Run pre-flight/input guardrails before calling the model
-const preflight = await runStageGuardrails(
-  userPrompt,
-  pipeline,
-  'input',
-  {
-    llm: openai('gpt-4o-mini'), // Required for LLM-powered guardrails
-    requestId: 'req_123',
-    userId: session.user.id,
-  },
-);
+const preflight = await runStageGuardrails(userPrompt, pipeline, 'input', {
+  llm: openai('gpt-4o-mini'), // Required for LLM-powered guardrails
+  requestId: 'req_123',
+  userId: session.user.id,
+});
 
 if (preflight?.blocked) {
   // Inspect individual results or surface a friendly error
-  return Response.json({ error: 'Message blocked', details: preflight.results });
+  return Response.json({
+    error: 'Message blocked',
+    details: preflight.results,
+  });
 }
 
 // After you get a completion, run the output stage:
-const output = await runStageGuardrails(
-  completionText,
-  pipeline,
-  'output',
-  { llm: openai('gpt-4o-mini') },
-);
+const output = await runStageGuardrails(completionText, pipeline, 'output', {
+  llm: openai('gpt-4o-mini'),
+});
 ```
 
 Need a lower-level primitive? `runGuardrails()` accepts any `GuardrailBundle`, so you can execute just the `pipeline.output` block or even the `guardrails` array itself.
 
 ```ts
-await runGuardrails(responseText, pipeline.output!, { llm: openai('gpt-4o-mini') });
+await runGuardrails(responseText, pipeline.output!, {
+  llm: openai('gpt-4o-mini'),
+});
 ```
 
 ## 3. Wrap AI SDK models with wizard configs
@@ -87,18 +96,18 @@ await runGuardrails(responseText, pipeline.output!, { llm: openai('gpt-4o-mini')
 Prefer the ergonomic `withGuardrails()` middleware? Convert the OpenAI schema into AI SDK's format with the provided mapper and keep stacking your own guardrails on top:
 
 ```ts
+import { withGuardrails, sensitiveDataFilter } from 'ai-sdk-guardrails';
 import {
-  withGuardrails,
   mapOpenAIConfigToGuardrails,
   loadPipelineConfig,
-  sensitiveDataFilter,
-} from 'ai-sdk-guardrails';
+} from 'ai-sdk-guardrails/config';
 import { openai } from '@ai-sdk/openai';
 
 const openAIConfig = await loadPipelineConfig('./guardrails_config.json');
 const guardrailsFromWizard = mapOpenAIConfigToGuardrails(openAIConfig);
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   ...guardrailsFromWizard,
   outputGuardrails: [
     ...(guardrailsFromWizard.outputGuardrails ?? []),

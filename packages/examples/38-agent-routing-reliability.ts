@@ -13,91 +13,12 @@
  * With guardrails: Reliable classification → Correct routing → Right specialist → Quality answer
  */
 
-import { generateText } from 'ai';
-import type {
-  LanguageModelV2Message,
-  LanguageModelV2Prompt,
-  LanguageModelV2TextPart,
-} from '@ai-sdk/provider';
+import { generateText, ToolLoopAgent } from 'ai';
 import { model } from './model';
 import { withGuardrails } from 'ai-sdk-guardrails';
-import { createOutputGuardrail } from '../src/core';
+import { createOutputGuardrail } from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
-import { withAgentGuardrails } from 'ai-sdk-guardrails/guardrails/agent';
-
-const toTextParts = (content: unknown): LanguageModelV2TextPart[] => {
-  if (Array.isArray(content)) {
-    return content.map((item) =>
-      item && typeof item === 'object' && 'text' in item
-        ? { type: 'text', text: String((item as { text: unknown }).text ?? '') }
-        : { type: 'text', text: String(item) },
-    );
-  }
-
-  if (typeof content === 'string') {
-    return [{ type: 'text', text: content }];
-  }
-
-  return [{ type: 'text', text: String(content ?? '') }];
-};
-
-const createUserMessage = (text: string): LanguageModelV2Message => ({
-  role: 'user',
-  content: [{ type: 'text', text }],
-});
-
-const normalizeMessage = (message: unknown): LanguageModelV2Message => {
-  if (message && typeof message === 'object') {
-    const role = (message as { role?: string }).role;
-    const rawContent = (message as { content?: unknown }).content;
-
-    if (role === 'system') {
-      return {
-        role: 'system',
-        content:
-          typeof rawContent === 'string'
-            ? rawContent
-            : String(rawContent ?? ''),
-      };
-    }
-
-    if (role === 'user') {
-      return {
-        role: 'user',
-        content: toTextParts(rawContent),
-      };
-    }
-
-    if (role === 'assistant') {
-      return {
-        role: 'assistant',
-        content: toTextParts(rawContent),
-      };
-    }
-  }
-
-  return createUserMessage(
-    typeof message === 'string'
-      ? message
-      : String((message as { content?: unknown }).content ?? ''),
-  );
-};
-
-const normalizePrompt = (prompt: unknown): LanguageModelV2Prompt => {
-  if (!prompt) {
-    return [];
-  }
-
-  if (Array.isArray(prompt)) {
-    return prompt.map((message) => normalizeMessage(message));
-  }
-
-  if (typeof prompt === 'string') {
-    return [createUserMessage(prompt)];
-  }
-
-  return [];
-};
+import { agentGuardrails } from 'ai-sdk-guardrails';
 
 console.log('🧭 Agent Routing: Reliability Demo');
 console.log('==================================\n');
@@ -257,18 +178,12 @@ async function runWithGuardrails() {
   console.log('------------------------------');
 
   // Guarded intent classifier
-  const guardedClassifier = withGuardrails(model, {
+  const guardedClassifier = withGuardrails({
+    model,
     outputGuardrails: [validIntentClassification],
-    retry: {
-      maxRetries: 2,
-      buildRetryParams: ({ lastParams }) => ({
-        ...lastParams,
-        prompt: [
-          ...normalizePrompt(lastParams.prompt),
-          createUserMessage('Format: Intent: [INTENT] (confidence: [X]%)'),
-        ],
-      }),
-    },
+    // Default retry: the corrective prompt is built automatically from the
+    // guardrail's message — no manual prompt surgery needed.
+    retry: { maxRetries: 2 },
   });
 
   for (const query of testQueries) {
@@ -295,20 +210,10 @@ async function runWithGuardrails() {
 
       // Guarded specialist response
       const specialist = specialists[intent as keyof typeof specialists];
-      const guardedSpecialist = withGuardrails(model, {
+      const guardedSpecialist = withGuardrails({
+        model,
         outputGuardrails: [specialist.guardrail],
-        retry: {
-          maxRetries: 2,
-          buildRetryParams: ({ lastParams }) => ({
-            ...lastParams,
-            prompt: [
-              ...normalizePrompt(lastParams.prompt),
-              createUserMessage(
-                `Ensure your response demonstrates ${intent.toLowerCase()} expertise.`,
-              ),
-            ],
-          }),
-        },
+        retry: { maxRetries: 2 },
       });
 
       const response = await generateText({
@@ -331,69 +236,45 @@ async function runAgentWrapperRouting() {
   console.log('------------------------------------');
 
   // Create specialized agents using the agent wrapper
-  const classifierAgent = withAgentGuardrails(
-    {
+  const classifierAgent = new ToolLoopAgent({
+    ...agentGuardrails({
       model,
-      system:
-        'Classify user intent as TECHNICAL, BUSINESS, LEGAL, or GENERAL with confidence percentage.',
-    },
-    {
       outputGuardrails: [validIntentClassification],
-      retry: {
-        maxRetries: 2,
-        buildRetryPrompt: ({ lastPrompt, reason }) =>
-          `${lastPrompt}\n\nIMPORTANT: ${reason}. Format: Intent: [INTENT] (confidence: [X]%)`,
-      },
-    },
-  );
+      retry: { maxRetries: 2 },
+    }),
+    instructions:
+      'Classify user intent as TECHNICAL, BUSINESS, LEGAL, or GENERAL with confidence percentage.',
+  });
 
-  const technicalAgent = withAgentGuardrails(
-    {
+  const technicalAgent = new ToolLoopAgent({
+    ...agentGuardrails({
       model,
-      system:
-        'You are a senior software engineer. Provide technical solutions with code examples.',
-    },
-    {
       outputGuardrails: [domainExpertise('technical')],
-      retry: {
-        maxRetries: 2,
-        buildRetryPrompt: ({ lastPrompt, reason }) =>
-          `${lastPrompt}\n\nIMPORTANT: ${reason}. Ensure your response demonstrates technical expertise.`,
-      },
-    },
-  );
+      retry: { maxRetries: 2 },
+    }),
+    instructions:
+      'You are a senior software engineer. Provide technical solutions with code examples.',
+  });
 
-  const businessAgent = withAgentGuardrails(
-    {
+  const businessAgent = new ToolLoopAgent({
+    ...agentGuardrails({
       model,
-      system:
-        'You are a business consultant. Focus on strategy, ROI, and market impact.',
-    },
-    {
       outputGuardrails: [domainExpertise('business')],
-      retry: {
-        maxRetries: 2,
-        buildRetryPrompt: ({ lastPrompt, reason }) =>
-          `${lastPrompt}\n\nIMPORTANT: ${reason}. Ensure your response demonstrates business expertise.`,
-      },
-    },
-  );
+      retry: { maxRetries: 2 },
+    }),
+    instructions:
+      'You are a business consultant. Focus on strategy, ROI, and market impact.',
+  });
 
-  const legalAgent = withAgentGuardrails(
-    {
+  const legalAgent = new ToolLoopAgent({
+    ...agentGuardrails({
       model,
-      system:
-        'You are a legal advisor. Address compliance, regulations, and legal implications.',
-    },
-    {
       outputGuardrails: [domainExpertise('legal')],
-      retry: {
-        maxRetries: 2,
-        buildRetryPrompt: ({ lastPrompt, reason }) =>
-          `${lastPrompt}\n\nIMPORTANT: ${reason}. Ensure your response demonstrates legal expertise.`,
-      },
-    },
-  );
+      retry: { maxRetries: 2 },
+    }),
+    instructions:
+      'You are a legal advisor. Address compliance, regulations, and legal implications.',
+  });
 
   for (const query of testQueries) {
     console.log(`\n🔍 Query: "${query}"`);
@@ -457,10 +338,12 @@ async function runCollaborativeRouting() {
   console.log(`🔍 Complex Query: "${complexQuery}"`);
 
   // Multi-agent classification
-  const technicalAgent = withGuardrails(model, {
+  const technicalAgent = withGuardrails({
+    model,
     outputGuardrails: [domainExpertise('technical')],
   });
-  const legalAgent = withGuardrails(model, {
+  const legalAgent = withGuardrails({
+    model,
     outputGuardrails: [domainExpertise('legal')],
   });
 

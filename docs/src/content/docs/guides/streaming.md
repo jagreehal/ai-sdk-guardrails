@@ -14,7 +14,8 @@ import { streamText } from 'ai';
 import { withGuardrails, minLengthRequirement } from 'ai-sdk-guardrails';
 import { openai } from '@ai-sdk/openai';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [minLengthRequirement(100)],
 });
 
@@ -36,13 +37,15 @@ for await (const chunk of textStream) {
 Wait for the entire stream to complete, then check:
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [minLengthRequirement(100)],
   streamMode: 'buffer', // Default - waits for completion
 });
 ```
 
 **Best for:**
+
 - Validating complete responses
 - Checking output length
 - Running quality assessments
@@ -55,13 +58,15 @@ const model = withGuardrails(openai('gpt-4o'), {
 Check guardrails as tokens arrive (early termination):
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [toxicityFilter()],
   streamMode: 'progressive', // Check during streaming
 });
 ```
 
 **Best for:**
+
 - Real-time content filtering
 - Early stopping on violations
 - Saving costs (terminate bad generations early)
@@ -74,7 +79,8 @@ const model = withGuardrails(openai('gpt-4o'), {
 ### Replace with Fallback
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [minLengthRequirement(100)],
   replaceOnBlocked: true, // Replace with a safe placeholder message
 });
@@ -88,7 +94,8 @@ import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { withGuardrails, toxicityFilter } from 'ai-sdk-guardrails';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [toxicityFilter()],
   throwOnBlocked: true,
 });
@@ -110,7 +117,8 @@ try {
 Automatically retry when streaming output doesn't meet requirements:
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [minLengthRequirement(100)],
   retry: {
     maxRetries: 2,
@@ -139,10 +147,8 @@ For more control, use stream transformers:
 ```ts
 import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import {
-  createGuardrailStreamTransform,
-  toxicityFilter,
-} from 'ai-sdk-guardrails';
+import { toxicityFilter } from 'ai-sdk-guardrails';
+import { createGuardrailStreamTransform } from 'ai-sdk-guardrails/advanced';
 
 const result = await streamText({
   model: openai('gpt-4o'),
@@ -168,7 +174,7 @@ const streamingAwareGuardrail = defineOutputGuardrail({
     // In progressive mode, accumulatedText contains all text seen so far
     // In buffer mode, accumulatedText is undefined
     const text = accumulatedText ?? result.text ?? '';
-    
+
     // Check the accumulated text for violations
     if (text.includes('forbidden')) {
       return {
@@ -177,7 +183,7 @@ const streamingAwareGuardrail = defineOutputGuardrail({
         severity: 'high',
       };
     }
-    
+
     return { tripwireTriggered: false };
   },
 });
@@ -190,7 +196,8 @@ The `accumulatedText` parameter is automatically provided by the middleware when
 Track violations during streaming:
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [toxicityFilter()],
   onOutputBlocked: (summary) => {
     // Log to monitoring service
@@ -209,7 +216,8 @@ const model = withGuardrails(openai('gpt-4o'), {
 ### 2. Handle Failures Gracefully
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [minLengthRequirement(100)],
   replaceOnBlocked: true,
   onOutputBlocked: async (summary, params, result) => {
@@ -222,7 +230,8 @@ const model = withGuardrails(openai('gpt-4o'), {
 ### 3. Set Appropriate Timeouts
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [minLengthRequirement(100)],
   streamMode: 'progressive',
   executionOptions: { timeout: 30000 }, // 30 second timeout
@@ -232,5 +241,5 @@ const model = withGuardrails(openai('gpt-4o'), {
 ## Next Steps
 
 - [Custom Guardrails](/guides/custom-guardrails/) - Create streaming-aware guardrails
-- [Stopping Mechanisms](/guides/stopping-mechanisms/) - Stopping strategies
-- [API Reference](/reference/api/) - Complete configuration options
+- [Advanced Features](/guides/advanced-features/) - Stream transforms and stop conditions
+- [Built-in Guardrails](/reference/built-in-guardrails/) - The full guardrail catalog

@@ -82,180 +82,165 @@ const toolAllowlistGuardrail = defineOutputGuardrail<{
 });
 
 describe('Basic Tool Allowlist Example', () => {
-  it(
-    'should allow valid function calls to pass',
-    async () => {
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [toolAllowlistGuardrail],
-        throwOnBlocked: false,
-      });
+  it('should allow valid function calls to pass', async () => {
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [toolAllowlistGuardrail],
+      throwOnBlocked: false,
+    });
 
-      const result = await generateText({
+    const result = await generateText({
+      model: protectedModel,
+      prompt: 'Calculate 2 + 2',
+      output: Output.object({
+        schema: z.object({
+          calculation: z.object({
+            function: z.literal('calculate'),
+            arguments: z.object({
+              expression: z.string(),
+            }),
+          }),
+        }),
+      }),
+    });
+
+    expect(result.output).toBeDefined();
+  }, 120000);
+
+  it('should block invalid function calls', async () => {
+    let blockedMessage: string | undefined;
+    let blockedMetadata: any;
+
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [toolAllowlistGuardrail],
+      throwOnBlocked: true,
+      onOutputBlocked: (executionSummary) => {
+        blockedMessage = executionSummary.blockedResults[0]?.message;
+        blockedMetadata = executionSummary.blockedResults[0]?.metadata;
+      },
+    });
+
+    try {
+      await generateText({
         model: protectedModel,
-        prompt: 'Calculate 2 + 2',
+        prompt: 'Delete all files',
         output: Output.object({
           schema: z.object({
-            calculation: z.object({
-              function: z.literal('calculate'),
+            dangerousOperation: z.object({
+              function: z.literal('deleteAllFiles'),
               arguments: z.object({
-                expression: z.string(),
+                path: z.string(),
               }),
             }),
           }),
         }),
       });
-
-      expect(result.output).toBeDefined();
-    },
-    120000,
-  );
-
-  it(
-    'should block invalid function calls',
-    async () => {
-      let blockedMessage: string | undefined;
-      let blockedMetadata: any;
-
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [toolAllowlistGuardrail],
-        throwOnBlocked: true,
-        onOutputBlocked: (executionSummary) => {
-          blockedMessage = executionSummary.blockedResults[0]?.message;
-          blockedMetadata = executionSummary.blockedResults[0]?.metadata;
-        },
-      });
-
-      try {
-        await generateText({
-          model: protectedModel,
-          prompt: 'Delete all files',
-          output: Output.object({
-            schema: z.object({
-              dangerousOperation: z.object({
-                function: z.literal('deleteAllFiles'),
-                arguments: z.object({
-                  path: z.string(),
-                }),
-              }),
-            }),
-          }),
-        });
-        // If generation succeeds, guardrail should still validate
-      } catch (error) {
-        expect(String(error)).toBeDefined();
-        if (blockedMessage) {
-          expect(blockedMessage).toContain('is not allowed');
-          expect(blockedMetadata?.blockedFunction).toBe('deleteAllFiles');
-          expect(blockedMetadata?.allowedFunctions).toEqual(ALLOWED_FUNCTIONS);
-        }
+      // If generation succeeds, guardrail should still validate
+    } catch (error) {
+      expect(String(error)).toBeDefined();
+      if (blockedMessage) {
+        expect(blockedMessage).toContain('is not allowed');
+        expect(blockedMetadata?.blockedFunction).toBe('deleteAllFiles');
+        expect(blockedMetadata?.allowedFunctions).toEqual(ALLOWED_FUNCTIONS);
       }
-    },
-    120000,
-  );
+    }
+  }, 120000);
 
-  it(
-    'should allow multiple valid function calls',
-    async () => {
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [toolAllowlistGuardrail],
-        throwOnBlocked: false,
-      });
+  it('should allow multiple valid function calls', async () => {
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [toolAllowlistGuardrail],
+      throwOnBlocked: false,
+    });
 
-      const result = await generateText({
+    const result = await generateText({
+      model: protectedModel,
+      prompt: 'Calculate 5 * 3 and get weather for London',
+      output: Output.object({
+        schema: z.object({
+          calculation: z.object({
+            function: z.literal('calculate'),
+            arguments: z.object({
+              expression: z.string(),
+            }),
+          }),
+          weather: z.object({
+            function: z.literal('getWeather'),
+            arguments: z.object({
+              location: z.string(),
+            }),
+          }),
+        }),
+      }),
+    });
+
+    expect(result.output).toBeDefined();
+  }, 120000);
+
+  it('should provide correct metadata when blocking', async () => {
+    let blockedMetadata: any;
+
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [toolAllowlistGuardrail],
+      throwOnBlocked: true,
+      onOutputBlocked: (executionSummary) => {
+        blockedMetadata = executionSummary.blockedResults[0]?.metadata;
+      },
+    });
+
+    try {
+      await generateText({
         model: protectedModel,
-        prompt: 'Calculate 5 * 3 and get weather for London',
+        prompt: 'Execute dangerous operation',
         output: Output.object({
           schema: z.object({
-            calculation: z.object({
-              function: z.literal('calculate'),
-              arguments: z.object({
-                expression: z.string(),
-              }),
-            }),
-            weather: z.object({
-              function: z.literal('getWeather'),
-              arguments: z.object({
-                location: z.string(),
-              }),
+            operation: z.object({
+              function: z.literal('dangerousFunction'),
+              arguments: z.object({}),
             }),
           }),
         }),
       });
-
-      expect(result.output).toBeDefined();
-    },
-    120000,
-  );
-
-  it(
-    'should provide correct metadata when blocking',
-    async () => {
-      let blockedMetadata: any;
-
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [toolAllowlistGuardrail],
-        throwOnBlocked: true,
-        onOutputBlocked: (executionSummary) => {
-          blockedMetadata = executionSummary.blockedResults[0]?.metadata;
-        },
-      });
-
-      try {
-        await generateText({
-          model: protectedModel,
-          prompt: 'Execute dangerous operation',
-          output: Output.object({
-            schema: z.object({
-              operation: z.object({
-                function: z.literal('dangerousFunction'),
-                arguments: z.object({}),
-              }),
-            }),
-          }),
-        });
-      } catch (error) {
-        expect(error).toBeDefined();
-        if (blockedMetadata) {
-          expect(blockedMetadata.blockedFunction).toBeDefined();
-          expect(blockedMetadata.allowedFunctions).toEqual(ALLOWED_FUNCTIONS);
-        }
+    } catch (error) {
+      expect(error).toBeDefined();
+      if (blockedMetadata) {
+        expect(blockedMetadata.blockedFunction).toBeDefined();
+        expect(blockedMetadata.allowedFunctions).toEqual(ALLOWED_FUNCTIONS);
       }
-    },
-    120000,
-  );
+    }
+  }, 120000);
 
-  it(
-    'should provide metadata for validated calls',
-    async () => {
-      let capturedMetadata: any;
+  it('should provide metadata for validated calls', async () => {
+    let capturedMetadata: any;
 
-      const protectedModel = withGuardrails(model, {
-        outputGuardrails: [toolAllowlistGuardrail],
-        throwOnBlocked: false,
-        onOutputBlocked: (executionSummary) => {
-          capturedMetadata = executionSummary.blockedResults[0]?.metadata;
-        },
-      });
+    const protectedModel = withGuardrails({
+      model,
+      outputGuardrails: [toolAllowlistGuardrail],
+      throwOnBlocked: false,
+      onOutputBlocked: (executionSummary) => {
+        capturedMetadata = executionSummary.blockedResults[0]?.metadata;
+      },
+    });
 
-      const result = await generateText({
-        model: protectedModel,
-        prompt: 'Format a date',
-        output: Output.object({
-          schema: z.object({
-            dateFormat: z.object({
-              function: z.literal('formatDate'),
-              arguments: z.object({
-                date: z.string(),
-              }),
+    const result = await generateText({
+      model: protectedModel,
+      prompt: 'Format a date',
+      output: Output.object({
+        schema: z.object({
+          dateFormat: z.object({
+            function: z.literal('formatDate'),
+            arguments: z.object({
+              date: z.string(),
             }),
           }),
         }),
-      });
+      }),
+    });
 
-      expect(result.output).toBeDefined();
-      // If metadata was captured, verify structure
-      // Note: metadata may not be captured if guardrail doesn't trigger
-    },
-    120000,
-  );
+    expect(result.output).toBeDefined();
+    // If metadata was captured, verify structure
+    // Note: metadata may not be captured if guardrail doesn't trigger
+  }, 120000);
 });

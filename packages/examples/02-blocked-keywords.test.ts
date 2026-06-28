@@ -45,7 +45,8 @@ const blockedKeywordsGuardrail = defineInputGuardrail({
 
 describe('Blocked Keywords Example', () => {
   it('should allow clean prompt to pass', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [blockedKeywordsGuardrail],
       throwOnBlocked: true,
     });
@@ -60,7 +61,8 @@ describe('Blocked Keywords Example', () => {
   });
 
   it('should block prompt containing blocked keyword', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [blockedKeywordsGuardrail],
       throwOnBlocked: true,
     });
@@ -74,7 +76,8 @@ describe('Blocked Keywords Example', () => {
   });
 
   it('should detect keywords case-insensitively', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [blockedKeywordsGuardrail],
       throwOnBlocked: true,
     });
@@ -88,7 +91,8 @@ describe('Blocked Keywords Example', () => {
   });
 
   it('should provide correct metadata when blocking', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [blockedKeywordsGuardrail],
       throwOnBlocked: true,
     });
@@ -109,7 +113,8 @@ describe('Blocked Keywords Example', () => {
     let blockedMessage: string | undefined;
     let blockedMetadata: any;
 
-    const warningModel = withGuardrails(model, {
+    const warningModel = withGuardrails({
+      model,
       inputGuardrails: [blockedKeywordsGuardrail],
       throwOnBlocked: false, // Warning mode
       onInputBlocked: (executionSummary) => {

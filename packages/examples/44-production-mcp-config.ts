@@ -64,7 +64,8 @@ const permissiveConfig = {
 };
 
 // Create models with different security profiles
-const conservativeModel = withGuardrails(model, {
+const conservativeModel = withGuardrails({
+  model,
   outputGuardrails: [
     mcpSecurityGuardrail(conservativeConfig),
     mcpResponseSanitizer(),
@@ -72,7 +73,8 @@ const conservativeModel = withGuardrails(model, {
   throwOnBlocked: true,
 });
 
-const balancedModel = withGuardrails(model, {
+const balancedModel = withGuardrails({
+  model,
   outputGuardrails: [
     mcpSecurityGuardrail(balancedConfig),
     mcpResponseSanitizer(),
@@ -86,7 +88,8 @@ const balancedModel = withGuardrails(model, {
   },
 });
 
-const permissiveModel = withGuardrails(model, {
+const permissiveModel = withGuardrails({
+  model,
   outputGuardrails: [mcpSecurityGuardrail(permissiveConfig)],
   throwOnBlocked: false,
   onOutputBlocked: (summary) => {

@@ -6,7 +6,7 @@
  * on blocked guardrails and appending the instructions as user messages.
  */
 
-import type { LanguageModelV3CallOptions as LMCallOptions } from '@ai-sdk/provider';
+import type { LanguageModelV4CallOptions as LMCallOptions } from '@ai-sdk/provider';
 import type {
   GuardrailExecutionSummary,
   GuardrailResult,

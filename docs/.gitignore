@@ -1,0 +1,3 @@
+# Astro local cache / settings (regenerated on every build)
+.astro/data-store.json
+.astro/settings.json

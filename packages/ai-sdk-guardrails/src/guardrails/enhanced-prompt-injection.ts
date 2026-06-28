@@ -10,23 +10,14 @@
 
 import { defineInputGuardrail } from '../guardrails';
 import type { InputGuardrailContext, InputGuardrail } from '../types';
+import {
+  normalizeForDetection,
+  type DetectNormalizationOptions,
+} from './normalization';
 
 // ============================================================================
 // Types and Interfaces
 // ============================================================================
-
-interface ConversationState {
-  messageHistory: Array<{
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    timestamp: Date;
-    injectionScore: number;
-  }>;
-  cumulativeInjectionScore: number;
-  suspiciousPatterns: string[];
-  contextShifts: number;
-  lastIntent: string;
-}
 
 interface EnhancedConfidenceScore {
   patternMatch: number; // 0.0-1.0
@@ -70,11 +61,21 @@ interface EnhancedPromptInjectionOptions {
     semantic?: number;
     behavior?: number;
   };
+  /**
+   * Normalize input before pattern scoring to defeat obfuscation (homoglyphs,
+   * zero-width characters, leetspeak, spaced letters, typos). Enabled by
+   * default; additive, so it never lowers the raw-text score.
+   */
+  normalize?: boolean | DetectNormalizationOptions;
 }
 
 // ============================================================================
 // Enhanced Injection Patterns
 // ============================================================================
+
+// Shared between the scoring catalog and the tool-call catalog below.
+const RE_CALL_MALICIOUS_PARAMS = /call\s+(\w+)\s+with\s+malicious\s+params/i;
+const RE_OVERRIDE_FUNCTION = /override\s+function\s+(\w+)/i;
 
 const ENHANCED_INJECTION_PATTERNS = [
   // Direct instruction injection
@@ -101,14 +102,14 @@ const ENHANCED_INJECTION_PATTERNS = [
   },
   // Tool manipulation patterns
   {
-    pattern: /call\s+(\w+)\s+with\s+malicious\s+params/i,
+    pattern: RE_CALL_MALICIOUS_PARAMS,
     weight: 0.9,
     type: 'tool_manipulation',
     semanticKeywords: ['call', 'malicious', 'params'],
     contextIndicators: ['function', 'tool', 'execute'],
   },
   {
-    pattern: /override\s+function\s+(\w+)/i,
+    pattern: RE_OVERRIDE_FUNCTION,
     weight: 0.95,
     type: 'function_override',
     semanticKeywords: ['override', 'function'],
@@ -135,12 +136,12 @@ const ENHANCED_INJECTION_PATTERNS = [
 
 const TOOL_CALL_INJECTION_PATTERNS: ToolCallInjectionPattern[] = [
   {
-    pattern: /call\s+(\w+)\s+with\s+malicious\s+params/i,
+    pattern: RE_CALL_MALICIOUS_PARAMS,
     weight: 0.9,
     injectionType: 'parameter_manipulation',
   },
   {
-    pattern: /override\s+function\s+(\w+)/i,
+    pattern: RE_OVERRIDE_FUNCTION,
     weight: 0.95,
     injectionType: 'function_override',
   },
@@ -157,87 +158,37 @@ const TOOL_CALL_INJECTION_PATTERNS: ToolCallInjectionPattern[] = [
 ];
 
 // ============================================================================
-// Conversation State Management
-// ============================================================================
-
-class ConversationStateManager {
-  private states = new Map<string, ConversationState>();
-
-  getState(userId: string): ConversationState {
-    return this.states.get(userId) || this.createEmptyState();
-  }
-
-  updateState(
-    userId: string,
-    message: {
-      role: 'user' | 'assistant' | 'system';
-      content: string;
-      injectionScore: number;
-    },
-  ): ConversationState {
-    const state = this.getState(userId);
-
-    // Add new message
-    state.messageHistory.push({
-      ...message,
-      timestamp: new Date(),
-    });
-
-    // Keep only recent messages
-    const maxMessages = 10; // conversationMemory
-    if (state.messageHistory.length > maxMessages) {
-      state.messageHistory = state.messageHistory.slice(-maxMessages);
-    }
-
-    // Update cumulative score
-    state.cumulativeInjectionScore =
-      state.messageHistory.reduce((sum, msg) => sum + msg.injectionScore, 0) /
-      state.messageHistory.length;
-
-    // Detect context shifts
-    if (this.detectContextShift(state)) {
-      state.contextShifts++;
-    }
-
-    this.states.set(userId, state);
-    return state;
-  }
-
-  private createEmptyState(): ConversationState {
-    return {
-      messageHistory: [],
-      cumulativeInjectionScore: 0,
-      suspiciousPatterns: [],
-      contextShifts: 0,
-      lastIntent: '',
-    };
-  }
-
-  private detectContextShift(state: ConversationState): boolean {
-    if (state.messageHistory.length < 2) return false;
-
-    const last = state.messageHistory.at(-1);
-    const previous = state.messageHistory.at(-2);
-
-    if (!last || !previous) return false;
-
-    // Simple context shift detection based on topic change
-    const lastWords = last.content.toLowerCase().split(/\s+/);
-    const previousWords = previous.content.toLowerCase().split(/\s+/);
-
-    const commonWords = lastWords.filter((word) =>
-      previousWords.includes(word),
-    );
-    const similarity =
-      commonWords.length / Math.max(lastWords.length, previousWords.length);
-
-    return similarity < 0.3; // Threshold for context shift
-  }
-}
-
-// ============================================================================
 // Enhanced Analysis Functions
 // ============================================================================
+
+/**
+ * Fraction of shared words between two snippets (0 = disjoint, 1 = identical
+ * vocabulary). Shared by coherence and context-shift detection so the heuristic
+ * lives in one place.
+ */
+function wordOverlap(a: string, b: string): number {
+  const aw = a.toLowerCase().split(/\s+/).filter(Boolean);
+  const bw = b.toLowerCase().split(/\s+/).filter(Boolean);
+  if (aw.length === 0 || bw.length === 0) return 0;
+  const common = aw.filter((word) => bw.includes(word));
+  return common.length / Math.max(aw.length, bw.length);
+}
+
+/**
+ * Pattern score with optional additive normalization: score the raw and
+ * de-obfuscated text and keep the higher, so evasion only ever raises the score.
+ */
+function scorePattern(
+  content: string,
+  normalize: boolean | DetectNormalizationOptions,
+): number {
+  return normalize === false
+    ? calculatePatternScore(content)
+    : Math.max(
+        calculatePatternScore(content),
+        calculatePatternScore(normalizeForDetection(content, normalize)),
+      );
+}
 
 function calculatePatternScore(content: string): number {
   let totalScore = 0;
@@ -268,19 +219,63 @@ function analyzeContextCoherence(content: string): number {
 
     if (!prevSentence || !currSentence) continue;
 
-    const prevWords = prevSentence.toLowerCase().split(/\s+/);
-    const currWords = currSentence.toLowerCase().split(/\s+/);
-
-    const commonWords = prevWords.filter((word) => currWords.includes(word));
-    const similarity =
-      commonWords.length / Math.max(prevWords.length, currWords.length);
-
-    if (similarity < 0.2) {
+    if (wordOverlap(prevSentence, currSentence) < 0.2) {
       coherenceScore -= 0.2; // Penalize low coherence
     }
   }
 
   return Math.max(coherenceScore, 0);
+}
+
+interface IncrementalAnalysis {
+  cumulativeScore: number;
+  contextShifts: number;
+  messageCount: number;
+}
+
+/**
+ * Per-call incremental analysis derived from the conversation history carried in
+ * `context`. Unlike a module-global tracker, this keys off the messages the
+ * caller actually supplies, so scores never bleed across requests or tenants.
+ */
+function analyzeIncremental(
+  context: InputGuardrailContext,
+  currentContent: string,
+  currentScore: number,
+  conversationMemory: number,
+  normalize: boolean | DetectNormalizationOptions,
+): IncrementalAnalysis {
+  const history: Array<{ content: string; score: number }> = [];
+
+  if (
+    typeof context !== 'string' &&
+    'messages' in context &&
+    Array.isArray(context.messages)
+  ) {
+    for (const message of context.messages) {
+      const text =
+        typeof message.content === 'string' ? message.content : '';
+      history.push({ content: text, score: scorePattern(text, normalize) });
+    }
+  }
+
+  // String context (or an empty history) still represents the current message.
+  if (history.length === 0) {
+    history.push({ content: currentContent, score: currentScore });
+  }
+
+  const recent = history.slice(-Math.max(conversationMemory, 1));
+  const cumulativeScore =
+    recent.reduce((sum, m) => sum + m.score, 0) / recent.length;
+
+  let contextShifts = 0;
+  for (let i = 1; i < recent.length; i++) {
+    if (wordOverlap(recent[i - 1]!.content, recent[i]!.content) < 0.3) {
+      contextShifts++;
+    }
+  }
+
+  return { cumulativeScore, contextShifts, messageCount: recent.length };
 }
 
 function analyzeConversationFlow(context: InputGuardrailContext): number {
@@ -333,6 +328,8 @@ function detectBehavioralAnomalies(context: InputGuardrailContext): number {
   let contentToCheck: string;
 
   if (typeof context === 'string') {
+    // `InputGuardrailContext` is object-typed, so this guard narrows to `never`;
+    // the cast keeps the defensive runtime branch honest to the compiler.
     contentToCheck = (context as string).toLowerCase();
   } else if (typeof context === 'object' && context !== null) {
     // For object context, convert to string
@@ -452,21 +449,41 @@ function analyzeToolCalls(content: string): Array<{
 // Main Enhanced Prompt Injection Detector
 // ============================================================================
 
-const conversationManager = new ConversationStateManager();
+interface EnhancedInjectionMetadata extends Record<string, unknown> {
+  enhancedScore: EnhancedConfidenceScore;
+  incrementalAnalysis: IncrementalAnalysis | null;
+  toolCallAnalysis: {
+    suspiciousCalls: number;
+    detectedCalls: Array<{
+      tool: string;
+      confidence: number;
+      injectionType: string;
+    }>;
+  } | null;
+  intentAnalysis: UserIntent | null;
+  analysisType: string;
+  features: {
+    incremental: boolean;
+    toolCallFocus: boolean;
+    intentExtraction: boolean;
+  };
+}
 
 export const enhancedPromptInjectionDetector = (
   options: EnhancedPromptInjectionOptions = {},
-): InputGuardrail => {
+): InputGuardrail<EnhancedInjectionMetadata> => {
   const {
     enableIncremental = true,
     enableToolCallFocus = true,
     enableIntentExtraction = true,
     confidenceThreshold = 0.7,
     cumulativeThreshold = 0.5,
+    conversationMemory = 10,
     weights = {},
+    normalize = true,
   } = options;
 
-  return defineInputGuardrail({
+  return defineInputGuardrail<EnhancedInjectionMetadata>({
     name: 'enhanced-prompt-injection',
     description:
       'Enhanced prompt injection detection with incremental checking, confidence scoring, tool call focus, and intent extraction',
@@ -483,8 +500,10 @@ export const enhancedPromptInjectionDetector = (
           .join(' ');
       }
 
-      // 1. Pattern matching analysis
-      const patternScore = calculatePatternScore(content);
+      // 1. Pattern matching analysis. Normalization is additive — score the
+      // raw and de-obfuscated text and keep the higher, so evasion only ever
+      // raises the score.
+      const patternScore = scorePattern(content, normalize);
 
       // 2. Context coherence analysis
       const contextScore = analyzeContextCoherence(content);
@@ -517,25 +536,20 @@ export const enhancedPromptInjectionDetector = (
         ),
       };
 
-      // 6. Incremental checking (if enabled)
-      let incrementalAnalysis = null;
-      if (enableIncremental) {
-        const userId = 'default'; // In production, extract from context
-        const conversationState = conversationManager.updateState(userId, {
-          role: 'user',
-          content,
-          injectionScore: enhancedScore.finalScore,
-        });
-
-        incrementalAnalysis = {
-          cumulativeScore: conversationState.cumulativeInjectionScore,
-          contextShifts: conversationState.contextShifts,
-          messageCount: conversationState.messageHistory.length,
-        };
-      }
+      // 6. Incremental checking (if enabled). Derived per-call from the
+      // conversation history in `context` — no cross-request shared state.
+      const incrementalAnalysis: IncrementalAnalysis | null = enableIncremental
+        ? analyzeIncremental(
+            context,
+            content,
+            enhancedScore.finalScore,
+            conversationMemory,
+            normalize,
+          )
+        : null;
 
       // 7. Tool call analysis (if enabled)
-      let toolCallAnalysis = null;
+      let toolCallAnalysis: EnhancedInjectionMetadata['toolCallAnalysis'] = null;
       if (enableToolCallFocus) {
         const suspiciousCalls = analyzeToolCalls(content);
         toolCallAnalysis = {
@@ -545,7 +559,7 @@ export const enhancedPromptInjectionDetector = (
       }
 
       // 8. Intent extraction (if enabled)
-      let intentAnalysis = null;
+      let intentAnalysis: UserIntent | null = null;
       if (enableIntentExtraction) {
         intentAnalysis = extractUserIntent(content);
       }
@@ -559,7 +573,7 @@ export const enhancedPromptInjectionDetector = (
       );
 
       // Create comprehensive metadata
-      const metadata = {
+      const metadata: EnhancedInjectionMetadata = {
         enhancedScore,
         incrementalAnalysis,
         toolCallAnalysis,
@@ -578,7 +592,7 @@ export const enhancedPromptInjectionDetector = (
           ? `Enhanced prompt injection detected (confidence: ${(enhancedScore.finalScore * 100).toFixed(1)}%)`
           : undefined,
         severity: enhancedScore.finalScore > 0.8 ? 'critical' : 'high',
-        metadata: metadata as Record<string, unknown>,
+        metadata,
         suggestion: isInjectionDetected
           ? 'Please rephrase your request without system instructions, role-playing elements, or tool manipulation attempts'
           : undefined,

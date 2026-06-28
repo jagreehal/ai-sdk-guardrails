@@ -98,7 +98,8 @@ const outputLengthGuardrail = defineOutputGuardrail<{ length: number }>({
 console.log('🛡️  Simple Combined Protection Example\n');
 
 // Combine all guardrails
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   inputGuardrails: [lengthGuardrail, keywordGuardrail] as const,
   outputGuardrails: [outputLengthGuardrail],
   throwOnBlocked: false,

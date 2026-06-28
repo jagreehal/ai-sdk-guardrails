@@ -30,7 +30,8 @@ const { text } = await generateText({
 With guardrails:
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector()],
 });
 
@@ -48,19 +49,19 @@ const { text } = await generateText({
 Run before the model receives the request. Use these to:
 
 - Detect PII (emails, phone numbers, SSNs)
-- Block prompt injection attempts
+- Block prompt injection, including leetspeak, homoglyph, and delimiter obfuscation
+- Flag encoded or high-entropy payloads
 - Filter toxic or inappropriate content
-- Enforce length limits
-- Apply rate limiting
+- Enforce length limits and rate limits
 
 ### Output Guardrails
 
 Run after the model generates a response. Use these to:
 
 - Remove sensitive data from responses
+- Detect system-prompt leaks (the model echoing its own instructions)
 - Enforce minimum quality standards
-- Validate output format
-- Check for hallucinations
+- Validate output format and check for hallucinations
 - Filter inappropriate content
 
 ### Tool Guardrails
@@ -79,7 +80,8 @@ AI SDK Guardrails works as middleware for the AI SDK:
 import { withGuardrails } from 'ai-sdk-guardrails';
 
 // Wrap any AI SDK model
-const guardedModel = withGuardrails(openai('gpt-4o'), {
+const guardedModel = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [...],
   outputGuardrails: [...],
 });
@@ -101,5 +103,6 @@ Your existing code, telemetry, and logging continue to work unchanged.
 ## Next Steps
 
 - [Quick Start](/quick-start/) - Set up guardrails in 5 minutes
+- [Security](/guides/security/) - Layer prompt, input, tool, and output defenses
 - [Built-in Guardrails](/reference/built-in-guardrails/) - Explore available guardrails
 - [Custom Guardrails](/guides/custom-guardrails/) - Create your own guardrails

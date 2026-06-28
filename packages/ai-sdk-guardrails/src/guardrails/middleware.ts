@@ -8,10 +8,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type {
-  LanguageModelV3Middleware,
-  LanguageModelV3CallOptions,
-  LanguageModelV3FinishReason,
-  LanguageModelV3Usage,
+  LanguageModelV4Middleware,
+  LanguageModelV4CallOptions,
+  LanguageModelV4FinishReason,
+  LanguageModelV4Usage,
 } from '@ai-sdk/provider';
 import type {
   InputGuardrail,
@@ -26,8 +26,8 @@ import {
 } from '../guardrails';
 import { GuardrailsInputError, GuardrailsOutputError } from '../errors';
 
-// V3-compatible helpers for mock responses
-const emptyV3Usage: LanguageModelV3Usage = {
+// V4-compatible helpers for mock responses
+const emptyV4Usage: LanguageModelV4Usage = {
   inputTokens: {
     total: 0,
     noCache: undefined,
@@ -41,7 +41,7 @@ const emptyV3Usage: LanguageModelV3Usage = {
   },
 };
 
-const finishReasonOther: LanguageModelV3FinishReason = {
+const finishReasonOther: LanguageModelV4FinishReason = {
   unified: 'other',
   raw: undefined,
 };
@@ -71,12 +71,12 @@ export interface GuardrailMiddlewareConfig<
   /** Callback when input is blocked */
   onInputBlocked?: (
     summary: GuardrailExecutionSummary<MIn>,
-    params: LanguageModelV3CallOptions,
+    params: LanguageModelV4CallOptions,
   ) => void | Promise<void>;
   /** Callback when output is blocked */
   onOutputBlocked?: (
     summary: GuardrailExecutionSummary<MOut>,
-    params: LanguageModelV3CallOptions,
+    params: LanguageModelV4CallOptions,
     result: unknown,
   ) => void | Promise<void>;
   /** Execution options */
@@ -87,7 +87,7 @@ export interface GuardrailMiddlewareConfig<
     logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
   };
   /** Skip guardrails for this request (useful for testing) */
-  skipGuardrails?: boolean | ((params: LanguageModelV3CallOptions) => boolean);
+  skipGuardrails?: boolean | ((params: LanguageModelV4CallOptions) => boolean);
 }
 
 // ============================================================================
@@ -104,12 +104,12 @@ export interface GuardrailMiddlewareConfig<
  * ```typescript
  * import { wrapLanguageModel } from 'ai';
  * import { anthropic } from '@ai-sdk/anthropic';
- * import { createGuardrailMiddleware } from 'ai-sdk-guardrails/guardrails/middleware';
+ * import { guardrailMiddleware } from 'ai-sdk-guardrails/guardrails/middleware';
  *
  * const model = wrapLanguageModel({
  *   model: anthropic('claude-3-opus'),
  *   middleware: [
- *     createGuardrailMiddleware({
+ *     guardrailMiddleware({
  *       inputGuardrails: [promptInjectionDetector()],
  *       outputGuardrails: [piiRedactor()],
  *       throwOnBlocked: true,
@@ -124,7 +124,7 @@ export interface GuardrailMiddlewareConfig<
  *   model: openai('gpt-4'),
  *   middleware: [
  *     loggingMiddleware(),
- *     createGuardrailMiddleware({
+ *     guardrailMiddleware({
  *       inputGuardrails: [rateLimiter(), piiDetector()],
  *       outputGuardrails: [contentFilter()],
  *     }),
@@ -137,7 +137,7 @@ export interface GuardrailMiddlewareConfig<
  * ```typescript
  * // Create middleware with context getter
  * const createUserGuardrails = (user: User) =>
- *   createGuardrailMiddleware({
+ *   guardrailMiddleware({
  *     inputGuardrails: [roleBasedAccess()],
  *     context: {
  *       userId: user.id,
@@ -153,13 +153,13 @@ export interface GuardrailMiddlewareConfig<
  * });
  * ```
  */
-export function createGuardrailMiddleware<
+export function guardrailMiddleware<
   MIn extends Record<string, unknown> = Record<string, unknown>,
   MOut extends Record<string, unknown> = Record<string, unknown>,
   TContext = Record<string, unknown>,
 >(
   config: GuardrailMiddlewareConfig<MIn, MOut, TContext>,
-): LanguageModelV3Middleware {
+): LanguageModelV4Middleware {
   const {
     inputGuardrails = [],
     outputGuardrails = [],
@@ -172,7 +172,7 @@ export function createGuardrailMiddleware<
     skipGuardrails = false,
   } = config;
 
-  const shouldSkip = (params: LanguageModelV3CallOptions): boolean => {
+  const shouldSkip = (params: LanguageModelV4CallOptions): boolean => {
     if (typeof skipGuardrails === 'function') {
       return skipGuardrails(params);
     }
@@ -180,7 +180,7 @@ export function createGuardrailMiddleware<
   };
 
   return {
-    specificationVersion: 'v3' as const,
+    specificationVersion: 'v4' as const,
     // Transform params to check input guardrails
     transformParams: async ({ params }) => {
       if (shouldSkip(params) || inputGuardrails.length === 0) {
@@ -224,7 +224,7 @@ export function createGuardrailMiddleware<
         return {
           ...params,
           _guardrailsBlocked: blockedResults,
-        } as LanguageModelV3CallOptions;
+        } as LanguageModelV4CallOptions;
       }
 
       return params;
@@ -233,7 +233,7 @@ export function createGuardrailMiddleware<
     // Wrap generate to check output guardrails
     wrapGenerate: async ({ doGenerate, params }) => {
       // Check if input was blocked
-      const paramsWithGuardrails = params as LanguageModelV3CallOptions & {
+      const paramsWithGuardrails = params as LanguageModelV4CallOptions & {
         _guardrailsBlocked?: unknown[];
       };
 
@@ -244,7 +244,7 @@ export function createGuardrailMiddleware<
           text: blockedText,
           content: [{ type: 'text', text: blockedText }],
           finishReason: finishReasonOther,
-          usage: emptyV3Usage,
+          usage: emptyV4Usage,
           warnings: [],
           rawCall: { rawPrompt: params.prompt, rawSettings: {} },
           response: { headers: {} },
@@ -315,7 +315,7 @@ export function createGuardrailMiddleware<
     // Wrap stream to check output guardrails (buffer mode for simplicity)
     wrapStream: async ({ doStream, params }) => {
       // Check if input was blocked
-      const paramsWithGuardrails = params as LanguageModelV3CallOptions & {
+      const paramsWithGuardrails = params as LanguageModelV4CallOptions & {
         _guardrailsBlocked?: unknown[];
       };
 
@@ -331,7 +331,7 @@ export function createGuardrailMiddleware<
             controller.enqueue({
               type: 'finish',
               finishReason: finishReasonOther,
-              usage: emptyV3Usage,
+              usage: emptyV4Usage,
             });
             controller.close();
           },
@@ -440,7 +440,7 @@ export function createGuardrailMiddleware<
               controller.enqueue({
                 type: 'finish',
                 finishReason: finishReasonOther,
-                usage: emptyV3Usage,
+                usage: emptyV4Usage,
               });
               return;
             }
@@ -488,50 +488,15 @@ function createExecutionSummary<M extends Record<string, unknown>>(
 // ============================================================================
 // Convenience Factories
 // ============================================================================
-
-/**
- * Creates an input-only guardrail middleware
- */
-export function createInputGuardrailMiddleware<
-  M extends Record<string, unknown>,
->(
-  guardrails: InputGuardrail<M>[],
-  options?: Omit<
-    GuardrailMiddlewareConfig<M, never>,
-    'inputGuardrails' | 'outputGuardrails'
-  >,
-): LanguageModelV3Middleware {
-  return createGuardrailMiddleware({
-    ...options,
-    inputGuardrails: guardrails,
-    outputGuardrails: [],
-  });
-}
-
-/**
- * Creates an output-only guardrail middleware
- */
-export function createOutputGuardrailMiddleware<
-  M extends Record<string, unknown>,
->(
-  guardrails: OutputGuardrail<M>[],
-  options?: Omit<
-    GuardrailMiddlewareConfig<never, M>,
-    'inputGuardrails' | 'outputGuardrails'
-  >,
-): LanguageModelV3Middleware {
-  return createGuardrailMiddleware({
-    ...options,
-    inputGuardrails: [],
-    outputGuardrails: guardrails,
-  });
-}
+// For input-only or output-only middleware, call `guardrailMiddleware({ ... })`
+// with just `inputGuardrails` or `outputGuardrails`, or use the canonical
+// `inputGuardrailsMiddleware` / `outputGuardrailsMiddleware`.
 
 /**
  * Creates a no-op middleware that skips all guardrails (for testing)
  */
-export function createNoOpGuardrailMiddleware(): LanguageModelV3Middleware {
-  return createGuardrailMiddleware({
+export function noopGuardrailMiddleware(): LanguageModelV4Middleware {
+  return guardrailMiddleware({
     skipGuardrails: true,
   });
 }

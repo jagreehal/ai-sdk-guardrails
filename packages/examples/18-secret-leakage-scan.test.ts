@@ -176,7 +176,11 @@ function extractSecrets(text: string): {
 
         // Calculate entropy for high-entropy patterns
         let entropy: number | undefined;
-        if (HIGH_ENTROPY_PATTERNS.some((p) => new RegExp(p.source, p.flags).test(value))) {
+        if (
+          HIGH_ENTROPY_PATTERNS.some((p) =>
+            new RegExp(p.source, p.flags).test(value),
+          )
+        ) {
           entropy = calculateEntropy(value);
         }
 
@@ -326,7 +330,8 @@ const secretLeakageGuardrail = defineOutputGuardrail<SecretLeakageMetadata>({
 
 describe('Secret Leakage Scan Example', () => {
   it('should allow safe response to pass', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       outputGuardrails: [secretLeakageGuardrail],
       throwOnBlocked: false,
     });
@@ -343,7 +348,8 @@ describe('Secret Leakage Scan Example', () => {
   it('should block response containing API key', async () => {
     let blockedMessage: string | undefined;
 
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       outputGuardrails: [secretLeakageGuardrail],
       throwOnBlocked: true,
       onOutputBlocked: (executionSummary) => {
@@ -373,7 +379,8 @@ describe('Secret Leakage Scan Example', () => {
   it('should block response containing database credentials', async () => {
     let blockedMessage: string | undefined;
 
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       outputGuardrails: [secretLeakageGuardrail],
       throwOnBlocked: true,
       onOutputBlocked: (executionSummary) => {
@@ -401,7 +408,8 @@ describe('Secret Leakage Scan Example', () => {
   it('should block response containing JWT token', async () => {
     let blockedMessage: string | undefined;
 
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       outputGuardrails: [secretLeakageGuardrail],
       throwOnBlocked: true,
       onOutputBlocked: (executionSummary) => {
@@ -427,7 +435,8 @@ describe('Secret Leakage Scan Example', () => {
   it('should block response containing URL with token', async () => {
     let blockedMessage: string | undefined;
 
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       outputGuardrails: [secretLeakageGuardrail],
       throwOnBlocked: true,
       onOutputBlocked: (executionSummary) => {
@@ -453,7 +462,8 @@ describe('Secret Leakage Scan Example', () => {
   it('should block response containing high-entropy string', async () => {
     let blockedMessage: string | undefined;
 
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       outputGuardrails: [secretLeakageGuardrail],
       throwOnBlocked: true,
       onOutputBlocked: (executionSummary) => {
@@ -478,7 +488,8 @@ describe('Secret Leakage Scan Example', () => {
   it('should block response containing environment variables', async () => {
     let blockedMessage: string | undefined;
 
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       outputGuardrails: [secretLeakageGuardrail],
       throwOnBlocked: true,
       onOutputBlocked: (executionSummary) => {
@@ -504,7 +515,8 @@ describe('Secret Leakage Scan Example', () => {
   it('should provide correct metadata when blocking', async () => {
     let blockedMetadata: SecretLeakageMetadata | undefined;
 
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       outputGuardrails: [secretLeakageGuardrail],
       throwOnBlocked: true,
       onOutputBlocked: (executionSummary) => {
@@ -537,7 +549,8 @@ describe('Secret Leakage Scan Example', () => {
     let warningMessage: string | undefined;
     let warningMetadata: SecretLeakageMetadata | undefined;
 
-    const warningModel = withGuardrails(model, {
+    const warningModel = withGuardrails({
+      model,
       outputGuardrails: [secretLeakageGuardrail],
       throwOnBlocked: false,
       onOutputBlocked: (executionSummary) => {

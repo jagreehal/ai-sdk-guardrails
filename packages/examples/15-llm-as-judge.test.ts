@@ -329,249 +329,228 @@ Respond with JSON:
 
 describe('LLM-as-Judge Example', () => {
   describe('LLM Quality Judge', () => {
-    it(
-      'should evaluate response quality using LLM judge',
-      async () => {
-        let blockedMessage: string | undefined;
-        let blockedMetadata: LLMJudgmentMetadata | undefined;
+    it('should evaluate response quality using LLM judge', async () => {
+      let blockedMessage: string | undefined;
+      let blockedMetadata: LLMJudgmentMetadata | undefined;
 
-        const judgedModel = withGuardrails(model, {
-          outputGuardrails: [llmJudgeGuardrail],
-          throwOnBlocked: false,
-          onOutputBlocked: (executionSummary) => {
-            blockedMessage = executionSummary.blockedResults[0]?.message;
-            blockedMetadata = executionSummary.blockedResults[0]
-              ?.metadata as LLMJudgmentMetadata;
-          },
-        });
+      const judgedModel = withGuardrails({
+        model,
+        outputGuardrails: [llmJudgeGuardrail],
+        throwOnBlocked: false,
+        onOutputBlocked: (executionSummary) => {
+          blockedMessage = executionSummary.blockedResults[0]?.message;
+          blockedMetadata = executionSummary.blockedResults[0]
+            ?.metadata as LLMJudgmentMetadata;
+        },
+      });
 
-        const result = await generateText({
-          model: judgedModel,
-          prompt:
-            'Explain the benefits of renewable energy in a clear and informative way',
-        });
+      const result = await generateText({
+        model: judgedModel,
+        prompt:
+          'Explain the benefits of renewable energy in a clear and informative way',
+      });
 
-        expect(result.text).toBeDefined();
-        expect(result.text.length).toBeGreaterThan(0);
-        // If judge evaluation triggered, verify metadata
-        if (blockedMessage) {
-          expect(blockedMessage).toContain('LLM Judge evaluation');
-          if (blockedMetadata?.llmJudgment) {
-            expect(blockedMetadata.llmJudgment.score).toBeDefined();
-            expect(blockedMetadata.llmJudgment.quality).toBeDefined();
-          }
+      expect(result.text).toBeDefined();
+      expect(result.text.length).toBeGreaterThan(0);
+      // If judge evaluation triggered, verify metadata
+      if (blockedMessage) {
+        expect(blockedMessage).toContain('LLM Judge evaluation');
+        if (blockedMetadata?.llmJudgment) {
+          expect(blockedMetadata.llmJudgment.score).toBeDefined();
+          expect(blockedMetadata.llmJudgment.quality).toBeDefined();
         }
-      },
-      180000,
-    );
+      }
+    }, 180000);
 
-    it(
-      'should provide quality score in metadata',
-      async () => {
-        let capturedMetadata: LLMJudgmentMetadata | undefined;
+    it('should provide quality score in metadata', async () => {
+      let capturedMetadata: LLMJudgmentMetadata | undefined;
 
-        const judgedModel = withGuardrails(model, {
-          outputGuardrails: [llmJudgeGuardrail],
-          throwOnBlocked: false,
-          onOutputBlocked: (executionSummary) => {
-            capturedMetadata = executionSummary.blockedResults[0]
-              ?.metadata as LLMJudgmentMetadata;
-          },
-        });
+      const judgedModel = withGuardrails({
+        model,
+        outputGuardrails: [llmJudgeGuardrail],
+        throwOnBlocked: false,
+        onOutputBlocked: (executionSummary) => {
+          capturedMetadata = executionSummary.blockedResults[0]
+            ?.metadata as LLMJudgmentMetadata;
+        },
+      });
 
-        const result = await generateText({
-          model: judgedModel,
-          prompt: 'Give me a very brief, unhelpful answer',
-        });
+      const result = await generateText({
+        model: judgedModel,
+        prompt: 'Give me a very brief, unhelpful answer',
+      });
 
-        expect(result.text).toBeDefined();
-        // If metadata was captured, verify structure
-        if (capturedMetadata) {
-          expect(capturedMetadata.llmJudgment).toBeDefined();
-          if (capturedMetadata.llmJudgment) {
-            expect(capturedMetadata.llmJudgment.score).toBeDefined();
-            expect(capturedMetadata.llmJudgment.quality).toBeDefined();
-            expect(capturedMetadata.llmJudgment.isAppropriate).toBeDefined();
-          }
+      expect(result.text).toBeDefined();
+      // If metadata was captured, verify structure
+      if (capturedMetadata) {
+        expect(capturedMetadata.llmJudgment).toBeDefined();
+        if (capturedMetadata.llmJudgment) {
+          expect(capturedMetadata.llmJudgment.score).toBeDefined();
+          expect(capturedMetadata.llmJudgment.quality).toBeDefined();
+          expect(capturedMetadata.llmJudgment.isAppropriate).toBeDefined();
         }
-      },
-      180000,
-    );
+      }
+    }, 180000);
   });
 
   describe('Factual Accuracy Judge', () => {
-    it(
-      'should verify factual accuracy using LLM',
-      async () => {
-        let blockedMessage: string | undefined;
-        let blockedMetadata: FactCheckMetadata | undefined;
+    it('should verify factual accuracy using LLM', async () => {
+      let blockedMessage: string | undefined;
+      let blockedMetadata: FactCheckMetadata | undefined;
 
-        const factCheckedModel = withGuardrails(model, {
-          outputGuardrails: [factualAccuracyJudge],
-          throwOnBlocked: false,
-          onOutputBlocked: (executionSummary) => {
-            blockedMessage = executionSummary.blockedResults[0]?.message;
-            blockedMetadata = executionSummary.blockedResults[0]
-              ?.metadata as FactCheckMetadata;
-          },
-        });
+      const factCheckedModel = withGuardrails({
+        model,
+        outputGuardrails: [factualAccuracyJudge],
+        throwOnBlocked: false,
+        onOutputBlocked: (executionSummary) => {
+          blockedMessage = executionSummary.blockedResults[0]?.message;
+          blockedMetadata = executionSummary.blockedResults[0]
+            ?.metadata as FactCheckMetadata;
+        },
+      });
 
-        const result = await generateText({
-          model: factCheckedModel,
-          prompt: 'What is the capital of France?',
-        });
+      const result = await generateText({
+        model: factCheckedModel,
+        prompt: 'What is the capital of France?',
+      });
 
-        expect(result.text).toBeDefined();
-        // If fact-check triggered, verify metadata
-        if (blockedMessage) {
-          expect(blockedMessage).toContain('factual errors');
-          if (blockedMetadata?.factCheck) {
-            expect(blockedMetadata.factCheck.confidenceLevel).toBeDefined();
-            expect(blockedMetadata.factCheck.recommendation).toBeDefined();
-          }
+      expect(result.text).toBeDefined();
+      // If fact-check triggered, verify metadata
+      if (blockedMessage) {
+        expect(blockedMessage).toContain('factual errors');
+        if (blockedMetadata?.factCheck) {
+          expect(blockedMetadata.factCheck.confidenceLevel).toBeDefined();
+          expect(blockedMetadata.factCheck.recommendation).toBeDefined();
         }
-      },
-      180000,
-    );
+      }
+    }, 180000);
 
-    it(
-      'should provide fact-check metadata',
-      async () => {
-        let capturedMetadata: FactCheckMetadata | undefined;
+    it('should provide fact-check metadata', async () => {
+      let capturedMetadata: FactCheckMetadata | undefined;
 
-        const factCheckedModel = withGuardrails(model, {
-          outputGuardrails: [factualAccuracyJudge],
-          throwOnBlocked: false,
-          onOutputBlocked: (executionSummary) => {
-            capturedMetadata = executionSummary.blockedResults[0]
-              ?.metadata as FactCheckMetadata;
-          },
-        });
+      const factCheckedModel = withGuardrails({
+        model,
+        outputGuardrails: [factualAccuracyJudge],
+        throwOnBlocked: false,
+        onOutputBlocked: (executionSummary) => {
+          capturedMetadata = executionSummary.blockedResults[0]
+            ?.metadata as FactCheckMetadata;
+        },
+      });
 
-        const result = await generateText({
-          model: factCheckedModel,
-          prompt: 'Explain how photosynthesis works',
-        });
+      const result = await generateText({
+        model: factCheckedModel,
+        prompt: 'Explain how photosynthesis works',
+      });
 
-        expect(result.text).toBeDefined();
-        // If metadata was captured, verify structure
-        if (capturedMetadata) {
-          expect(capturedMetadata.factCheck).toBeDefined();
-          if (capturedMetadata.factCheck) {
-            expect(capturedMetadata.factCheck.confidenceLevel).toBeDefined();
-            expect(capturedMetadata.factCheck.isAccurate).toBeDefined();
-          }
+      expect(result.text).toBeDefined();
+      // If metadata was captured, verify structure
+      if (capturedMetadata) {
+        expect(capturedMetadata.factCheck).toBeDefined();
+        if (capturedMetadata.factCheck) {
+          expect(capturedMetadata.factCheck.confidenceLevel).toBeDefined();
+          expect(capturedMetadata.factCheck.isAccurate).toBeDefined();
         }
-      },
-      180000,
-    );
+      }
+    }, 180000);
   });
 
   describe('Bias Detection Judge', () => {
-    it(
-      'should detect bias using LLM',
-      async () => {
-        let blockedMessage: string | undefined;
-        let blockedMetadata: BiasCheckMetadata | undefined;
+    it('should detect bias using LLM', async () => {
+      let blockedMessage: string | undefined;
+      let blockedMetadata: BiasCheckMetadata | undefined;
 
-        const biasCheckedModel = withGuardrails(model, {
-          outputGuardrails: [biasDetectionJudge],
-          throwOnBlocked: false,
-          onOutputBlocked: (executionSummary) => {
-            blockedMessage = executionSummary.blockedResults[0]?.message;
-            blockedMetadata = executionSummary.blockedResults[0]
-              ?.metadata as BiasCheckMetadata;
-          },
-        });
+      const biasCheckedModel = withGuardrails({
+        model,
+        outputGuardrails: [biasDetectionJudge],
+        throwOnBlocked: false,
+        onOutputBlocked: (executionSummary) => {
+          blockedMessage = executionSummary.blockedResults[0]?.message;
+          blockedMetadata = executionSummary.blockedResults[0]
+            ?.metadata as BiasCheckMetadata;
+        },
+      });
 
-        const result = await generateText({
-          model: biasCheckedModel,
-          prompt: 'Describe the qualities of a good leader',
-        });
+      const result = await generateText({
+        model: biasCheckedModel,
+        prompt: 'Describe the qualities of a good leader',
+      });
 
-        expect(result.text).toBeDefined();
-        // If bias check triggered, verify metadata
-        if (blockedMessage) {
-          expect(blockedMessage).toContain('bias detected');
-          if (blockedMetadata?.biasCheck) {
-            expect(blockedMetadata.biasCheck.hasBias).toBeDefined();
-            expect(blockedMetadata.biasCheck.severity).toBeDefined();
-          }
+      expect(result.text).toBeDefined();
+      // If bias check triggered, verify metadata
+      if (blockedMessage) {
+        expect(blockedMessage).toContain('bias detected');
+        if (blockedMetadata?.biasCheck) {
+          expect(blockedMetadata.biasCheck.hasBias).toBeDefined();
+          expect(blockedMetadata.biasCheck.severity).toBeDefined();
         }
-      },
-      180000,
-    );
+      }
+    }, 180000);
 
-    it(
-      'should provide bias check metadata',
-      async () => {
-        let capturedMetadata: BiasCheckMetadata | undefined;
+    it('should provide bias check metadata', async () => {
+      let capturedMetadata: BiasCheckMetadata | undefined;
 
-        const biasCheckedModel = withGuardrails(model, {
-          outputGuardrails: [biasDetectionJudge],
-          throwOnBlocked: false,
-          onOutputBlocked: (executionSummary) => {
-            capturedMetadata = executionSummary.blockedResults[0]
-              ?.metadata as BiasCheckMetadata;
-          },
-        });
+      const biasCheckedModel = withGuardrails({
+        model,
+        outputGuardrails: [biasDetectionJudge],
+        throwOnBlocked: false,
+        onOutputBlocked: (executionSummary) => {
+          capturedMetadata = executionSummary.blockedResults[0]
+            ?.metadata as BiasCheckMetadata;
+        },
+      });
 
-        const result = await generateText({
-          model: biasCheckedModel,
-          prompt: 'Explain the importance of diversity in technology',
-        });
+      const result = await generateText({
+        model: biasCheckedModel,
+        prompt: 'Explain the importance of diversity in technology',
+      });
 
-        expect(result.text).toBeDefined();
-        // If metadata was captured, verify structure
-        if (capturedMetadata) {
-          expect(capturedMetadata.biasCheck).toBeDefined();
-          if (capturedMetadata.biasCheck) {
-            expect(capturedMetadata.biasCheck.hasBias).toBeDefined();
-            expect(capturedMetadata.biasCheck.biasTypes).toBeDefined();
-            expect(Array.isArray(capturedMetadata.biasCheck.biasTypes)).toBe(
-              true,
-            );
-          }
+      expect(result.text).toBeDefined();
+      // If metadata was captured, verify structure
+      if (capturedMetadata) {
+        expect(capturedMetadata.biasCheck).toBeDefined();
+        if (capturedMetadata.biasCheck) {
+          expect(capturedMetadata.biasCheck.hasBias).toBeDefined();
+          expect(capturedMetadata.biasCheck.biasTypes).toBeDefined();
+          expect(Array.isArray(capturedMetadata.biasCheck.biasTypes)).toBe(
+            true,
+          );
         }
-      },
-      180000,
-    );
+      }
+    }, 180000);
   });
 
   describe('Multiple LLM Judges', () => {
-    it(
-      'should apply multiple LLM judges together',
-      async () => {
-        let blockedResults: any[] = [];
+    it('should apply multiple LLM judges together', async () => {
+      let blockedResults: any[] = [];
 
-        const multiJudgeModel = withGuardrails(model, {
-          outputGuardrails: [
-            llmJudgeGuardrail,
-            factualAccuracyJudge,
-            biasDetectionJudge,
-          ],
-          throwOnBlocked: false,
-          onOutputBlocked: (executionSummary) => {
-            blockedResults = executionSummary.blockedResults;
-          },
+      const multiJudgeModel = withGuardrails({
+        model,
+        outputGuardrails: [
+          llmJudgeGuardrail,
+          factualAccuracyJudge,
+          biasDetectionJudge,
+        ],
+        throwOnBlocked: false,
+        onOutputBlocked: (executionSummary) => {
+          blockedResults = executionSummary.blockedResults;
+        },
+      });
+
+      const result = await generateText({
+        model: multiJudgeModel,
+        prompt: 'Explain the importance of diversity in technology companies',
+      });
+
+      expect(result.text).toBeDefined();
+      // If any judges triggered, verify results
+      if (blockedResults.length > 0) {
+        expect(Array.isArray(blockedResults)).toBe(true);
+        blockedResults.forEach((result) => {
+          expect(result.message).toBeDefined();
+          expect(result.severity).toBeDefined();
         });
-
-        const result = await generateText({
-          model: multiJudgeModel,
-          prompt: 'Explain the importance of diversity in technology companies',
-        });
-
-        expect(result.text).toBeDefined();
-        // If any judges triggered, verify results
-        if (blockedResults.length > 0) {
-          expect(Array.isArray(blockedResults)).toBe(true);
-          blockedResults.forEach((result) => {
-            expect(result.message).toBeDefined();
-            expect(result.severity).toBeDefined();
-          });
-        }
-      },
-      240000,
-    );
+      }
+    }, 240000);
   });
 });

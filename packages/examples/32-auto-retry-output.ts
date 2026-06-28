@@ -38,7 +38,8 @@ const minLengthGuardrail = defineOutputGuardrail<{ minChars: number }>({
 console.log('🛡️  Auto Retry Output Example\n');
 
 // Create a model with output guardrail and auto-retry enabled
-const guarded = withGuardrails(model, {
+const guarded = withGuardrails({
+  model,
   outputGuardrails: [minLengthGuardrail],
   replaceOnBlocked: false, // let retry work first, then fallback if needed
   retry: {

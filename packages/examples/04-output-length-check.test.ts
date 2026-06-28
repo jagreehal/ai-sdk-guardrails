@@ -9,7 +9,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { defineOutputGuardrail, executeOutputGuardrails } from 'ai-sdk-guardrails';
+import {
+  defineOutputGuardrail,
+  executeOutputGuardrails,
+} from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
 // Define types for the context (these may need to be imported from the package)

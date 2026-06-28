@@ -7,7 +7,7 @@ description: How to install and setup AI SDK Guardrails
 
 - Node.js 22+ (recommended) or Bun
 - TypeScript 5.0+ (recommended)
-- Vercel AI SDK 6.0+
+- Vercel AI SDK 7.0+
 
 ## Package Installation
 
@@ -32,8 +32,10 @@ bun add ai-sdk-guardrails
 AI SDK Guardrails requires the Vercel AI SDK:
 
 ```bash
-npm install ai@^6
+npm install ai@^7
 ```
+
+Using AI SDK 6? Stay on `ai-sdk-guardrails@5.x`. Version 6 of this library targets AI SDK 7.
 
 You'll also need at least one AI provider:
 
@@ -73,7 +75,8 @@ import { withGuardrails, piiDetector } from 'ai-sdk-guardrails';
 import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector()],
 });
 
@@ -111,7 +114,8 @@ import { withGuardrails, piiDetector } from 'ai-sdk-guardrails';
 import { openai } from '@ai-sdk/openai';
 import { streamText } from 'ai';
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector()],
 });
 
@@ -138,7 +142,8 @@ import { generateText } from 'ai';
 const app = express();
 app.use(express.json());
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector()],
 });
 
@@ -164,7 +169,8 @@ import { generateText } from 'ai';
 
 const app = new Hono();
 
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector()],
 });
 
@@ -196,6 +202,7 @@ import * as guardrails from 'ai-sdk-guardrails';
 ```
 
 Typical bundle impact:
+
 - Core (`withGuardrails`): ~2KB gzipped
 - Each guardrail: ~0.5-2KB gzipped
 - Total with 5 guardrails: ~8-12KB gzipped

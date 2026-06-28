@@ -8,7 +8,10 @@
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { model } from './model';
-import { defineOutputGuardrail, executeOutputGuardrails } from 'ai-sdk-guardrails';
+import {
+  defineOutputGuardrail,
+  executeOutputGuardrails,
+} from 'ai-sdk-guardrails';
 
 // Simple allowlist of safe functions
 const ALLOWED_FUNCTIONS = ['calculate', 'formatDate', 'getWeather'];
@@ -30,7 +33,7 @@ const toolAllowlistGuardrail = defineOutputGuardrail<{
     if ('content' in result && Array.isArray(result.content)) {
       toolCalls.push(
         ...result.content.filter(
-        (item: unknown) => (item as { type: string }).type === 'tool-call',
+          (item: unknown) => (item as { type: string }).type === 'tool-call',
         ),
       );
     }

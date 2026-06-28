@@ -71,7 +71,7 @@ const allowlistGuardrail = defineInputGuardrail({
   description: 'Only allow approved users',
   execute: async (params) => {
     const { prompt } = extractTextContent(params);
-    const userId = params.userId; // From custom metadata
+    const userId = params.requestContext?.userId; // From request context
 
     // Check database
     const isAllowed = await db.users.isAllowed(userId);
@@ -136,7 +136,7 @@ const companyPolicyGuardrail = defineOutputGuardrail({
     ];
 
     const violations = bannedPhrases.filter((phrase) =>
-      text.toLowerCase().includes(phrase)
+      text.toLowerCase().includes(phrase),
     );
 
     if (violations.length === 0) {
@@ -165,7 +165,7 @@ const streamingGuardrail = defineOutputGuardrail({
     // In progressive mode, accumulatedText contains all text seen so far
     // In buffer mode or non-streaming, accumulatedText is undefined
     const text = accumulatedText ?? result.text ?? '';
-    
+
     // Check the accumulated text
     if (text.length > 1000) {
       return {
@@ -174,7 +174,7 @@ const streamingGuardrail = defineOutputGuardrail({
         severity: 'medium',
       };
     }
-    
+
     return { tripwireTriggered: false };
   },
 });
@@ -265,10 +265,9 @@ function createLengthGuardrail(options: {
 }
 
 // Usage
-const model = withGuardrails(openai('gpt-4o'), {
-  outputGuardrails: [
-    createLengthGuardrail({ minLength: 100, maxLength: 500 }),
-  ],
+const model = withGuardrails({
+  model: openai('gpt-4o'),
+  outputGuardrails: [createLengthGuardrail({ minLength: 100, maxLength: 500 })],
 });
 ```
 
@@ -337,7 +336,7 @@ return {
   message: 'Rate limit exceeded',
   severity: 'high',
   metadata: {
-    userId: params.userId,
+    userId: params.requestContext?.userId,
     requestCount: currentCount,
     maxRequestsPerMinute,
     resetTime: resetTimestamp,
@@ -368,5 +367,4 @@ const guardrail = defineInputGuardrail({
 ## Next Steps
 
 - [Built-in Guardrails](/reference/built-in-guardrails/) - See examples of built-in guardrails
-- [API Reference](/reference/api/) - Complete guardrail API
-- [Testing Guardrails](/guides/testing/) - How to test custom guardrails
+- [Advanced Features](/guides/advanced-features/) - Composition, stream transforms, and observability

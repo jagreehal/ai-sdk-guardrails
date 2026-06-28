@@ -37,15 +37,17 @@ Guardrails are implemented as middleware, which means:
 Input guardrails run **before** the AI model is called:
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [
-    piiDetector(),           // Check for PII
+    piiDetector(), // Check for PII
     promptInjectionDetector(), // Check for injection
   ],
 });
 ```
 
 **Benefits:**
+
 - ✅ Block bad requests before API costs
 - ✅ Prevent compliance violations
 - ✅ Protect against prompt injection
@@ -56,15 +58,17 @@ const model = withGuardrails(openai('gpt-4o'), {
 Output guardrails run **after** the AI model responds:
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [
-    sensitiveDataFilter(),    // Remove secrets
+    sensitiveDataFilter(), // Remove secrets
     minLengthRequirement(100), // Enforce quality
   ],
 });
 ```
 
 **Behaviors:**
+
 - **Block**: Prevent response from being returned
 - **Replace**: Return a safe fallback message
 - **Retry**: Automatically retry with modified parameters
@@ -79,13 +83,15 @@ Guardrails work seamlessly with streaming:
 Wait for the entire stream to complete, then check:
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [minLengthRequirement(100)],
   streamMode: 'buffer', // Default
 });
 ```
 
 **When to use:**
+
 - Need to validate complete responses
 - Running quality checks that require full text
 - Checking output length or structure
@@ -95,13 +101,15 @@ const model = withGuardrails(openai('gpt-4o'), {
 Check guardrails as tokens arrive (early termination):
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   outputGuardrails: [toxicityFilter()],
   streamMode: 'progressive',
 });
 ```
 
 **When to use:**
+
 - Need to stop generation early
 - Detecting violations in real-time
 - Saving costs by early termination
@@ -111,11 +119,12 @@ const model = withGuardrails(openai('gpt-4o'), {
 All guardrails in a group run in parallel for maximum performance:
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [
-    piiDetector(),           // Runs in parallel
+    piiDetector(), // Runs in parallel
     promptInjectionDetector(), // Runs in parallel
-    profanityFilter(),        // Runs in parallel
+    profanityFilter(), // Runs in parallel
   ],
 });
 ```
@@ -127,13 +136,14 @@ const model = withGuardrails(openai('gpt-4o'), {
 Guardrails can be configured to handle errors gracefully:
 
 ```ts
-const model = withGuardrails(openai('gpt-4o'), {
+const model = withGuardrails({
+  model: openai('gpt-4o'),
   inputGuardrails: [piiDetector()],
-  throwOnBlocked: true,  // Throw errors
+  throwOnBlocked: true, // Throw errors
   executionOptions: {
     continueOnFailure: true, // Continue if guardrail fails
   },
 });
 ```
 
-See [Error Handling](/error-handling/) for detailed strategies.
+See [Basic Protection](/guides/basic-protection/) for error-handling strategies.

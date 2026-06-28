@@ -41,7 +41,8 @@ const calculatorTool = {
 // Just add retry config directly to the guardrail - the library handles
 // everything else automatically using context-aware retry instructions!
 
-const toolGuarded = withGuardrails(model, {
+const toolGuarded = withGuardrails({
+  model,
   outputGuardrails: [
     expectedToolUse({
       tools: 'calculator',
@@ -53,7 +54,7 @@ const toolGuarded = withGuardrails(model, {
 });
 
 // Alternative: Configure retry at withGuardrails level (takes precedence)
-// const toolGuarded = withGuardrails(model, {
+// const toolGuarded = withGuardrails({ model,
 //   outputGuardrails: [expectedToolUse({ tools: 'calculator' })],
 //   retry: { maxRetries: 2 },
 // });
@@ -72,7 +73,7 @@ console.log(text);
 // ============================================================================
 // Previously you had to write all this boilerplate:
 //
-// const toolGuarded = withGuardrails(model, {
+// const toolGuarded = withGuardrails({ model,
 //   outputGuardrails: [expectedToolUse({ tools: 'calculator' })],
 //   retry: {
 //     maxRetries: 2,

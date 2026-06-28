@@ -4,11 +4,11 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  criticalViolationDetected,
-  violationCountIs,
-  violationSeverityIs,
-  specificGuardrailViolated,
-  consecutiveViolations,
+  hasCriticalViolation,
+  isViolationCount,
+  hasViolationSeverity,
+  hasGuardrailViolation,
+  hasConsecutiveViolations,
   anyOf,
   allOf,
   custom,
@@ -56,53 +56,53 @@ function createMockViolation(
 }
 
 describe('Stop Condition Helpers', () => {
-  describe('criticalViolationDetected', () => {
+  describe('hasCriticalViolation', () => {
     it('should trigger on explicit critical severity', () => {
-      const condition = criticalViolationDetected();
+      const condition = hasCriticalViolation();
       const violations = [createMockViolation(1, 'critical')];
       expect(condition(violations)).toBe(true);
     });
 
     it('should NOT trigger on undefined severity (defaults to medium)', () => {
-      const condition = criticalViolationDetected();
+      const condition = hasCriticalViolation();
       const violations = [createMockViolation(1)];
       expect(condition(violations)).toBe(false);
     });
 
     it('should NOT trigger on medium severity', () => {
-      const condition = criticalViolationDetected();
+      const condition = hasCriticalViolation();
       const violations = [createMockViolation(1, 'medium')];
       expect(condition(violations)).toBe(false);
     });
 
     it('should NOT trigger on high severity', () => {
-      const condition = criticalViolationDetected();
+      const condition = hasCriticalViolation();
       const violations = [createMockViolation(1, 'high')];
       expect(condition(violations)).toBe(false);
     });
   });
 
-  describe('violationSeverityIs', () => {
+  describe('hasViolationSeverity', () => {
     it('should match explicit severity', () => {
-      const condition = violationSeverityIs('high');
+      const condition = hasViolationSeverity('high');
       const violations = [createMockViolation(1, 'high')];
       expect(condition(violations)).toBe(true);
     });
 
     it('should match undefined severity as medium', () => {
-      const condition = violationSeverityIs('medium');
+      const condition = hasViolationSeverity('medium');
       const violations = [createMockViolation(1)];
       expect(condition(violations)).toBe(true);
     });
 
     it('should NOT match undefined severity as high', () => {
-      const condition = violationSeverityIs('high');
+      const condition = hasViolationSeverity('high');
       const violations = [createMockViolation(1)];
       expect(condition(violations)).toBe(false);
     });
 
     it('should respect minCount parameter', () => {
-      const condition = violationSeverityIs('medium', 2);
+      const condition = hasViolationSeverity('medium', 2);
       const violations = [
         createMockViolation(1, 'medium'),
         createMockViolation(2), // Should count as medium
@@ -111,7 +111,7 @@ describe('Stop Condition Helpers', () => {
     });
 
     it('should NOT trigger if count is below minCount', () => {
-      const condition = violationSeverityIs('medium', 3);
+      const condition = hasViolationSeverity('medium', 3);
       const violations = [
         createMockViolation(1, 'medium'),
         createMockViolation(2),
@@ -120,15 +120,15 @@ describe('Stop Condition Helpers', () => {
     });
   });
 
-  describe('violationCountIs', () => {
+  describe('isViolationCount', () => {
     it('should trigger when count matches', () => {
-      const condition = violationCountIs(2);
+      const condition = isViolationCount(2);
       const violations = [createMockViolation(1), createMockViolation(2)];
       expect(condition(violations)).toBe(true);
     });
 
     it('should trigger when count exceeds', () => {
-      const condition = violationCountIs(2);
+      const condition = isViolationCount(2);
       const violations = [
         createMockViolation(1),
         createMockViolation(2),
@@ -138,21 +138,21 @@ describe('Stop Condition Helpers', () => {
     });
 
     it('should NOT trigger when count is below', () => {
-      const condition = violationCountIs(3);
+      const condition = isViolationCount(3);
       const violations = [createMockViolation(1), createMockViolation(2)];
       expect(condition(violations)).toBe(false);
     });
   });
 
-  describe('specificGuardrailViolated', () => {
+  describe('hasGuardrailViolation', () => {
     it('should trigger when specific guardrail is violated', () => {
-      const condition = specificGuardrailViolated('pii-detector');
+      const condition = hasGuardrailViolation('pii-detector');
       const violations = [createMockViolation(1, 'critical', 'pii-detector')];
       expect(condition(violations)).toBe(true);
     });
 
     it('should NOT trigger for different guardrail', () => {
-      const condition = specificGuardrailViolated('pii-detector');
+      const condition = hasGuardrailViolation('pii-detector');
       const violations = [
         createMockViolation(1, 'critical', 'other-guardrail'),
       ];
@@ -160,7 +160,7 @@ describe('Stop Condition Helpers', () => {
     });
 
     it('should respect minCount parameter', () => {
-      const condition = specificGuardrailViolated('pii-detector', 2);
+      const condition = hasGuardrailViolation('pii-detector', 2);
       const violations = [
         createMockViolation(1, 'high', 'pii-detector'),
         createMockViolation(2, 'high', 'pii-detector'),
@@ -169,15 +169,15 @@ describe('Stop Condition Helpers', () => {
     });
   });
 
-  describe('consecutiveViolations', () => {
+  describe('hasConsecutiveViolations', () => {
     it('should trigger on consecutive violations (agent steps)', () => {
-      const condition = consecutiveViolations(2);
+      const condition = hasConsecutiveViolations(2);
       const violations = [createMockViolation(1), createMockViolation(2)];
       expect(condition(violations)).toBe(true);
     });
 
     it('should trigger on consecutive violations (streaming chunks)', () => {
-      const condition = consecutiveViolations(2);
+      const condition = hasConsecutiveViolations(2);
       const violations = [
         createMockViolation(1, undefined, 'test', 1),
         createMockViolation(2, undefined, 'test', 2),
@@ -186,7 +186,7 @@ describe('Stop Condition Helpers', () => {
     });
 
     it('should trigger with more than required consecutive', () => {
-      const condition = consecutiveViolations(2);
+      const condition = hasConsecutiveViolations(2);
       const violations = [
         createMockViolation(1),
         createMockViolation(2),
@@ -196,19 +196,19 @@ describe('Stop Condition Helpers', () => {
     });
 
     it('should NOT trigger with non-consecutive violations', () => {
-      const condition = consecutiveViolations(2);
+      const condition = hasConsecutiveViolations(2);
       const violations = [createMockViolation(1), createMockViolation(3)];
       expect(condition(violations)).toBe(false);
     });
 
     it('should NOT trigger with insufficient consecutive violations', () => {
-      const condition = consecutiveViolations(3);
+      const condition = hasConsecutiveViolations(3);
       const violations = [createMockViolation(1), createMockViolation(2)];
       expect(condition(violations)).toBe(false);
     });
 
     it('should NOT trigger when violations have no step or chunkIndex', () => {
-      const condition = consecutiveViolations(2);
+      const condition = hasConsecutiveViolations(2);
       const violations = [
         { summary: createMockViolation(1).summary } as GuardrailViolation, // Invalid: no step or chunkIndex
         { summary: createMockViolation(2).summary } as GuardrailViolation, // Invalid: no step or chunkIndex
@@ -219,19 +219,13 @@ describe('Stop Condition Helpers', () => {
 
   describe('anyOf', () => {
     it('should trigger if any condition is met', () => {
-      const condition = anyOf([
-        violationCountIs(5),
-        criticalViolationDetected(),
-      ]);
+      const condition = anyOf([isViolationCount(5), hasCriticalViolation()]);
       const violations = [createMockViolation(1, 'critical')];
       expect(condition(violations)).toBe(true);
     });
 
     it('should NOT trigger if no conditions are met', () => {
-      const condition = anyOf([
-        violationCountIs(5),
-        criticalViolationDetected(),
-      ]);
+      const condition = anyOf([isViolationCount(5), hasCriticalViolation()]);
       const violations = [createMockViolation(1, 'medium')];
       expect(condition(violations)).toBe(false);
     });
@@ -240,8 +234,8 @@ describe('Stop Condition Helpers', () => {
   describe('allOf', () => {
     it('should trigger only if all conditions are met', () => {
       const condition = allOf([
-        violationCountIs(2),
-        violationSeverityIs('high', 1),
+        isViolationCount(2),
+        hasViolationSeverity('high', 1),
       ]);
       const violations = [
         createMockViolation(1, 'high'),
@@ -252,8 +246,8 @@ describe('Stop Condition Helpers', () => {
 
     it('should NOT trigger if only some conditions are met', () => {
       const condition = allOf([
-        violationCountIs(2),
-        violationSeverityIs('critical'),
+        isViolationCount(2),
+        hasViolationSeverity('critical'),
       ]);
       const violations = [
         createMockViolation(1, 'high'),

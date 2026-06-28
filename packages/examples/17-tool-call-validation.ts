@@ -8,7 +8,10 @@
 
 import { generateText, Output } from 'ai';
 import { model } from './model';
-import { defineOutputGuardrail, executeOutputGuardrails } from 'ai-sdk-guardrails';
+import {
+  defineOutputGuardrail,
+  executeOutputGuardrails,
+} from 'ai-sdk-guardrails';
 import { z } from 'zod';
 
 // Define types for tool call validation metadata
@@ -373,8 +376,8 @@ const toolCallValidationGuardrail =
       if ('content' in result && Array.isArray(result.content)) {
         toolCalls.push(
           ...result.content.filter(
-          (item: unknown) =>
-            (item as Record<string, unknown>).type === 'tool-call',
+            (item: unknown) =>
+              (item as Record<string, unknown>).type === 'tool-call',
           ),
         );
       }
@@ -458,11 +461,7 @@ const toolCallValidationGuardrail =
           sessionId: 'session456',
         };
 
-        const validation = validateFunctionCall(
-          functionName,
-          args,
-          context,
-        );
+        const validation = validateFunctionCall(functionName, args, context);
         validationResults.push({
           functionName,
           isValid: validation.isValid,

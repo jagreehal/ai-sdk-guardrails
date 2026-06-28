@@ -64,7 +64,7 @@ export interface ToolCall {
  * Guardrail result matching OpenAI's structure
  * Compatible with OpenAI's GuardrailResult while maintaining our extensions
  */
-export interface GuardrailResult<TMetadata = any> {
+export interface GuardrailResult<TMetadata = Record<string, unknown>> {
   /** Whether the guardrail was triggered (blocked the request) */
   tripwireTriggered: boolean;
 

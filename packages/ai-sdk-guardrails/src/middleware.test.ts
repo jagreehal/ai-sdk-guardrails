@@ -1,16 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  createInputGuardrailsMiddleware,
-  createOutputGuardrailsMiddleware,
+  inputGuardrailsMiddleware,
+  outputGuardrailsMiddleware,
   defineInputGuardrail,
   defineOutputGuardrail,
-  // New AI SDK 5 Helper Functions
-  wrapWithInputGuardrails,
-  wrapWithOutputGuardrails,
-  wrapWithGuardrails,
+  withGuardrails,
 } from './guardrails';
 import { tokenUsageLimit } from './guardrails/output';
-import type { LanguageModelV3, LanguageModelV3CallOptions } from './types';
+import type { LanguageModelV4, LanguageModelV4CallOptions } from './types';
 
 // V3 usage helper
 const createV3Usage = (inputTotal: number, outputTotal: number) => ({
@@ -28,12 +25,12 @@ const createV3Usage = (inputTotal: number, outputTotal: number) => ({
 });
 
 // Mock AI model for testing
-const createMockModel = (response = 'Mock AI response'): LanguageModelV3 => ({
-  specificationVersion: 'v3',
+const createMockModel = (response = 'Mock AI response'): LanguageModelV4 => ({
+  specificationVersion: 'v4',
   provider: 'test',
   modelId: 'test-model',
   supportedUrls: {},
-  async doGenerate(options: LanguageModelV3CallOptions) {
+  async doGenerate(options: LanguageModelV4CallOptions) {
     return {
       content: [{ type: 'text', text: response }],
       finishReason: { unified: 'stop', raw: undefined },
@@ -48,7 +45,7 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV3 => ({
       warnings: [],
     };
   },
-  async doStream(options: LanguageModelV3CallOptions) {
+  async doStream(options: LanguageModelV4CallOptions) {
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue({
@@ -80,7 +77,7 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV3 => ({
 });
 
 describe('AI SDK 5 Helper Functions', () => {
-  let mockModel: LanguageModelV3;
+  let mockModel: LanguageModelV4;
   let testInputGuardrail: ReturnType<typeof defineInputGuardrail>;
   let testOutputGuardrail: ReturnType<typeof defineOutputGuardrail>;
 
@@ -108,13 +105,13 @@ describe('AI SDK 5 Helper Functions', () => {
     });
   });
 
-  describe('wrapWithInputGuardrails', () => {
+  describe('withGuardrails({ model: input })', () => {
     it('should wrap model with input guardrails', () => {
-      const wrappedModel = wrapWithInputGuardrails(
-        mockModel,
-        [testInputGuardrail],
-        { throwOnBlocked: false },
-      ) as LanguageModelV3;
+      const wrappedModel = withGuardrails({
+        model: mockModel,
+        inputGuardrails: [testInputGuardrail],
+        throwOnBlocked: false,
+      }) as LanguageModelV4;
 
       expect(wrappedModel).toHaveProperty('doGenerate');
       expect(wrappedModel).toHaveProperty('doStream');
@@ -135,11 +132,11 @@ describe('AI SDK 5 Helper Functions', () => {
         }),
       });
 
-      const wrappedModel = wrapWithInputGuardrails(
-        mockModel,
-        [blockingGuardrail],
-        { throwOnBlocked: false },
-      ) as LanguageModelV3;
+      const wrappedModel = withGuardrails({
+        model: mockModel,
+        inputGuardrails: [blockingGuardrail],
+        throwOnBlocked: false,
+      }) as LanguageModelV4;
 
       const result = await wrappedModel.doGenerate({
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test' }] }],
@@ -166,11 +163,11 @@ describe('AI SDK 5 Helper Functions', () => {
         }),
       });
 
-      const wrappedModel = wrapWithInputGuardrails(
-        mockModel,
-        [blockingGuardrail],
-        { throwOnBlocked: false },
-      ) as LanguageModelV3;
+      const wrappedModel = withGuardrails({
+        model: mockModel,
+        inputGuardrails: [blockingGuardrail],
+        throwOnBlocked: false,
+      }) as LanguageModelV4;
 
       const result = await wrappedModel.doGenerate({
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test' }] }],
@@ -182,13 +179,13 @@ describe('AI SDK 5 Helper Functions', () => {
     });
   });
 
-  describe('wrapWithOutputGuardrails', () => {
+  describe('withGuardrails({ model: output })', () => {
     it('should wrap model with output guardrails', () => {
-      const wrappedModel = wrapWithOutputGuardrails(
-        mockModel,
-        [testOutputGuardrail],
-        { throwOnBlocked: false },
-      ) as LanguageModelV3;
+      const wrappedModel = withGuardrails({
+        model: mockModel,
+        outputGuardrails: [testOutputGuardrail],
+        throwOnBlocked: false,
+      }) as LanguageModelV4;
 
       expect(wrappedModel).toHaveProperty('doGenerate');
       expect(wrappedModel).toHaveProperty('doStream');
@@ -197,13 +194,14 @@ describe('AI SDK 5 Helper Functions', () => {
     });
   });
 
-  describe('wrapWithGuardrails', () => {
+  describe('withGuardrails({ model: combined })', () => {
     it('should wrap model with both input and output guardrails', () => {
-      const wrappedModel = wrapWithGuardrails(mockModel, {
+      const wrappedModel = withGuardrails({
+        model: mockModel,
         inputGuardrails: [testInputGuardrail],
         outputGuardrails: [testOutputGuardrail],
         throwOnBlocked: false,
-      }) as LanguageModelV3;
+      }) as LanguageModelV4;
 
       expect(wrappedModel).toHaveProperty('doGenerate');
       expect(wrappedModel).toHaveProperty('doStream');
@@ -212,12 +210,13 @@ describe('AI SDK 5 Helper Functions', () => {
     });
 
     it('should return original model when no guardrails provided', () => {
-      const wrappedModel = wrapWithGuardrails(mockModel, {});
+      const wrappedModel = withGuardrails({ model: mockModel });
       expect(wrappedModel).toBe(mockModel);
     });
 
     it('should handle input-only guardrails', () => {
-      const wrappedModel = wrapWithGuardrails(mockModel, {
+      const wrappedModel = withGuardrails({
+        model: mockModel,
         inputGuardrails: [testInputGuardrail],
       });
 
@@ -226,7 +225,8 @@ describe('AI SDK 5 Helper Functions', () => {
     });
 
     it('should handle output-only guardrails', () => {
-      const wrappedModel = wrapWithGuardrails(mockModel, {
+      const wrappedModel = withGuardrails({
+        model: mockModel,
         outputGuardrails: [testOutputGuardrail],
       });
 
@@ -238,7 +238,8 @@ describe('AI SDK 5 Helper Functions', () => {
       const onInputBlocked = vi.fn();
       const onOutputBlocked = vi.fn();
 
-      const wrappedModel = wrapWithGuardrails(mockModel, {
+      const wrappedModel = withGuardrails({
+        model: mockModel,
         inputGuardrails: [testInputGuardrail],
         outputGuardrails: [testOutputGuardrail],
         onInputBlocked,
@@ -265,14 +266,12 @@ describe('AI SDK 5 Helper Functions', () => {
         }),
       });
 
-      const wrappedModel = wrapWithOutputGuardrails(
-        mockModel,
-        [blockingGuardrail],
-        {
-          throwOnBlocked: false,
-          // replaceOnBlocked defaults to true
-        },
-      ) as LanguageModelV3;
+      const wrappedModel = withGuardrails({
+        model: mockModel,
+        outputGuardrails: [blockingGuardrail],
+        throwOnBlocked: false,
+        // replaceOnBlocked defaults to true
+      }) as LanguageModelV4;
 
       const result = await wrappedModel.doGenerate({
         prompt: [
@@ -301,7 +300,7 @@ describe('AI SDK 5 Helper Functions', () => {
         }),
       });
 
-      const textModel: LanguageModelV3 = {
+      const textModel: LanguageModelV4 = {
         ...createMockModel(),
         async doGenerate(options) {
           return {
@@ -316,13 +315,11 @@ describe('AI SDK 5 Helper Functions', () => {
         },
       };
 
-      const wrappedModel = wrapWithOutputGuardrails(
-        textModel,
-        [blockingGuardrail],
-        {
-          throwOnBlocked: false,
-        },
-      ) as LanguageModelV3;
+      const wrappedModel = withGuardrails({
+        model: textModel,
+        outputGuardrails: [blockingGuardrail],
+        throwOnBlocked: false,
+      }) as LanguageModelV4;
 
       const result = await wrappedModel.doGenerate({
         prompt: [
@@ -348,14 +345,12 @@ describe('AI SDK 5 Helper Functions', () => {
         }),
       });
 
-      const wrappedModel = wrapWithOutputGuardrails(
-        mockModel,
-        [blockingGuardrail],
-        {
-          throwOnBlocked: false,
-          replaceOnBlocked: false,
-        },
-      ) as LanguageModelV3;
+      const wrappedModel = withGuardrails({
+        model: mockModel,
+        outputGuardrails: [blockingGuardrail],
+        throwOnBlocked: false,
+        replaceOnBlocked: false,
+      }) as LanguageModelV4;
 
       const result = await wrappedModel.doGenerate({
         prompt: [
@@ -375,8 +370,8 @@ describe('AI SDK 5 Helper Functions', () => {
 });
 
 describe('Middleware Integration Tests', () => {
-  let mockModel: LanguageModelV3;
-  let mockParams: LanguageModelV3CallOptions;
+  let mockModel: LanguageModelV4;
+  let mockParams: LanguageModelV4CallOptions;
 
   beforeEach(() => {
     mockModel = createMockModel();
@@ -387,7 +382,7 @@ describe('Middleware Integration Tests', () => {
     };
   });
 
-  describe('createInputGuardrailsMiddleware', () => {
+  describe('inputGuardrailsMiddleware', () => {
     it('should execute input guardrails before model call', async () => {
       const executeSpy = vi.fn().mockResolvedValue({
         tripwireTriggered: false,
@@ -401,7 +396,7 @@ describe('Middleware Integration Tests', () => {
         execute: executeSpy,
       });
 
-      const middleware = createInputGuardrailsMiddleware({
+      const middleware = inputGuardrailsMiddleware({
         inputGuardrails: [inputGuardrail],
       });
 
@@ -437,7 +432,7 @@ describe('Middleware Integration Tests', () => {
         }),
       });
 
-      const middleware = createInputGuardrailsMiddleware({
+      const middleware = inputGuardrailsMiddleware({
         inputGuardrails: [inputGuardrail],
         context: { userId: 'user-123' },
       });
@@ -472,13 +467,13 @@ describe('Middleware Integration Tests', () => {
 
       const params = mockParams;
 
-      const withContext = createInputGuardrailsMiddleware({
+      const withContext = inputGuardrailsMiddleware({
         inputGuardrails: [inputGuardrail],
         context: { userId: 'user-123' },
         throwOnBlocked: false,
       });
 
-      const withoutContext = createInputGuardrailsMiddleware({
+      const withoutContext = inputGuardrailsMiddleware({
         inputGuardrails: [inputGuardrail],
         throwOnBlocked: false,
       });
@@ -518,7 +513,7 @@ describe('Middleware Integration Tests', () => {
         }),
       });
 
-      const middleware = createInputGuardrailsMiddleware({
+      const middleware = inputGuardrailsMiddleware({
         inputGuardrails: [inputGuardrail],
         throwOnBlocked: true,
       });
@@ -547,7 +542,7 @@ describe('Middleware Integration Tests', () => {
         }),
       });
 
-      const middleware = createInputGuardrailsMiddleware({
+      const middleware = inputGuardrailsMiddleware({
         inputGuardrails: [inputGuardrail],
         throwOnBlocked: false,
         onInputBlocked: onInputBlockedSpy,
@@ -618,7 +613,7 @@ describe('Middleware Integration Tests', () => {
         execute: execute2Spy,
       });
 
-      const middleware = createInputGuardrailsMiddleware({
+      const middleware = inputGuardrailsMiddleware({
         inputGuardrails: [guardrail1, guardrail2],
       });
 
@@ -641,7 +636,7 @@ describe('Middleware Integration Tests', () => {
         },
       });
 
-      const middleware = createInputGuardrailsMiddleware({
+      const middleware = inputGuardrailsMiddleware({
         inputGuardrails: [inputGuardrail],
         throwOnBlocked: true,
         executionOptions: {
@@ -659,7 +654,7 @@ describe('Middleware Integration Tests', () => {
     });
   });
 
-  describe('createOutputGuardrailsMiddleware', () => {
+  describe('outputGuardrailsMiddleware', () => {
     const readStreamText = async (stream: ReadableStream) => {
       const reader = stream.getReader();
       let output = '';
@@ -687,7 +682,7 @@ describe('Middleware Integration Tests', () => {
         }),
       });
 
-      const middleware = createOutputGuardrailsMiddleware({
+      const middleware = outputGuardrailsMiddleware({
         outputGuardrails: [outputGuardrail],
       });
 
@@ -713,7 +708,7 @@ describe('Middleware Integration Tests', () => {
         }),
       });
 
-      const middleware = createOutputGuardrailsMiddleware({
+      const middleware = outputGuardrailsMiddleware({
         outputGuardrails: [outputGuardrail],
         context: { userId: 'user-123' },
         streamMode: 'progressive',
@@ -724,7 +719,7 @@ describe('Middleware Integration Tests', () => {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV3CallOptions;
+      } as LanguageModelV4CallOptions;
 
       const streamResult = await middleware.wrapStream!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -752,7 +747,7 @@ describe('Middleware Integration Tests', () => {
         execute: executeSpy,
       });
 
-      const middleware = createOutputGuardrailsMiddleware({
+      const middleware = outputGuardrailsMiddleware({
         outputGuardrails: [outputGuardrail],
         replaceOnBlocked: true,
         streamMode: 'progressive',
@@ -762,7 +757,7 @@ describe('Middleware Integration Tests', () => {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV3CallOptions;
+      } as LanguageModelV4CallOptions;
 
       const streamResult = await middleware.wrapStream!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -791,7 +786,7 @@ describe('Middleware Integration Tests', () => {
         execute: executeSpy,
       });
 
-      const middleware = createOutputGuardrailsMiddleware({
+      const middleware = outputGuardrailsMiddleware({
         outputGuardrails: [outputGuardrail],
         replaceOnBlocked: true,
         streamMode: 'buffer',
@@ -801,7 +796,7 @@ describe('Middleware Integration Tests', () => {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV3CallOptions;
+      } as LanguageModelV4CallOptions;
 
       const streamResult = await middleware.wrapStream!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -821,7 +816,7 @@ describe('Middleware Integration Tests', () => {
       const outputGuardrail = tokenUsageLimit(5);
       const streamModel = {
         ...createMockModel(),
-        async doStream(options: LanguageModelV3CallOptions) {
+        async doStream(options: LanguageModelV4CallOptions) {
           const stream = new ReadableStream({
             start(controller) {
               controller.enqueue({
@@ -854,9 +849,9 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         },
-      } as LanguageModelV3;
+      } as LanguageModelV4;
 
-      const middleware = createOutputGuardrailsMiddleware({
+      const middleware = outputGuardrailsMiddleware({
         outputGuardrails: [outputGuardrail],
         replaceOnBlocked: true,
         streamMode: 'buffer',
@@ -866,7 +861,7 @@ describe('Middleware Integration Tests', () => {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV3CallOptions;
+      } as LanguageModelV4CallOptions;
 
       const streamResult = await middleware.wrapStream!({
         doGenerate: () => streamModel.doGenerate(mockParams),
@@ -887,7 +882,7 @@ describe('Middleware Integration Tests', () => {
       const outputGuardrail = tokenUsageLimit(5);
       const streamModel = {
         ...createMockModel(),
-        async doStream(options: LanguageModelV3CallOptions) {
+        async doStream(options: LanguageModelV4CallOptions) {
           const stream = new ReadableStream({
             start(controller) {
               controller.enqueue({
@@ -920,9 +915,9 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         },
-      } as LanguageModelV3;
+      } as LanguageModelV4;
 
-      const middleware = createOutputGuardrailsMiddleware({
+      const middleware = outputGuardrailsMiddleware({
         outputGuardrails: [outputGuardrail],
         onOutputBlocked,
         replaceOnBlocked: true,
@@ -933,7 +928,7 @@ describe('Middleware Integration Tests', () => {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV3CallOptions;
+      } as LanguageModelV4CallOptions;
 
       const streamResult = await middleware.wrapStream!({
         doGenerate: () => streamModel.doGenerate(mockParams),
@@ -966,7 +961,7 @@ describe('Middleware Integration Tests', () => {
         execute: inputExecuteSpy,
       });
 
-      const inputMiddleware = createInputGuardrailsMiddleware({
+      const inputMiddleware = inputGuardrailsMiddleware({
         inputGuardrails: [inputGuardrail],
       });
 
@@ -995,7 +990,7 @@ describe('Middleware Integration Tests', () => {
         }),
       });
 
-      const inputMiddleware = createInputGuardrailsMiddleware({
+      const inputMiddleware = inputGuardrailsMiddleware({
         inputGuardrails: [inputGuardrail],
         throwOnBlocked: false,
       });
@@ -1038,7 +1033,7 @@ describe('Middleware Integration Tests', () => {
         },
       });
 
-      const middleware = createInputGuardrailsMiddleware({
+      const middleware = inputGuardrailsMiddleware({
         inputGuardrails: [workingGuardrail, failingGuardrail],
         throwOnBlocked: false,
         executionOptions: {
@@ -1083,7 +1078,7 @@ describe('Middleware Integration Tests', () => {
         execute: neverCalledExecuteSpy,
       });
 
-      const middleware = createInputGuardrailsMiddleware({
+      const middleware = inputGuardrailsMiddleware({
         inputGuardrails: [
           workingGuardrail,
           failingGuardrail,
@@ -1124,7 +1119,7 @@ describe('Middleware Integration Tests', () => {
         },
       });
 
-      const middleware = createInputGuardrailsMiddleware({
+      const middleware = inputGuardrailsMiddleware({
         inputGuardrails: [slowGuardrail],
         throwOnBlocked: true,
         executionOptions: {
@@ -1167,7 +1162,7 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         }),
-      } as LanguageModelV3;
+      } as LanguageModelV4;
 
       // Guardrail that blocks short responses
       const lengthGuardrail = defineOutputGuardrail({
@@ -1196,7 +1191,7 @@ describe('Middleware Integration Tests', () => {
         },
       });
 
-      const middleware = createOutputGuardrailsMiddleware({
+      const middleware = outputGuardrailsMiddleware({
         outputGuardrails: [lengthGuardrail],
         replaceOnBlocked: false, // Don't replace on blocked so we can see the retry result
         retry: {
@@ -1225,7 +1220,7 @@ describe('Middleware Integration Tests', () => {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV3CallOptions;
+      } as LanguageModelV4CallOptions;
 
       const result = await middleware.wrapGenerate!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -1254,7 +1249,7 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         }),
-      } as LanguageModelV3;
+      } as LanguageModelV4;
 
       const lengthGuardrail = defineOutputGuardrail({
         name: 'min-length',
@@ -1282,7 +1277,7 @@ describe('Middleware Integration Tests', () => {
         },
       });
 
-      const middleware = createOutputGuardrailsMiddleware({
+      const middleware = outputGuardrailsMiddleware({
         outputGuardrails: [lengthGuardrail],
         replaceOnBlocked: true,
         retry: {
@@ -1311,7 +1306,7 @@ describe('Middleware Integration Tests', () => {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV3CallOptions;
+      } as LanguageModelV4CallOptions;
 
       const result = await middleware.wrapGenerate!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -1341,7 +1336,7 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         }),
-      } as LanguageModelV3;
+      } as LanguageModelV4;
 
       const lengthGuardrail = defineOutputGuardrail({
         name: 'min-length',
@@ -1369,7 +1364,7 @@ describe('Middleware Integration Tests', () => {
         },
       });
 
-      const middleware = createOutputGuardrailsMiddleware({
+      const middleware = outputGuardrailsMiddleware({
         outputGuardrails: [lengthGuardrail],
         replaceOnBlocked: true,
         retry: {
@@ -1386,7 +1381,7 @@ describe('Middleware Integration Tests', () => {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV3CallOptions;
+      } as LanguageModelV4CallOptions;
 
       const result = await middleware.wrapGenerate!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -1430,7 +1425,7 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         }),
-      } as LanguageModelV3;
+      } as LanguageModelV4;
 
       const lengthGuardrail = defineOutputGuardrail({
         name: 'min-length',
@@ -1458,7 +1453,7 @@ describe('Middleware Integration Tests', () => {
         },
       });
 
-      const middleware = createOutputGuardrailsMiddleware({
+      const middleware = outputGuardrailsMiddleware({
         outputGuardrails: [lengthGuardrail],
         replaceOnBlocked: false, // Don't replace on blocked so we can see the retry result
         retry: {
@@ -1472,7 +1467,7 @@ describe('Middleware Integration Tests', () => {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV3CallOptions;
+      } as LanguageModelV4CallOptions;
 
       const startTime = Date.now();
       await middleware.wrapGenerate!({

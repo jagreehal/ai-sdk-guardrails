@@ -17,7 +17,7 @@ import {
   mcpSecurityGuardrail,
   promptInjectionDetector,
 } from 'ai-sdk-guardrails';
-import type { OutputGuardrailContext } from '../src/types';
+import type { OutputGuardrailContext } from 'ai-sdk-guardrails';
 
 console.log('🔬 Security Guardrail Validation Test\n');
 console.log(
@@ -27,7 +27,8 @@ console.log(
 // Create models for testing
 // const unprotectedModel = model; // Not used in this test
 
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   inputGuardrails: [
     promptInjectionDetector({
       threshold: 0.6,

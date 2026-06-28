@@ -138,7 +138,7 @@ interface InternalMetrics {
  * const trackedGuardrail = collector.track(myGuardrail);
  *
  * // Use in config
- * const model = withGuardrails(baseModel, {
+ * const model = withGuardrails({ model: baseModel,
  *   inputGuardrails: [trackedGuardrail],
  * });
  *

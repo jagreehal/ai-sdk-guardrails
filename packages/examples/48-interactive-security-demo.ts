@@ -301,7 +301,8 @@ const demoScenarios = [
 ];
 
 // Create the protected AI model with all security layers
-const secureModel = withGuardrails(model, {
+const secureModel = withGuardrails({
+  model,
   inputGuardrails: [
     promptInjectionDetector as never,
     maliciousIntentDetector as never,

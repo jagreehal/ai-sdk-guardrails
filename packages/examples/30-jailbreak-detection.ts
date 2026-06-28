@@ -394,7 +394,8 @@ const jailbreakDetectionGuardrail = defineInputGuardrail<{
 console.log('🛡️  Jailbreak Detection Example\n');
 
 // Create a protected model with jailbreak detection
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   inputGuardrails: [jailbreakDetectionGuardrail],
   throwOnBlocked: true,
   onInputBlocked: (executionSummary) => {
@@ -551,7 +552,8 @@ try {
 
 // Test 11: Warning mode (doesn't throw, just logs)
 console.log('Test 11: Suspicious input with warning mode');
-const warningModel = withGuardrails(model, {
+const warningModel = withGuardrails({
+  model,
   inputGuardrails: [jailbreakDetectionGuardrail],
   throwOnBlocked: false, // Warning mode
   onInputBlocked: (executionSummary) => {

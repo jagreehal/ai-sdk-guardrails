@@ -1,6 +1,5 @@
 import { generateText, streamText, embed } from 'ai';
-import type { LanguageModelV3CallOptions as LMCallOptions } from '@ai-sdk/provider';
-import type { GuardrailTelemetrySettings } from './telemetry/types';
+import type { LanguageModelV4CallOptions as LMCallOptions } from '@ai-sdk/provider';
 import type { GuardrailResult } from './enhanced-types';
 
 // Type inference utilities for automatic metadata type extraction
@@ -74,20 +73,20 @@ export type {
 } from 'ai';
 
 // =============================================================================
-// INTERNAL V3 TYPES - For middleware implementation only
+// INTERNAL V4 TYPES - For middleware implementation only (AI SDK v7)
 // Users should import these directly from '@ai-sdk/provider' if needed
 // These are re-exported for internal library use only
 // =============================================================================
 export type {
-  LanguageModelV3,
-  LanguageModelV3Middleware,
-  LanguageModelV3CallOptions,
-  LanguageModelV3GenerateResult,
-  LanguageModelV3StreamResult,
-  LanguageModelV3StreamPart,
-  LanguageModelV3FinishReason,
-  LanguageModelV3ResponseMetadata,
-  LanguageModelV3Usage,
+  LanguageModelV4,
+  LanguageModelV4Middleware,
+  LanguageModelV4CallOptions,
+  LanguageModelV4GenerateResult,
+  LanguageModelV4StreamResult,
+  LanguageModelV4StreamPart,
+  LanguageModelV4FinishReason,
+  LanguageModelV4ResponseMetadata,
+  LanguageModelV4Usage,
 } from '@ai-sdk/provider';
 
 /**
@@ -96,13 +95,13 @@ export type {
  */
 export interface Logger {
   /** Log informational messages */
-  info(message: string, ...args: any[]): void;
+  info(message: string, ...args: unknown[]): void;
   /** Log warning messages */
-  warn(message: string, ...args: any[]): void;
+  warn(message: string, ...args: unknown[]): void;
   /** Log error messages */
-  error(message: string, ...args: any[]): void;
+  error(message: string, ...args: unknown[]): void;
   /** Log debug messages */
-  debug(message: string, ...args: any[]): void;
+  debug(message: string, ...args: unknown[]): void;
 }
 
 // ============================================================================
@@ -400,12 +399,77 @@ export interface GuardrailExecutionSummary<M = Record<string, unknown>> {
 // Generic metadata type parameterized via usage sites
 /* intentionally removed duplicate empty interface */
 
-export interface InputGuardrailsMiddlewareConfig<
-  M = Record<string, unknown>,
+/**
+ * Execution + error-handling options shared by the input and output guardrail
+ * middleware. Tune for performance vs. reliability vs. observability.
+ */
+export interface GuardrailExecutionOptions {
+  /**
+   * Execute guardrails in parallel for better performance.
+   *
+   * - **true**: All guardrails execute simultaneously (faster)
+   * - **false**: Guardrails execute sequentially (more predictable)
+   *
+   * @default true
+   */
+  parallel?: boolean;
+
+  /**
+   * Maximum execution time per guardrail in milliseconds.
+   * Prevents hanging on slow/unresponsive guardrails.
+   *
+   * @default 30000 (30 seconds)
+   */
+  timeout?: number;
+
+  /**
+   * Whether to continue executing remaining guardrails after one fails.
+   *
+   * - **true**: Continue execution for comprehensive results
+   * - **false**: Stop on first failure for fail-fast behavior
+   *
+   * @default true
+   */
+  continueOnFailure?: boolean;
+
+  /**
+   * Logging level for guardrail execution.
+   *
+   * - **none**: No logging (production)
+   * - **error**: Only log execution failures
+   * - **warn**: Log failures and triggered guardrails
+   * - **info**: Log all guardrail executions
+   * - **debug**: Verbose logging with timing data
+   *
+   * @default 'warn'
+   */
+  logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
+
+  /**
+   * Custom logger instance to use instead of console.
+   * Compatible with popular loggers like Winston, Pino, Bunyan.
+   * Defaults to console if not provided.
+   *
+   * @example
+   * ```typescript
+   * import winston from 'winston';
+   *
+   * const logger = winston.createLogger({
+   *   level: 'info',
+   *   format: winston.format.json(),
+   *   transports: [new winston.transports.Console()]
+   * });
+   *
+   * const options = { logger, logLevel: 'info' };
+   * ```
+   */
+  logger?: Logger;
+}
+
+/** Fields common to the input and output guardrail middleware configs. */
+export interface GuardrailsMiddlewareConfigBase<
   TContext = Record<string, unknown>,
 > {
-  /** Input guardrails to execute before AI calls */
-  inputGuardrails: InputGuardrail<M>[];
   /** Request-scoped context passed to all guardrails */
   context?: RequestContext<TContext>;
   /**
@@ -414,93 +478,24 @@ export interface InputGuardrailsMiddlewareConfig<
    * Configure how guardrails execute and handle errors to optimize for
    * your use case (performance vs. reliability vs. observability).
    */
-  executionOptions?: {
-    /**
-     * Execute guardrails in parallel for better performance.
-     *
-     * - **true**: All guardrails execute simultaneously (faster)
-     * - **false**: Guardrails execute sequentially (more predictable)
-     *
-     * @default true
-     */
-    parallel?: boolean;
+  executionOptions?: GuardrailExecutionOptions;
+  /**
+   * Whether to throw errors when guardrails are triggered.
+   *
+   * - **true**: Throws a `GuardrailsError` subclass - use for strict validation
+   * - **false**: Logs warnings and continues - use for monitoring/analytics
+   *
+   * @default false
+   */
+  throwOnBlocked?: boolean;
+}
 
-    /**
-     * Maximum execution time per guardrail in milliseconds.
-     * Prevents hanging on slow/unresponsive guardrails.
-     *
-     * @default 30000 (30 seconds)
-     */
-    timeout?: number;
-
-    /**
-     * Whether to continue executing remaining guardrails after one fails.
-     *
-     * - **true**: Continue execution for comprehensive results
-     * - **false**: Stop on first failure for fail-fast behavior
-     *
-     * @default true
-     */
-    continueOnFailure?: boolean;
-
-    /**
-     * Logging level for guardrail execution.
-     *
-     * - **none**: No logging (production)
-     * - **error**: Only log execution failures
-     * - **warn**: Log failures and triggered guardrails
-     * - **info**: Log all guardrail executions
-     * - **debug**: Verbose logging with timing data
-     *
-     * @default 'warn'
-     */
-    logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
-
-    /**
-     * Custom logger instance to use instead of console.
-     * Compatible with popular loggers like Winston, Pino, Bunyan.
-     * Defaults to console if not provided.
-     *
-     * @example
-     * ```typescript
-     * import winston from 'winston';
-     *
-     * const logger = winston.createLogger({
-     *   level: 'info',
-     *   format: winston.format.json(),
-     *   transports: [new winston.transports.Console()]
-     * });
-     *
-     * const options = { logger, logLevel: 'info' };
-     * ```
-     */
-    logger?: Logger;
-
-    /**
-     * OpenTelemetry configuration for observability.
-     *
-     * Configure distributed tracing to monitor guardrail execution
-     * in production. Automatically inherits from AI SDK's experimental_telemetry
-     * when available.
-     *
-     * @example
-     * ```typescript
-     * import { trace } from '@opentelemetry/api';
-     *
-     * const guardedModel = withGuardrails(model, {
-     *   inputGuardrails: [piiDetector()],
-     *   executionOptions: {
-     *     telemetry: {
-     *       isEnabled: true,
-     *       tracer: trace.getTracer('my-app'),
-     *       recordInputs: false, // Don't record sensitive inputs
-     *     }
-     *   }
-     * });
-     * ```
-     */
-    telemetry?: GuardrailTelemetrySettings;
-  };
+export interface InputGuardrailsMiddlewareConfig<
+  M = Record<string, unknown>,
+  TContext = Record<string, unknown>,
+> extends GuardrailsMiddlewareConfigBase<TContext> {
+  /** Input guardrails to execute before AI calls */
+  inputGuardrails: InputGuardrail<M>[];
   /**
    * Callback for when input is blocked - receives comprehensive execution analytics.
    *
@@ -536,119 +531,14 @@ export interface InputGuardrailsMiddlewareConfig<
     executionSummary: GuardrailExecutionSummary<M>,
     originalParams: InputGuardrailContext,
   ) => void;
-
-  /**
-   * Whether to throw errors when guardrails are triggered.
-   *
-   * - **true**: Throws `GuardrailsInputError` - use for strict validation
-   * - **false**: Logs warnings and continues - use for monitoring/analytics
-   *
-   * @default false
-   */
-  throwOnBlocked?: boolean;
 }
 
 export interface OutputGuardrailsMiddlewareConfig<
   M = Record<string, unknown>,
   TContext = Record<string, unknown>,
-> {
+> extends GuardrailsMiddlewareConfigBase<TContext> {
   /** Output guardrails to execute after AI calls */
   outputGuardrails: OutputGuardrail<M>[];
-  /** Request-scoped context passed to all guardrails */
-  context?: RequestContext<TContext>;
-  /**
-   * Execution options for guardrails with error handling configuration.
-   *
-   * Configure how guardrails execute and handle errors to optimize for
-   * your use case (performance vs. reliability vs. observability).
-   */
-  executionOptions?: {
-    /**
-     * Execute guardrails in parallel for better performance.
-     *
-     * - **true**: All guardrails execute simultaneously (faster)
-     * - **false**: Guardrails execute sequentially (more predictable)
-     *
-     * @default true
-     */
-    parallel?: boolean;
-
-    /**
-     * Maximum execution time per guardrail in milliseconds.
-     * Prevents hanging on slow/unresponsive guardrails.
-     *
-     * @default 30000 (30 seconds)
-     */
-    timeout?: number;
-
-    /**
-     * Whether to continue executing remaining guardrails after one fails.
-     *
-     * - **true**: Continue execution for comprehensive results
-     * - **false**: Stop on first failure for fail-fast behavior
-     *
-     * @default true
-     */
-    continueOnFailure?: boolean;
-
-    /**
-     * Logging level for guardrail execution.
-     *
-     * - **none**: No logging (production)
-     * - **error**: Only log execution failures
-     * - **warn**: Log failures and triggered guardrails
-     * - **info**: Log all guardrail executions
-     * - **debug**: Verbose logging with timing data
-     *
-     * @default 'warn'
-     */
-    logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
-
-    /**
-     * Custom logger instance to use instead of console.
-     * Compatible with popular loggers like Winston, Pino, Bunyan.
-     * Defaults to console if not provided.
-     *
-     * @example
-     * ```typescript
-     * import winston from 'winston';
-     *
-     * const logger = winston.createLogger({
-     *   level: 'info',
-     *   format: winston.format.json(),
-     *   transports: [new winston.transports.Console()]
-     * });
-     *
-     * const options = { logger, logLevel: 'info' };
-     * ```
-     */
-    logger?: Logger;
-
-    /**
-     * OpenTelemetry configuration for observability.
-     *
-     * Configure distributed tracing to monitor guardrail execution
-     * in production. Automatically inherits from AI SDK's experimental_telemetry
-     * when available.
-     *
-     * @example
-     * ```typescript
-     * import { trace } from '@opentelemetry/api';
-     *
-     * const guardedModel = withGuardrails(model, {
-     *   outputGuardrails: [minLength(100)],
-     *   executionOptions: {
-     *     telemetry: {
-     *       isEnabled: true,
-     *       tracer: trace.getTracer('my-app'),
-     *       recordOutputs: false, // Don't record sensitive outputs
-     *     }
-     *   }
-     * });
-     * ```
-     */
-    telemetry?: GuardrailTelemetrySettings;
-  };
   /**
    * Callback for when output is blocked - receives comprehensive execution analytics.
    *
@@ -690,16 +580,6 @@ export interface OutputGuardrailsMiddlewareConfig<
   ) => void;
 
   /**
-   * Whether to throw errors when guardrails are triggered.
-   *
-   * - **true**: Throws `GuardrailsOutputError` - use for strict validation
-   * - **false**: Logs warnings and continues - use for monitoring/analytics
-   *
-   * @default false
-   */
-  throwOnBlocked?: boolean;
-
-  /**
    * Whether to replace blocked output with placeholder text.
    *
    * - **true**: Returns placeholder message instead of blocked content
@@ -732,7 +612,7 @@ export interface OutputGuardrailsMiddlewareConfig<
    *
    * @example
    * ```typescript
-   * const model = withGuardrails(openai('gpt-4o'), {
+   * const model = withGuardrails({ model: openai('gpt-4o'),
    *   outputGuardrails: [piiGuardrail, toxicityGuardrail],
    *   streamMode: 'progressive',
    *   stopOnGuardrailViolation: true, // Stop on 2 violations or critical
@@ -760,7 +640,7 @@ export interface OutputGuardrailsMiddlewareConfig<
    *
    * @example Simple usage (default retry behavior)
    * ```typescript
-   * withGuardrails(model, {
+   * withGuardrails({ model,
    *   outputGuardrails: [expectedToolUse({ tools: 'calculator' })],
    *   retry: { maxRetries: 2 },
    * });
@@ -768,7 +648,7 @@ export interface OutputGuardrailsMiddlewareConfig<
    *
    * @example Custom retry behavior
    * ```typescript
-   * withGuardrails(model, {
+   * withGuardrails({ model,
    *   outputGuardrails: [expectedToolUse({ tools: 'calculator' })],
    *   retry: {
    *     maxRetries: 2,
@@ -805,7 +685,7 @@ export interface OutputGuardrailsMiddlewareConfig<
      * that appends retry instructions from blocked guardrails' `getRetryInstruction()` methods.
      *
      * When provided, this function has full control over the retry parameters.
-     * Must return complete LanguageModelV3CallOptions for the next attempt.
+     * Must return complete LanguageModelV4CallOptions for the next attempt.
      */
     buildRetryParams?: (args: {
       summary: GuardrailExecutionSummary<M>;

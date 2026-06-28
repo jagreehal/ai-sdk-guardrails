@@ -174,7 +174,8 @@ const socialMediaFilter = defineOutputGuardrail({
 describe('Object Content Filter Example', () => {
   describe('Message Content Filtering', () => {
     it('should allow professional message to pass', async () => {
-      const messageModel = withGuardrails(model, {
+      const messageModel = withGuardrails({
+        model,
         outputGuardrails: [messageContentFilter],
         throwOnBlocked: false,
       });
@@ -197,7 +198,8 @@ describe('Object Content Filter Example', () => {
       let blockedMessage: string | undefined;
       let blockedMetadata: any;
 
-      const messageModel = withGuardrails(model, {
+      const messageModel = withGuardrails({
+        model,
         outputGuardrails: [messageContentFilter],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -227,7 +229,8 @@ describe('Object Content Filter Example', () => {
     it('should provide correct metadata when filtering', async () => {
       let blockedMetadata: any;
 
-      const messageModel = withGuardrails(model, {
+      const messageModel = withGuardrails({
+        model,
         outputGuardrails: [messageContentFilter],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -255,7 +258,8 @@ describe('Object Content Filter Example', () => {
 
   describe('Social Media Content Filtering', () => {
     it('should allow normal social media post to pass', async () => {
-      const socialModel = withGuardrails(model, {
+      const socialModel = withGuardrails({
+        model,
         outputGuardrails: [socialMediaFilter],
         throwOnBlocked: false,
       });
@@ -279,7 +283,8 @@ describe('Object Content Filter Example', () => {
       let blockedMessage: string | undefined;
       let blockedMetadata: any;
 
-      const socialModel = withGuardrails(model, {
+      const socialModel = withGuardrails({
+        model,
         outputGuardrails: [socialMediaFilter],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {
@@ -309,7 +314,8 @@ describe('Object Content Filter Example', () => {
     it('should provide correct metadata for hashtag violations', async () => {
       let blockedMetadata: any;
 
-      const socialModel = withGuardrails(model, {
+      const socialModel = withGuardrails({
+        model,
         outputGuardrails: [socialMediaFilter],
         throwOnBlocked: false,
         onOutputBlocked: (executionSummary) => {

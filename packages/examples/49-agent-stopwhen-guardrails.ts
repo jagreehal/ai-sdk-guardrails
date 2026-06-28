@@ -11,8 +11,8 @@
  * - Integration with existing stopWhen conditions
  */
 
-import { withAgentGuardrails, defineOutputGuardrail } from 'ai-sdk-guardrails';
-import { tool } from 'ai';
+import { agentGuardrails, defineOutputGuardrail } from 'ai-sdk-guardrails';
+import { ToolLoopAgent, tool } from 'ai';
 import { z } from 'zod';
 import { model } from './model';
 
@@ -104,23 +104,21 @@ const qualityGuardrail = defineOutputGuardrail({
 
 console.log('🔒 Agent with stopWhen Guardrail Integration\n');
 
-const agent = withAgentGuardrails(
-  {
+const agent = new ToolLoopAgent({
+  ...agentGuardrails({
     model,
-    system:
-      'You are a helpful assistant. When asked, use tools to fetch information.',
-    tools: {
-      search: searchTool,
-      getData: dataTool,
-    },
-  },
-  {
     outputGuardrails: [piiGuardrail, qualityGuardrail],
-    stopOnGuardrailViolation: true, // Stop on 2 violations or any critical
+    stopOnGuardrailViolation: true, // Stop on 3 violations or any critical
     throwOnBlocked: false,
     replaceOnBlocked: true,
+  }),
+  instructions:
+    'You are a helpful assistant. When asked, use tools to fetch information.',
+  tools: {
+    search: searchTool,
+    getData: dataTool,
   },
-);
+});
 
 console.log('📝 Prompt: Get some user data and include it in your response\n');
 

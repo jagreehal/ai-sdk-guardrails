@@ -38,7 +38,8 @@ const lengthLimitGuardrail = defineInputGuardrail({
 console.log('🛡️  Input Length Limit Example\n');
 
 // Create a protected model with length limit
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   inputGuardrails: [lengthLimitGuardrail],
   throwOnBlocked: true,
   onInputBlocked: (executionSummary) => {
@@ -82,7 +83,8 @@ try {
 
 // Test 3: Warning mode (doesn't throw, just logs)
 console.log('Test 3: Long input with warning mode');
-const warningModel = withGuardrails(model, {
+const warningModel = withGuardrails({
+  model,
   inputGuardrails: [lengthLimitGuardrail],
   throwOnBlocked: false, // Warning mode
   onInputBlocked: (executionSummary) => {

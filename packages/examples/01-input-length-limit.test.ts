@@ -41,7 +41,8 @@ const lengthLimitGuardrail = defineInputGuardrail({
 
 describe('Input Length Limit Example', () => {
   it('should allow short input to pass', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [lengthLimitGuardrail],
       throwOnBlocked: true,
     });
@@ -56,7 +57,8 @@ describe('Input Length Limit Example', () => {
   });
 
   it('should block input that exceeds length limit', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [lengthLimitGuardrail],
       throwOnBlocked: true,
     });
@@ -77,7 +79,8 @@ describe('Input Length Limit Example', () => {
   it('should allow long input in warning mode without throwing', async () => {
     let blockedMessage: string | undefined;
 
-    const warningModel = withGuardrails(model, {
+    const warningModel = withGuardrails({
+      model,
       inputGuardrails: [lengthLimitGuardrail],
       throwOnBlocked: false, // Warning mode
       onInputBlocked: (executionSummary) => {
@@ -106,7 +109,8 @@ describe('Input Length Limit Example', () => {
   });
 
   it('should provide correct metadata when blocking', async () => {
-    const protectedModel = withGuardrails(model, {
+    const protectedModel = withGuardrails({
+      model,
       inputGuardrails: [lengthLimitGuardrail],
       throwOnBlocked: true,
     });
@@ -129,4 +133,3 @@ describe('Input Length Limit Example', () => {
     }
   });
 });
-

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   lengthLimit,
+  inputLengthLimit,
   blockedWords,
   contentLengthLimit,
   blockedKeywords,
@@ -106,6 +107,46 @@ describe('Input Guardrails', () => {
       expect(result.metadata?.model).toBeDefined();
       expect(result.metadata?.temperature).toBe(0.7);
       expect(result.metadata?.maxOutputTokens).toBe(1000);
+    });
+  });
+
+  describe('inputLengthLimit', () => {
+    it('accepts a number as a character limit', async () => {
+      const guardrail = inputLengthLimit(10);
+      const result = await guardrail.execute(
+        createMockContext({
+          prompt: 'This is a very long prompt that exceeds the limit',
+        }),
+      );
+
+      expect(result.tripwireTriggered).toBe(true);
+      expect(result.message).toContain(
+        'Input characters count 50 exceeds limit of 10',
+      );
+    });
+
+    it('accepts an options object with a word count method', async () => {
+      const guardrail = inputLengthLimit({
+        maxLength: 3,
+        countMethod: 'words',
+      });
+      const result = await guardrail.execute(
+        createMockContext({ prompt: 'one two three four five' }),
+      );
+
+      expect(result.tripwireTriggered).toBe(true);
+      expect(result.message).toContain(
+        'Input words count 5 exceeds limit of 3',
+      );
+    });
+
+    it('passes when within the configured limit', async () => {
+      const guardrail = inputLengthLimit({ maxLength: 100 });
+      const result = await guardrail.execute(
+        createMockContext({ prompt: 'Short prompt' }),
+      );
+
+      expect(result.tripwireTriggered).toBe(false);
     });
   });
 

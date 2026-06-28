@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { LanguageModelV3, LanguageModelV3CallOptions } from '../types';
-import { createGuardrailMiddleware } from './middleware';
+import type { LanguageModelV4, LanguageModelV4CallOptions } from '../types';
+import { guardrailMiddleware } from './middleware';
 import { tokenUsageLimit } from './output';
 
 // V3 usage helper
@@ -18,12 +18,12 @@ const createV3Usage = (inputTotal: number, outputTotal: number) => ({
   },
 });
 
-const createMockModel = (response = 'Mock AI response'): LanguageModelV3 => ({
-  specificationVersion: 'v3',
+const createMockModel = (response = 'Mock AI response'): LanguageModelV4 => ({
+  specificationVersion: 'v4',
   provider: 'test',
   modelId: 'test-model',
   supportedUrls: {},
-  async doGenerate(options: LanguageModelV3CallOptions) {
+  async doGenerate(options: LanguageModelV4CallOptions) {
     return {
       content: [{ type: 'text', text: response }],
       finishReason: { unified: 'stop', raw: undefined },
@@ -38,7 +38,7 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV3 => ({
       warnings: [],
     };
   },
-  async doStream(options: LanguageModelV3CallOptions) {
+  async doStream(options: LanguageModelV4CallOptions) {
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue({
@@ -69,10 +69,10 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV3 => ({
   },
 });
 
-describe('createGuardrailMiddleware', () => {
+describe('guardrailMiddleware', () => {
   it('should pass usage data to output guardrails', async () => {
     const mockModel = createMockModel();
-    const middleware = createGuardrailMiddleware({
+    const middleware = guardrailMiddleware({
       outputGuardrails: [tokenUsageLimit(5)],
       throwOnBlocked: false,
       replaceOnBlocked: true,
@@ -82,7 +82,7 @@ describe('createGuardrailMiddleware', () => {
       prompt: [
         { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
       ],
-    } as LanguageModelV3CallOptions;
+    } as LanguageModelV4CallOptions;
 
     const result = await middleware.wrapGenerate!({
       doGenerate: () => mockModel.doGenerate(params),
@@ -100,7 +100,7 @@ describe('createGuardrailMiddleware', () => {
   it('should replace text when output is blocked', async () => {
     const mockModel = {
       ...createMockModel(),
-      async doGenerate(options: LanguageModelV3CallOptions) {
+      async doGenerate(options: LanguageModelV4CallOptions) {
         return {
           content: [{ type: 'text', text: 'Original content' }],
           text: 'Original content',
@@ -116,9 +116,9 @@ describe('createGuardrailMiddleware', () => {
           warnings: [],
         };
       },
-    } as LanguageModelV3;
+    } as LanguageModelV4;
 
-    const middleware = createGuardrailMiddleware({
+    const middleware = guardrailMiddleware({
       outputGuardrails: [tokenUsageLimit(5)],
       throwOnBlocked: false,
       replaceOnBlocked: true,
@@ -128,7 +128,7 @@ describe('createGuardrailMiddleware', () => {
       prompt: [
         { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
       ],
-    } as LanguageModelV3CallOptions;
+    } as LanguageModelV4CallOptions;
 
     const result = await middleware.wrapGenerate!({
       doGenerate: () => mockModel.doGenerate(params),
@@ -144,7 +144,7 @@ describe('createGuardrailMiddleware', () => {
 
   it('should include text when input is blocked', async () => {
     const mockModel = createMockModel();
-    const middleware = createGuardrailMiddleware({
+    const middleware = guardrailMiddleware({
       inputGuardrails: [
         {
           name: 'blocking-input',
@@ -165,7 +165,7 @@ describe('createGuardrailMiddleware', () => {
       prompt: [
         { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
       ],
-    } as LanguageModelV3CallOptions;
+    } as LanguageModelV4CallOptions;
 
     const transformedParams = await middleware.transformParams!({
       type: 'generate',

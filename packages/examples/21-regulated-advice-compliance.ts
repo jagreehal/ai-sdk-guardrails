@@ -417,7 +417,8 @@ const regulatedAdviceComplianceGuardrail = defineOutputGuardrail({
 console.log('🛡️  Regulated Advice Compliance Example\n');
 
 // Create a protected model with regulated advice compliance
-const protectedModel = withGuardrails(model, {
+const protectedModel = withGuardrails({
+  model,
   outputGuardrails: [regulatedAdviceComplianceGuardrail],
   throwOnBlocked: true,
   onOutputBlocked: (executionSummary) => {
@@ -564,7 +565,8 @@ try {
 
 // Test 8: Warning mode with compliance information
 console.log('Test 8: Warning mode with compliance information');
-const warningModel = withGuardrails(model, {
+const warningModel = withGuardrails({
+  model,
   outputGuardrails: [regulatedAdviceComplianceGuardrail],
   throwOnBlocked: false,
   onOutputBlocked: (executionSummary) => {

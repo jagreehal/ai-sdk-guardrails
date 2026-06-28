@@ -830,6 +830,13 @@ export const schemaValidation = (schema: {
     },
   );
 
+/**
+ * Per-request token ceiling — trips when a *single* response exceeds `maxTokens`.
+ *
+ * For a *cumulative* session limit (total tokens/cost across many calls), use
+ * {@link budgetGuardrail} with a shared budget instead, so spend is tracked in
+ * one place rather than re-summed per request.
+ */
 export const tokenUsageLimit = (maxTokens: number): OutputGuardrail =>
   createOutputGuardrail(
     'token-usage-limit',
@@ -1577,6 +1584,15 @@ export const unsafeContentDetector = createOutputGuardrail(
 
 /**
  * Cost and quota rails guardrail to monitor token usage and costs
+ */
+/**
+ * Per-request cost/token quota — trips when a *single* response exceeds the
+ * given per-request limits.
+ *
+ * For a *cumulative* session budget (total cost/tokens across the whole run, with
+ * an abort-signal kill-switch), use {@link budgetGuardrail} — it feeds each
+ * call's usage into one shared budget (autotel-genai's `GenAiGuard` or the
+ * built-in {@link createGuardrailBudget}), avoiding double-tracking.
  */
 export const costQuotaRails = (options: {
   maxTokensPerRequest?: number;
