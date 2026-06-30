@@ -25,6 +25,10 @@ import {
   executeOutputGuardrails,
   normalizeGuardrailContext,
 } from './internal';
+import {
+  snapshotGenerateResultText,
+  syncGenerateResultTextAfterGuardrails,
+} from './generate-result-sync';
 import type {
   OutputGuardrail,
   GuardrailResult,
@@ -250,6 +254,7 @@ export function outputGuardrailsMiddleware<
       model: LanguageModelV4;
     }) => {
       const result = await doGenerate();
+      const resultTextBeforeGuardrails = snapshotGenerateResultText(result);
 
       // Use normalized context for better type safety
       const baseContext = normalizeGuardrailContext(params);
@@ -338,6 +343,8 @@ export function outputGuardrailsMiddleware<
 
             // Call model with new params
             const retryRaw = await model.doGenerate(nextParams);
+            const retryTextBeforeGuardrails =
+              snapshotGenerateResultText(retryRaw);
             const retryResult = retryRaw;
 
             const retryContext: OutputGuardrailContext = {
@@ -356,7 +363,10 @@ export function outputGuardrailsMiddleware<
             );
 
             if (retrySummary.blockedResults.length === 0) {
-              return retryRaw;
+              return syncGenerateResultTextAfterGuardrails(
+                retryRaw,
+                retryTextBeforeGuardrails,
+              );
             }
 
             // Prepare for potential next attempt
@@ -395,7 +405,10 @@ export function outputGuardrailsMiddleware<
         }
       }
 
-      return result;
+      return syncGenerateResultTextAfterGuardrails(
+        result,
+        resultTextBeforeGuardrails,
+      );
     },
 
     wrapStream: async ({
@@ -452,6 +465,8 @@ export function outputGuardrailsMiddleware<
               usage: streamUsage,
               finishReason: streamFinishReason,
             };
+            const streamedTextBeforeGuardrails =
+              snapshotGenerateResultText(streamedResult);
 
             const outputContext: OutputGuardrailContext = {
               input: guardrailContext,
@@ -606,8 +621,30 @@ export function outputGuardrailsMiddleware<
                 }
               }
             } else {
-              for (const chunk of blockedChunks) {
-                controller.enqueue(chunk);
+              syncGenerateResultTextAfterGuardrails(
+                streamedResult,
+                streamedTextBeforeGuardrails,
+              );
+              const finalText =
+                typeof streamedResult.text === 'string'
+                  ? streamedResult.text
+                  : accumulatedText;
+
+              if (finalText === accumulatedText) {
+                for (const chunk of blockedChunks) {
+                  controller.enqueue(chunk);
+                }
+              } else {
+                controller.enqueue({
+                  type: 'text-delta',
+                  id: '1',
+                  delta: finalText,
+                });
+                controller.enqueue({
+                  type: 'finish',
+                  finishReason: streamFinishReason ?? finishReasonStop,
+                  usage: streamUsage ?? emptyV4Usage,
+                });
               }
             }
           },
