@@ -25,6 +25,10 @@ import {
   normalizeGuardrailContext,
 } from '../guardrails';
 import { GuardrailsInputError, GuardrailsOutputError } from '../errors';
+import {
+  snapshotGenerateResultText,
+  syncGenerateResultTextAfterGuardrails,
+} from './generate-result-sync';
 
 // V4-compatible helpers for mock responses
 const emptyV4Usage: LanguageModelV4Usage = {
@@ -257,6 +261,7 @@ export function guardrailMiddleware<
       }
 
       const result = await doGenerate();
+      const resultTextBeforeGuardrails = snapshotGenerateResultText(result);
 
       // Run output guardrails
       const baseContext = normalizeGuardrailContext(params);
@@ -309,7 +314,10 @@ export function guardrailMiddleware<
         }
       }
 
-      return result;
+      return syncGenerateResultTextAfterGuardrails(
+        result,
+        resultTextBeforeGuardrails,
+      );
     },
 
     // Wrap stream to check output guardrails (buffer mode for simplicity)

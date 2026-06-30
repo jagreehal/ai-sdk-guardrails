@@ -366,6 +366,39 @@ describe('AI SDK 5 Helper Functions', () => {
         text: 'Mock AI response',
       });
     });
+
+    it('should sync guardrail text mutations into content', async () => {
+      const redactionGuardrail = defineOutputGuardrail({
+        name: 'text-redaction',
+        description: 'Mutates only the top-level text field',
+        execute: async (params) => {
+          const result = params.result as { text?: string };
+          result.text = 'Redacted response';
+          return {
+            tripwireTriggered: false,
+            info: { guardrailName: 'text-redaction' },
+          };
+        },
+      });
+
+      const wrappedModel = withGuardrails({
+        model: mockModel,
+        outputGuardrails: [redactionGuardrail],
+        throwOnBlocked: false,
+      }) as LanguageModelV4;
+
+      const result = await wrappedModel.doGenerate({
+        prompt: [
+          { role: 'user', content: [{ type: 'text', text: 'test prompt' }] },
+        ],
+      });
+
+      expect(result.content[0]).toEqual({
+        type: 'text',
+        text: 'Redacted response',
+      });
+      expect((result as { text?: string }).text).toBe('Redacted response');
+    });
   });
 });
 
