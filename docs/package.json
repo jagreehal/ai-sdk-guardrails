@@ -21,7 +21,7 @@
     "@astrojs/sitemap": "^3.7.3",
     "@astrojs/starlight": "^0.37.4",
     "@expressive-code/plugin-collapsible-sections": "^0.42.0",
-    "@tailwindcss/vite": "^4.3.0",
+    "@tailwindcss/vite": "^4.3.2",
     "astro-mermaid": "2.0.4",
     "mermaid": "11.9.0",
     "sharp": "^0.34.5",
