@@ -28,7 +28,7 @@
   "devDependencies": {
     "tsx": "^4.22.4",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.8",
+    "vitest": "^4.1.10",
     "vitest-mock-extended": "^4.0.0"
   }
 }
