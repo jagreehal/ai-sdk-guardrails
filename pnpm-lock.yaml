@@ -176,8 +176,8 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0(ai@7.0.18(zod@4.4.3))(zod@4.4.3)
       autoevals:
-        specifier: ^0.0.132
-        version: 0.0.132(ws@8.18.3)
+        specifier: ^0.3.0
+        version: 0.3.0(ws@8.18.3)(zod@4.4.3)
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -2631,8 +2631,8 @@ packages:
   ajv@6.15.0:
     resolution: {integrity: sha512-fgFx7Hfoq60ytK2c7DhnF8jIvzYgOMxfugjLOSMHjLIPgenqa7S7oaagATUq99mV6IYvN2tRmC0wnTYX6iPbMw==}
 
-  ajv@8.17.1:
-    resolution: {integrity: sha512-B/gBuNg5SiMTrPkC+A2+cW0RszwxYmn6VYxB/inlBStS5nx6xHIt/ehKRhIMhqusl7a8LjQoZnjCs5vhwxOQ1g==}
+  ajv@8.20.0:
+    resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
 
   am-i-vibing@0.4.0:
     resolution: {integrity: sha512-MxT4XZL7pzLHpuvhDKdMaQHMGGkJDLluKBLsbstn+8wv9sWcFT6h+0ve9qkml95amVTZtZV83gQe2hY+ojgHLg==}
@@ -2722,8 +2722,11 @@ packages:
       '@astrojs/markdown-remark':
         optional: true
 
-  autoevals@0.0.132:
-    resolution: {integrity: sha512-x033hXLO1Vyggbv68Y1QeoZlrdKHcNexcutPhVaDhDJ4SO6TU1rG6vME77g/zKvH4VWFVBPDWM1pRbPxAFF+sA==}
+  autoevals@0.3.0:
+    resolution: {integrity: sha512-4CEzBVhjVBHvk46s+DBcgmEfOdM+zXEoCkvvDqYO2IWdVpZKUJANfX8BvfE5vfcGy24on9zW21Zf7V9cUJdbfg==}
+    engines: {npm: please-use-pnpm, pnpm: '>=10.27.0', yarn: please-use-pnpm}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   autotel-audit@0.4.2:
     resolution: {integrity: sha512-yppSEm5PGOcKNp/9qF1VQO7fr0n7HewNc1JP/uxH7snNgbOLmoC/v3RGYdcgYBA+T4kmB9n0CPnMGuC7+Su5gw==}
@@ -2890,8 +2893,8 @@ packages:
   chardet@2.1.1:
     resolution: {integrity: sha512-PsezH1rqdV9VvyNhxxOW32/d75r01NY7TQCmOqomRo15ZSOKbpTFVsfjghxo6JloQUCGnH4k1LGu0R4yCLlWQQ==}
 
-  cheminfo-types@1.8.1:
-    resolution: {integrity: sha512-FRcpVkox+cRovffgqNdDFQ1eUav+i/Vq/CUd1hcfEl2bevntFlzznL+jE8g4twl6ElB7gZjCko6pYpXyMn+6dA==}
+  cheminfo-types@1.15.0:
+    resolution: {integrity: sha512-shv45WN2u0yN9EHH1bisNrv+fy4Cw+eLM5lOoriP67mePrwbHZ1kJqg90C8GEU7K1A8gJsicEoVZHcuBbuul/w==}
 
   chokidar@4.0.3:
     resolution: {integrity: sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA==}
@@ -3497,8 +3500,8 @@ packages:
   fast-string-width@3.0.2:
     resolution: {integrity: sha512-gX8LrtNEI5hq8DVUfRQMbr5lpaS4nMIWV+7XEbXk2b8kiQIizgnlr12B4dA3ZEx3308ze0O4Q1R+cHts8kyUJg==}
 
-  fast-uri@3.0.6:
-    resolution: {integrity: sha512-Atfo14OibSv5wAp4VWNsFYE1AchQRTv9cBGWET4pZWHzYshFSS9NQI6I57rdKn9croWVMbYFbLhJ+yJvmZIIHw==}
+  fast-uri@3.1.3:
+    resolution: {integrity: sha512-i70LwGWUduXqzicKXWshooq+sWL1K3WUU5rKZNG/0i3a1OSoX3HqhH5WbWwTmqWfor4urUakGPiRQcleRZTwOg==}
 
   fast-wrap-ansi@0.2.2:
     resolution: {integrity: sha512-7F2Fl+TjRSenLqlU3UjSH0iyqopqoZIu7eZVpEirP2g1GtWa2G/ecEmBdgz31+Mxr+ELclgg6sokpSFIQiZ02Q==}
@@ -3764,10 +3767,6 @@ packages:
   inline-style-parser@0.2.7:
     resolution: {integrity: sha512-Nb2ctOyNR8DqQoR0OwRG95uNWIC0C1lCgf5Naz5H6Ji72KZ8OcFZLz2P5sNgwlyoJ8Yif11oMuYs5pBQa86csA==}
 
-  install@0.13.0:
-    resolution: {integrity: sha512-zDml/jzr2PKU9I8J/xyZBQn8rPCAY//UOYNmR01XwNwyfhEWObo2SWfSl1+0tm1u6PhxLwDnfsT/6jB7OUxqFA==}
-    engines: {node: '>= 0.10'}
-
   internmap@1.0.1:
     resolution: {integrity: sha512-lDB5YccMydFBtasVtxnZ3MRBHuaoE8GKsppq+EchKL2U4nK/DmEpPHNH8MZe5HkMtpSiTSOZwfN0tzYjO/lJEw==}
 
@@ -3784,8 +3783,8 @@ packages:
   is-alphanumerical@2.0.1:
     resolution: {integrity: sha512-hmbYhX/9MUMF5uh7tOXyK/n0ZvWpad5caBA17GsC6vyuCqaWliRG5K1qS9inmUhEMaOBIW7/whAnSwveW/LtZw==}
 
-  is-any-array@2.0.1:
-    resolution: {integrity: sha512-UtilS7hLRu++wb/WBAw9bNuP1Eg04Ivn1vERJck8zJthEvXCBEBpGR/33u/xLKWEQf95803oalHrVDptcAvFdQ==}
+  is-any-array@3.0.0:
+    resolution: {integrity: sha512-o4h+tylWykC4BD1vaejp6gDxoM13bwW8FGuNs4yIKpj8xbBJcRxJx8vZpq0dCr7ZDEfeKjmsi/euolKhX6f/ww==}
 
   is-builtin-module@5.0.0:
     resolution: {integrity: sha512-f4RqJKBUe5rQkJ2eJEJBXSticB3hGbN9j0yxxMQFqIW89Jp9WYFtzfTcRlstDKVUTRzSOTLKRfO9vIztenwtxA==}
@@ -4002,8 +4001,8 @@ packages:
     resolution: {integrity: sha512-/vlFKAoH5Cgt3Ie+JLhRbwOsCQePABiU3tJ1egGvyQ+33R/vcwM2Zl2QR/LzjsBeItPt3oSVXapn+m4nQDvpzw==}
     engines: {node: '>=14'}
 
-  linear-sum-assignment@1.0.7:
-    resolution: {integrity: sha512-jfLoSGwZNyjfY8eK4ayhjfcIu3BfWvP6sWieYzYI3AWldwXVoWEz1gtrQL10v/8YltYLBunqNjeVFXPMUs+MJg==}
+  linear-sum-assignment@1.0.9:
+    resolution: {integrity: sha512-1T2Ek3sxpt2mBHeBFMRJEikiIK/yIOwf+mrxv/DkAU/5ddnCMndZL//hFH7QuHa1tbaQADzsf9t7rkGZKqoFfQ==}
 
   lines-and-columns@1.2.4:
     resolution: {integrity: sha512-7ylylesZQ/PV29jhEDl3Ufjo6ZX7gCqJr5F7PKrqc93v7fzSymt1BpwEU8nAUXs8qzzvqhbjhK5QZg6Mt/HkBg==}
@@ -4277,20 +4276,20 @@ packages:
     resolution: {integrity: sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw==}
     engines: {node: '>=16 || 14 >=14.17'}
 
-  ml-array-max@1.2.4:
-    resolution: {integrity: sha512-BlEeg80jI0tW6WaPyGxf5Sa4sqvcyY6lbSn5Vcv44lp1I2GR6AWojfUvLnGTNsIXrZ8uqWmo8VcG1WpkI2ONMQ==}
+  ml-array-max@2.0.0:
+    resolution: {integrity: sha512-QQZ4kENwpWmyNb98UXRDFXrmtIXuXtt1+bSbda/2KA85+F+rrJP8hZk6QOkCQXM2Th9mUDYdq/PNByPdT9ID4A==}
 
-  ml-array-min@1.2.3:
-    resolution: {integrity: sha512-VcZ5f3VZ1iihtrGvgfh/q0XlMobG6GQ8FsNyQXD3T+IlstDv85g8kfV0xUG1QPRO/t21aukaJowDzMTc7j5V6Q==}
+  ml-array-min@2.0.0:
+    resolution: {integrity: sha512-GRj6Ky6sW9vGL6yIjgsHmXZ9YgrdmcQ8nCxPqEGeKc6dkfYg1XDYxGFxADUjNuZyoCd5PUscWAS4N+cFaX6hFg==}
 
-  ml-array-rescale@1.3.7:
-    resolution: {integrity: sha512-48NGChTouvEo9KBctDfHC3udWnQKNKEWN0ziELvY3KG25GR5cA8K8wNVzracsqSW1QEkAXjTNx+ycgAv06/1mQ==}
+  ml-array-rescale@2.0.0:
+    resolution: {integrity: sha512-2GGtKfSno94/kIloWGvpp/U5Q5vLvLrza+SAaGsLeo6Xj4mEbA6Gqx+oTfZFkxnd1grT2X007HfJNs3T5BsiVg==}
 
-  ml-matrix@6.12.1:
-    resolution: {integrity: sha512-TJ+8eOFdp+INvzR4zAuwBQJznDUfktMtOB6g/hUcGh3rcyjxbz4Te57Pgri8Q9bhSQ7Zys4IYOGhFdnlgeB6Lw==}
+  ml-matrix@6.13.0:
+    resolution: {integrity: sha512-QpV0UTUkglg6vPUgThKGBEtit2ac6habSoZ33bwI9rU0UHZLqw6G3ukTIE8zWiUF3sjK8YAlhx/o/b9layzH8A==}
 
-  ml-spectra-processing@14.17.1:
-    resolution: {integrity: sha512-ff2K8Nb91I5fSYcRRiHH0RvUIX1nC4TGg/ctbbyf6R7SUR5MgKF5Kicj+w1HACCK4DQ1HvSc2ZHVE2Z1NDvCRQ==}
+  ml-spectra-processing@14.29.2:
+    resolution: {integrity: sha512-5ZKp8lMAJeBMH0bP+BLmw+OLvneK8KA3GwPwc4DpWgJkX/iBFlvQhgmsMUMPV8quKs0uNJUi0aVnbUVBl1RFQQ==}
 
   ml-xsadd@3.0.1:
     resolution: {integrity: sha512-Fz2q6dwgzGM8wYKGArTUTZDGa4lQFA2Vi6orjGeTVRy22ZnQFKlJuwS9n8NRviqz1KHAHAzdKJwbnYhdo38uYg==}
@@ -5577,8 +5576,8 @@ packages:
     resolution: {integrity: sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ==}
     engines: {node: '>=12.20'}
 
-  zod-to-json-schema@3.25.1:
-    resolution: {integrity: sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA==}
+  zod-to-json-schema@3.25.0:
+    resolution: {integrity: sha512-HvWtU2UG41LALjajJrML6uQejQhNJx+JBO9IflpSja4R03iNWfKXrj6W2h7ljuLyc1nKS+9yDyL/9tD1U/yBnQ==}
     peerDependencies:
       zod: ^3.25 || ^4
 
@@ -7930,9 +7929,9 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.6(zod@4.4.3)
       zod: 4.4.3
 
-  ajv-draft-04@1.0.0(ajv@8.17.1):
+  ajv-draft-04@1.0.0(ajv@8.20.0):
     optionalDependencies:
-      ajv: 8.17.1
+      ajv: 8.20.0
 
   ajv@6.15.0:
     dependencies:
@@ -7941,10 +7940,10 @@ snapshots:
       json-schema-traverse: 0.4.1
       uri-js: 4.4.1
 
-  ajv@8.17.1:
+  ajv@8.20.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 3.0.6
+      fast-uri: 3.1.3
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
@@ -8100,17 +8099,17 @@ snapshots:
       - uploadthing
       - yaml
 
-  autoevals@0.0.132(ws@8.18.3):
+  autoevals@0.3.0(ws@8.18.3)(zod@4.4.3):
     dependencies:
-      ajv: 8.17.1
+      ajv: 8.20.0
       compute-cosine-similarity: 1.1.0
       js-levenshtein: 1.1.6
-      js-yaml: 4.1.1
-      linear-sum-assignment: 1.0.7
+      js-yaml: 4.3.0
+      linear-sum-assignment: 1.0.9
       mustache: 4.2.0
-      openai: 6.45.0(ws@8.18.3)(zod@3.25.76)
-      zod: 3.25.76
-      zod-to-json-schema: 3.25.1(zod@3.25.76)
+      openai: 6.45.0(ws@8.18.3)(zod@4.4.3)
+      zod: 4.4.3
+      zod-to-json-schema: 3.25.0(zod@4.4.3)
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
       - '@smithy/hash-node'
@@ -8270,7 +8269,7 @@ snapshots:
 
   chardet@2.1.1: {}
 
-  cheminfo-types@1.8.1: {}
+  cheminfo-types@1.15.0: {}
 
   chokidar@4.0.3:
     dependencies:
@@ -8987,7 +8986,7 @@ snapshots:
     dependencies:
       fast-string-truncated-width: 3.0.3
 
-  fast-uri@3.0.6: {}
+  fast-uri@3.1.3: {}
 
   fast-wrap-ansi@0.2.2:
     dependencies:
@@ -9369,8 +9368,6 @@ snapshots:
 
   inline-style-parser@0.2.7: {}
 
-  install@0.13.0: {}
-
   internmap@1.0.1: {}
 
   internmap@2.0.3: {}
@@ -9384,7 +9381,7 @@ snapshots:
       is-alphabetical: 2.0.1
       is-decimal: 2.0.1
 
-  is-any-array@2.0.1: {}
+  is-any-array@3.0.0: {}
 
   is-builtin-module@5.0.0:
     dependencies:
@@ -9544,12 +9541,11 @@ snapshots:
 
   lilconfig@3.1.3: {}
 
-  linear-sum-assignment@1.0.7:
+  linear-sum-assignment@1.0.9:
     dependencies:
-      cheminfo-types: 1.8.1
-      install: 0.13.0
-      ml-matrix: 6.12.1
-      ml-spectra-processing: 14.17.1
+      cheminfo-types: 1.15.0
+      ml-matrix: 6.13.0
+      ml-spectra-processing: 14.29.2
 
   lines-and-columns@1.2.4: {}
 
@@ -10132,32 +10128,32 @@ snapshots:
 
   minipass@7.1.2: {}
 
-  ml-array-max@1.2.4:
+  ml-array-max@2.0.0:
     dependencies:
-      is-any-array: 2.0.1
+      is-any-array: 3.0.0
 
-  ml-array-min@1.2.3:
+  ml-array-min@2.0.0:
     dependencies:
-      is-any-array: 2.0.1
+      is-any-array: 3.0.0
 
-  ml-array-rescale@1.3.7:
+  ml-array-rescale@2.0.0:
     dependencies:
-      is-any-array: 2.0.1
-      ml-array-max: 1.2.4
-      ml-array-min: 1.2.3
+      is-any-array: 3.0.0
+      ml-array-max: 2.0.0
+      ml-array-min: 2.0.0
 
-  ml-matrix@6.12.1:
+  ml-matrix@6.13.0:
     dependencies:
-      is-any-array: 2.0.1
-      ml-array-rescale: 1.3.7
+      is-any-array: 3.0.0
+      ml-array-rescale: 2.0.0
 
-  ml-spectra-processing@14.17.1:
+  ml-spectra-processing@14.29.2:
     dependencies:
       binary-search: 1.3.6
-      cheminfo-types: 1.8.1
+      cheminfo-types: 1.15.0
       fft.js: 4.0.4
-      is-any-array: 2.0.1
-      ml-matrix: 6.12.1
+      is-any-array: 3.0.0
+      ml-matrix: 6.13.0
       ml-xsadd: 3.0.1
 
   ml-xsadd@3.0.1: {}
@@ -10241,11 +10237,6 @@ snapshots:
       oniguruma-parser: 0.12.2
       regex: 6.1.0
       regex-recursion: 6.0.2
-
-  openai@6.45.0(ws@8.18.3)(zod@3.25.76):
-    optionalDependencies:
-      ws: 8.18.3
-      zod: 3.25.76
 
   openai@6.45.0(ws@8.18.3)(zod@4.4.3):
     optionalDependencies:
@@ -11505,8 +11496,8 @@ snapshots:
   yaml-language-server@1.20.0:
     dependencies:
       '@vscode/l10n': 0.0.18
-      ajv: 8.17.1
-      ajv-draft-04: 1.0.0(ajv@8.17.1)
+      ajv: 8.20.0
+      ajv-draft-04: 1.0.0(ajv@8.20.0)
       prettier: 3.9.4
       request-light: 0.5.8
       vscode-json-languageservice: 4.1.8
@@ -11550,9 +11541,9 @@ snapshots:
 
   yocto-queue@1.2.2: {}
 
-  zod-to-json-schema@3.25.1(zod@3.25.76):
+  zod-to-json-schema@3.25.0(zod@4.4.3):
     dependencies:
-      zod: 3.25.76
+      zod: 4.4.3
 
   zod@3.25.76: {}
 

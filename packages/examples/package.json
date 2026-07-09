@@ -18,7 +18,7 @@
     "ai": "^7.0.18",
     "ai-sdk-guardrails": "workspace:*",
     "ai-sdk-ollama": "^4.0.0",
-    "autoevals": "^0.0.132",
+    "autoevals": "^0.3.0",
     "dotenv": "^17.4.2",
     "mathjs": "^15.2.0",
     "ollama": "^0.6.3",
