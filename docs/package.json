@@ -14,7 +14,7 @@
     "astro": "^7.0.7",
     "prettier": "^3.8.3",
     "prettier-plugin-astro": "^0.14.1",
-    "typescript": "5.9.3"
+    "typescript": "7.0.2"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.9",
