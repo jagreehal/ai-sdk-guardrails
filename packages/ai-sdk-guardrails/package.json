@@ -93,7 +93,7 @@
   "devDependencies": {
     "@ai-sdk/groq": "^4.0.0",
     "@ai-sdk/mistral": "^4.0.0",
-    "@ai-sdk/openai": "^4.0.0",
+    "@ai-sdk/openai": "^4.0.9",
     "ai": "^7.0.0",
     "@arethetypeswrong/cli": "^0.18.3",
     "@eslint/js": "^9.39.4",
