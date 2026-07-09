@@ -24,7 +24,7 @@
     "@tailwindcss/vite": "^4.3.2",
     "astro-mermaid": "2.1.0",
     "mermaid": "11.9.0",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.3",
     "starlight-theme-next": "^0.4.0",
     "tailwindcss": "^4.3.2",
     "zod": "^3.25.76"
