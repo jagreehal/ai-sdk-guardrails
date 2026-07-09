@@ -12,7 +12,7 @@
   "dependencies": {
     "@ai-sdk/groq": "^4.0.0",
     "@ai-sdk/mistral": "^4.0.0",
-    "@ai-sdk/policy-opa": "^1.0.2",
+    "@ai-sdk/policy-opa": "^1.0.18",
     "@ai-sdk/openai": "^4.0.9",
     "@opentelemetry/api": "^1.9.1",
     "ai": "^7.0.18",
