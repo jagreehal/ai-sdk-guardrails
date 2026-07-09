@@ -48,8 +48,8 @@ importers:
         specifier: ^0.34.5
         version: 0.34.5
       starlight-theme-next:
-        specifier: ^0.3.3
-        version: 0.3.3(@astrojs/starlight@0.37.7(astro@5.18.2(@types/node@25.9.2)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.62.2)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0)))
+        specifier: ^0.4.0
+        version: 0.4.0(@astrojs/starlight@0.37.7(astro@5.18.2(@types/node@25.9.2)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.62.2)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0)))
       tailwindcss:
         specifier: ^4.3.2
         version: 4.3.2
@@ -4825,11 +4825,11 @@ packages:
   stackback@0.0.2:
     resolution: {integrity: sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw==}
 
-  starlight-theme-next@0.3.3:
-    resolution: {integrity: sha512-V8+tSvbSZKopt1nG5vEnoFiEEc6xqs11Ombbd0awUfm+OzU4+mZOK0VtuZxBTWZduwX3MbmB8j7f+o0GyH22Xw==}
-    engines: {node: ^18.17.1 || ^20.3.0 || >=21.0.0}
+  starlight-theme-next@0.4.0:
+    resolution: {integrity: sha512-rIHrl9xZSITamEnBSqmTWdHWSp44Tx5zDpME3SBoONuD2diq0HxVKP4f9atq5QB01NIzulpFSkDRUkzl/L3Cow==}
+    engines: {node: '>=22.12.0'}
     peerDependencies:
-      '@astrojs/starlight': '>=0.34'
+      '@astrojs/starlight': '>=0.38'
 
   std-env@4.1.0:
     resolution: {integrity: sha512-Rq7ybcX2RuC55r9oaPVEW7/xu3tj8u4GeBYHBWCychFtzMIr86A7e3PPEBPT37sHStKX3+TiX/Fr/ACmJLVlLQ==}
@@ -10853,7 +10853,7 @@ snapshots:
 
   stackback@0.0.2: {}
 
-  starlight-theme-next@0.3.3(@astrojs/starlight@0.37.7(astro@5.18.2(@types/node@25.9.2)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.62.2)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0))):
+  starlight-theme-next@0.4.0(@astrojs/starlight@0.37.7(astro@5.18.2(@types/node@25.9.2)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.62.2)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0))):
     dependencies:
       '@astrojs/starlight': 0.37.7(astro@5.18.2(@types/node@25.9.2)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.62.2)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0))
 
