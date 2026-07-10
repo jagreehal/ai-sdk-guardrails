@@ -82,7 +82,7 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "ai": "^7.0.18",
+    "ai": "^7.0.19",
     "autotel-genai": "^0.3.2"
   },
   "peerDependenciesMeta": {
@@ -94,7 +94,7 @@
     "@ai-sdk/groq": "^4.0.7",
     "@ai-sdk/mistral": "^4.0.8",
     "@ai-sdk/openai": "^4.0.11",
-    "ai": "^7.0.18",
+    "ai": "^7.0.19",
     "@arethetypeswrong/cli": "^0.18.5",
     "@eslint/js": "^10.0.1",
     "@total-typescript/ts-reset": "^0.6.1",
