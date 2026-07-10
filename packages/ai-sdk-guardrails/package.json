@@ -95,7 +95,7 @@
     "@ai-sdk/mistral": "^4.0.8",
     "@ai-sdk/openai": "^4.0.9",
     "ai": "^7.0.18",
-    "@arethetypeswrong/cli": "^0.18.4",
+    "@arethetypeswrong/cli": "^0.18.5",
     "@eslint/js": "^10.0.1",
     "@total-typescript/ts-reset": "^0.6.1",
     "@total-typescript/tsconfig": "^1.0.4",
