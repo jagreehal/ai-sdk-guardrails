@@ -83,8 +83,8 @@ importers:
         version: 4.4.3
     devDependencies:
       '@ai-sdk/groq':
-        specifier: ^4.0.7
-        version: 4.0.7(zod@4.4.3)
+        specifier: ^4.0.8
+        version: 4.0.8(zod@4.4.3)
       '@ai-sdk/mistral':
         specifier: ^4.0.8
         version: 4.0.8(zod@4.4.3)
@@ -152,8 +152,8 @@ importers:
   packages/examples:
     dependencies:
       '@ai-sdk/groq':
-        specifier: ^4.0.7
-        version: 4.0.7(zod@4.4.3)
+        specifier: ^4.0.8
+        version: 4.0.8(zod@4.4.3)
       '@ai-sdk/mistral':
         specifier: ^4.0.8
         version: 4.0.8(zod@4.4.3)
@@ -215,8 +215,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/groq@4.0.7':
-    resolution: {integrity: sha512-7IiUo/qpiX4luJHlpaiNw/EqY0pWvWyIkTi4vyNwwTl7EuB1rk4mUUSKLc4eo3VAowKiCoz6Ry6y0utm1wcmTQ==}
+  '@ai-sdk/groq@4.0.8':
+    resolution: {integrity: sha512-M5eyvVoztr7WKSU7ZpdCgO0SiY2urek1Ll5+v2DHl/NfddfDOMwp4LhnnP83f3sNJNDPLKoAdqpdYejOsdL4eQ==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -5332,7 +5332,7 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 4.4.3
 
-  '@ai-sdk/groq@4.0.7(zod@4.4.3)':
+  '@ai-sdk/groq@4.0.8(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 4.0.3
       '@ai-sdk/provider-utils': 5.0.7(zod@4.4.3)
