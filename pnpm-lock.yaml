@@ -161,8 +161,8 @@ importers:
         specifier: ^4.0.11
         version: 4.0.11(zod@4.4.3)
       '@ai-sdk/policy-opa':
-        specifier: ^1.0.19
-        version: 1.0.19(ai@7.0.22(zod@4.4.3))(zod@4.4.3)
+        specifier: ^1.0.22
+        version: 1.0.22(ai@7.0.22(zod@4.4.3))(zod@4.4.3)
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -233,13 +233,13 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/policy-opa@1.0.19':
-    resolution: {integrity: sha512-3MG8tUQRcw1lXHo3nBVsHoVERkkMcmFCK7IKmJxhji9z64b3HUkB/MP0n4HHqzuCxens7paqOtITjJ5o6QUSFg==}
+  '@ai-sdk/policy-opa@1.0.22':
+    resolution: {integrity: sha512-XJmug2s5K7thRHlozKmD+C6Ga4soyOPppBnucK4UH00o44GEQ75Lt5zX0y/H/jC1Un91U7NJDTgpux3ZwPeYsA==}
     engines: {node: '>=22'}
     peerDependencies:
       '@open-policy-agent/opa': ^1.0.0
       '@open-policy-agent/opa-wasm': ^1.0.0
-      ai: 7.0.19
+      ai: 7.0.22
     peerDependenciesMeta:
       '@open-policy-agent/opa':
         optional: true
@@ -5350,7 +5350,7 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.7(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/policy-opa@1.0.19(ai@7.0.22(zod@4.4.3))(zod@4.4.3)':
+  '@ai-sdk/policy-opa@1.0.22(ai@7.0.22(zod@4.4.3))(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 4.0.3
       '@ai-sdk/provider-utils': 5.0.7(zod@4.4.3)
