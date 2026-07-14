@@ -10,7 +10,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@ai-sdk/groq": "^4.0.8",
+    "@ai-sdk/groq": "^4.0.10",
     "@ai-sdk/mistral": "^4.0.10",
     "@ai-sdk/policy-opa": "^1.0.26",
     "@ai-sdk/openai": "^4.0.11",
