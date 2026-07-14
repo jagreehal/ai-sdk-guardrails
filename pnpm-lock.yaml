@@ -161,8 +161,8 @@ importers:
         specifier: ^4.0.11
         version: 4.0.11(zod@4.4.3)
       '@ai-sdk/policy-opa':
-        specifier: ^1.0.22
-        version: 1.0.22(ai@7.0.22(zod@4.4.3))(zod@4.4.3)
+        specifier: ^1.0.26
+        version: 1.0.26(ai@7.0.22(zod@4.4.3))(zod@4.4.3)
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -233,13 +233,13 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/policy-opa@1.0.22':
-    resolution: {integrity: sha512-XJmug2s5K7thRHlozKmD+C6Ga4soyOPppBnucK4UH00o44GEQ75Lt5zX0y/H/jC1Un91U7NJDTgpux3ZwPeYsA==}
+  '@ai-sdk/policy-opa@1.0.26':
+    resolution: {integrity: sha512-YnUJ8Bu/Vs4SKjXFw3qJr71ZhOPV0wWrn9fBB+11hw6EAKYczDrwXz14Tu7TMUbZV5ffAgscMVdwWgTVHFt1Wg==}
     engines: {node: '>=22'}
     peerDependencies:
       '@open-policy-agent/opa': ^1.0.0
       '@open-policy-agent/opa-wasm': ^1.0.0
-      ai: 7.0.22
+      ai: 7.0.26
     peerDependenciesMeta:
       '@open-policy-agent/opa':
         optional: true
@@ -254,6 +254,12 @@ packages:
 
   '@ai-sdk/provider-utils@5.0.7':
     resolution: {integrity: sha512-OSm5/5kdrHa11WIOo5LYgDKnxYWp5aB/wx5EXRHi0jpUGduMDeB6oht9U6p+UNNWIP3F/EqPpV8d7vdP/iRnqg==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/provider-utils@5.0.9':
+    resolution: {integrity: sha512-BohlmQ62x+iIOawYCS2z5JzokMq5kZSoVhJawH41mlMdkb01xqhIMG8L0NAByneUFLpdUlSjJjF/bel5j3cGZA==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -5350,10 +5356,10 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.7(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/policy-opa@1.0.22(ai@7.0.22(zod@4.4.3))(zod@4.4.3)':
+  '@ai-sdk/policy-opa@1.0.26(ai@7.0.22(zod@4.4.3))(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 4.0.3
-      '@ai-sdk/provider-utils': 5.0.7(zod@4.4.3)
+      '@ai-sdk/provider-utils': 5.0.9(zod@4.4.3)
       ai: 7.0.22(zod@4.4.3)
     transitivePeerDependencies:
       - zod
@@ -5367,6 +5373,14 @@ snapshots:
       zod: 4.4.3
 
   '@ai-sdk/provider-utils@5.0.7(zod@4.4.3)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.3
+      '@standard-schema/spec': 1.1.0
+      '@workflow/serde': 4.1.0
+      eventsource-parser: 3.1.0
+      zod: 4.4.3
+
+  '@ai-sdk/provider-utils@5.0.9(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 4.0.3
       '@standard-schema/spec': 1.1.0
