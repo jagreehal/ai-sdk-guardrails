@@ -11,7 +11,7 @@
     "check": "astro check"
   },
   "devDependencies": {
-    "astro": "^7.0.7",
+    "astro": "^7.0.9",
     "prettier": "^3.9.5",
     "prettier-plugin-astro": "^0.14.1",
     "typescript": "7.0.2"
