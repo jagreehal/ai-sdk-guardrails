@@ -1,5 +1,30 @@
 # ai-sdk-guardrails
 
+## 6.1.0
+
+### Minor Changes
+
+- 4940a42: Add Eval Sandbox, evaluation-scope and tool-egress guardrails, plus stateful plan risk sessions.
+
+  - `evaluationScopeGuardrail` — constrains what an evaluation run is allowed to touch, with
+    `EvaluationScopeGuardrailOptions` and `EvaluationScopeMetadata` exported alongside it.
+  - `createPlanRiskSession` — carries plan-risk state across turns instead of scoring each plan in
+    isolation, so risk accumulated earlier in a session still counts. Exported with its
+    `PlanRiskSession` type.
+  - Tool-call/egress policy now scans tool-call arguments for URLs, catching structured egress that
+    text-only scanning missed.
+
+  All additions are new exports; no existing API changed.
+
+### Patch Changes
+
+- 4940a42: Restore caret ranges on published `dependencies` and `peerDependencies`.
+
+  A version-pinning sweep had changed these to exact versions, which would have forced every consumer
+  onto exactly `ai@7.0.58` / `autotel-genai@0.4.2` and installed a duplicate `zod` alongside their own —
+  duplicate `zod` copies break `instanceof` checks across the boundary. Ranges are carets again, as they
+  were before.
+
 ## 6.0.1
 
 ### Patch Changes
