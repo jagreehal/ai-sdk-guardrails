@@ -78,12 +78,12 @@
     "check-exports": "attw --pack . --ignore-rules false-esm no-resolution"
   },
   "dependencies": {
-    "@ai-sdk/provider": "4.0.7",
-    "zod": "4.4.3"
+    "@ai-sdk/provider": "^4.0.7",
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "ai": "7.0.58",
-    "autotel-genai": "0.4.2"
+    "ai": "^7.0.58",
+    "autotel-genai": "^0.4.2"
   },
   "peerDependenciesMeta": {
     "autotel-genai": {
