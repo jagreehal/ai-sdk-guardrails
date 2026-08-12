@@ -1,5 +1,11 @@
 # ai-sdk-guardrails
 
+## 6.0.1
+
+### Patch Changes
+
+- 5d2672b: Sync `text` and `content` on generate results after output guardrails run. AI SDK v7 reads user-visible text from the `content` array, so guardrails that only mutated the top-level `text` field (including in-place redaction) were silently ignored. Middleware now snapshots the result before guardrails and aligns both fields before returning.
+
 ## 6.0.0
 
 ### Major Changes
