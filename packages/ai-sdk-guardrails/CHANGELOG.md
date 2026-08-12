@@ -1,5 +1,11 @@
 # ai-sdk-guardrails
 
+## 6.1.1
+
+### Patch Changes
+
+- 7347715: Expand the optional `autotel-genai` peer range to support the published 0.5 and 0.6 releases.
+
 ## 6.1.0
 
 ### Minor Changes
