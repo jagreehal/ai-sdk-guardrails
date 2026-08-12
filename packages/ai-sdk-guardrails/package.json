@@ -69,21 +69,21 @@
   "type": "module",
   "scripts": {
     "build": "tsup",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check src/**/*.ts",
+    "format:check": "prettier --check .",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "check-exports": "attw --pack . --ignore-rules false-esm no-resolution"
   },
   "dependencies": {
-    "@ai-sdk/provider": "^4.0.3",
-    "zod": "^4.4.3"
+    "@ai-sdk/provider": "4.0.7",
+    "zod": "4.4.3"
   },
   "peerDependencies": {
-    "ai": "^7.0.22",
-    "autotel-genai": "^0.3.2"
+    "ai": "7.0.58",
+    "autotel-genai": "0.4.2"
   },
   "peerDependenciesMeta": {
     "autotel-genai": {
@@ -91,27 +91,28 @@
     }
   },
   "devDependencies": {
-    "@ai-sdk/groq": "^4.0.10",
-    "@ai-sdk/mistral": "^4.0.10",
-    "@ai-sdk/openai": "^4.0.13",
-    "ai": "^7.0.22",
-    "@arethetypeswrong/cli": "^0.18.5",
-    "@eslint/js": "^10.0.1",
-    "@total-typescript/ts-reset": "^0.6.1",
-    "@total-typescript/tsconfig": "^1.0.4",
-    "@types/eslint-config-prettier": "^6.11.3",
-    "@types/node": "^26.1.1",
-    "@typescript-eslint/eslint-plugin": "^8.64.0",
-    "@typescript-eslint/parser": "^8.63.0",
-    "eslint": "^10.7.0",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-unicorn": "^71.1.0",
-    "globals": "^17.7.0",
-    "prettier": "^3.9.5",
-    "tsup": "^8.5.1",
-    "tsx": "^4.23.1",
-    "typescript": "^7.0.2",
-    "typescript-eslint": "^8.64.0",
-    "vitest": "^4.1.10"
+    "@ai-sdk/groq": "4.0.26",
+    "@ai-sdk/mistral": "4.0.27",
+    "@ai-sdk/openai": "4.0.36",
+    "ai": "7.0.58",
+    "@arethetypeswrong/cli": "0.18.5",
+    "@eslint/js": "10.0.1",
+    "@total-typescript/ts-reset": "0.6.1",
+    "@total-typescript/tsconfig": "1.0.4",
+    "@types/eslint-config-prettier": "6.11.3",
+    "@types/node": "26.2.0",
+    "@typescript-eslint/eslint-plugin": "8.66.0",
+    "@typescript-eslint/parser": "8.66.0",
+    "eslint": "10.8.1",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-unicorn": "73.0.0",
+    "globals": "17.9.0",
+    "prettier": "3.9.6",
+    "tsup": "8.5.1",
+    "tsx": "4.23.7",
+    "@typescript/native": "npm:typescript@7.0.2",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "typescript-eslint": "8.66.0",
+    "vitest": "4.1.10"
   }
 }

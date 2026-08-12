@@ -350,10 +350,12 @@ export function createMetricsCollector(options: MetricsCollectorOptions = {}) {
    * Stops the automatic flush interval
    */
   function stop(): void {
-    if (flushInterval) {
-      clearInterval(flushInterval);
-      flushInterval = null;
+    if (!flushInterval) {
+      return;
     }
+
+    clearInterval(flushInterval);
+    flushInterval = null;
   }
 
   /**

@@ -422,8 +422,7 @@ export const rateLimiting = (
         extractMetadata(inputContext);
 
       let contextData:
-        | { user?: { id?: string }; request?: { ip?: string } }
-        | undefined;
+        { user?: { id?: string }; request?: { ip?: string } } | undefined;
       if (hasContextProperty(inputContext)) {
         contextData = inputContext.context;
       }
@@ -656,8 +655,7 @@ export interface CustomValidationOptions {
 
 export const customValidation = (
   options:
-    | CustomValidationOptions
-    | [string, string, CustomValidationFn, string],
+    CustomValidationOptions | [string, string, CustomValidationFn, string],
 ): InputGuardrail => {
   const opts = Array.isArray(options)
     ? {
@@ -1055,7 +1053,7 @@ function luhnCheck(cardNumber: string): boolean {
   let isEven = false;
 
   for (let i = digits.length - 1; i >= 0; i--) {
-    let digit = Number.parseInt(digits[i]!, 10);
+    let digit = Number(digits[i]);
 
     if (isEven) {
       digit *= 2;
@@ -1115,7 +1113,7 @@ export const piiDetector = (): InputGuardrail =>
           }
 
           // Filter out emails in URLs
-          if (type === 'email') {
+          else if (type === 'email') {
             validMatches = validMatches.filter(
               (match) => !match.includes('http'),
             );
@@ -1491,22 +1489,17 @@ export const codeGenerationLimiter = (
 
       const uniqueLanguages = [...new Set(detectedLanguages)];
 
-      let isBlocked = false;
-      let blockedLanguages: string[] = [];
-
-      if (opts.mode === 'deny') {
-        // Deny mode: block if any detected language is in denied list
-        blockedLanguages = uniqueLanguages.filter((lang) =>
-          opts.deniedLanguages?.includes(lang),
-        );
-        isBlocked = blockedLanguages.length > 0;
-      } else {
-        // Allow-only mode: block if any detected language is not in allowed list
-        blockedLanguages = uniqueLanguages.filter(
-          (lang) => !opts.allowedLanguages?.includes(lang),
-        );
-        isBlocked = blockedLanguages.length > 0;
-      }
+      const blockedLanguages =
+        opts.mode === 'deny'
+          ? // Deny mode: block if any detected language is in denied list
+            uniqueLanguages.filter((lang) =>
+              opts.deniedLanguages?.includes(lang),
+            )
+          : // Allow-only mode: block if any detected language is not in allowed list
+            uniqueLanguages.filter(
+              (lang) => !opts.allowedLanguages?.includes(lang),
+            );
+      const isBlocked = blockedLanguages.length > 0;
 
       const metadata = createStandardMetadata('GR-IN-008', context, {
         hasCodeRequest,
@@ -1567,20 +1560,22 @@ function extractToolCalls(context: InputGuardrailContext): string[] {
 
   // Look for tool calls in messages (AI SDK pattern)
   for (const message of messages) {
-    if (message && typeof message === 'object' && 'toolCalls' in message) {
-      const messageWithToolCalls = message as {
-        toolCalls?: Array<{ toolName?: string }>;
-      };
-      const toolCallsArray = messageWithToolCalls.toolCalls;
-      if (Array.isArray(toolCallsArray)) {
-        for (const toolCall of toolCallsArray) {
-          if (
-            toolCall &&
-            typeof toolCall === 'object' &&
-            'toolName' in toolCall
-          ) {
-            toolCalls.push(String(toolCall.toolName));
-          }
+    if (!(message && typeof message === 'object' && 'toolCalls' in message)) {
+      continue;
+    }
+
+    const messageWithToolCalls = message as {
+      toolCalls?: Array<{ toolName?: string }>;
+    };
+    const toolCallsArray = messageWithToolCalls.toolCalls;
+    if (Array.isArray(toolCallsArray)) {
+      for (const toolCall of toolCallsArray) {
+        if (
+          toolCall &&
+          typeof toolCall === 'object' &&
+          'toolName' in toolCall
+        ) {
+          toolCalls.push(String(toolCall.toolName));
         }
       }
     }
@@ -1731,7 +1726,6 @@ export const allowedToolsGuardrail = (
             `Tool '${toolName}' is not in the allowed tools list`,
           );
           blockedTools.push(toolName);
-          continue;
         }
       }
 

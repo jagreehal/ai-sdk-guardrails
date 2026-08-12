@@ -18,7 +18,7 @@ describe('MCP Security Core Functionality', () => {
         reasoning: [],
         reasoningText: undefined,
         files: [],
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any,
     };
   });
 

@@ -1,5 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { describe, it, expect } from 'vitest';
 import {
   defineInputGuardrail,
   defineOutputGuardrail,
@@ -8,86 +7,9 @@ import {
 } from './guardrails';
 import { extractTextContent } from './guardrails/input';
 import { extractContent } from './guardrails/output';
-import type {
-  LanguageModelV4,
-  AIResult,
-  LanguageModelV4CallOptions,
-} from './types';
-
-// V3 usage helper
-const createV3Usage = (inputTotal: number, outputTotal: number) => ({
-  inputTokens: {
-    total: inputTotal,
-    noCache: undefined,
-    cacheRead: undefined,
-    cacheWrite: undefined,
-  },
-  outputTokens: {
-    total: outputTotal,
-    text: undefined,
-    reasoning: undefined,
-  },
-});
-
-// Mock AI model for testing
-const createMockModel = (response = 'Mock AI response'): LanguageModelV4 => ({
-  specificationVersion: 'v4',
-  provider: 'test',
-  modelId: 'test-model',
-  supportedUrls: {},
-  async doGenerate(options: LanguageModelV4CallOptions) {
-    return {
-      content: [{ type: 'text', text: response }],
-      finishReason: { unified: 'stop', raw: undefined },
-      usage: createV3Usage(10, 10),
-      rawCall: {
-        rawPrompt: options.prompt,
-        rawSettings: {},
-      },
-      response: {
-        headers: {},
-      },
-      warnings: [],
-    };
-  },
-  async doStream(options: LanguageModelV4CallOptions) {
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue({
-          type: 'text-delta' as const,
-          id: '1',
-          delta: response,
-        });
-        controller.enqueue({
-          type: 'finish' as const,
-          finishReason: { unified: 'stop', raw: undefined },
-          usage: createV3Usage(10, 10),
-        });
-        controller.close();
-      },
-    });
-
-    return {
-      stream,
-      rawCall: {
-        rawPrompt: options.prompt,
-        rawSettings: {},
-      },
-      response: {
-        headers: {},
-      },
-      warnings: [],
-    };
-  },
-});
+import type { AIResult } from './types';
 
 describe('Input and Output Guardrails Integration', () => {
-  let mockModel: LanguageModelV4;
-
-  beforeEach(() => {
-    mockModel = createMockModel();
-  });
-
   describe('Input Guardrails', () => {
     it('should validate input content successfully', async () => {
       const profanityGuardrail = defineInputGuardrail({

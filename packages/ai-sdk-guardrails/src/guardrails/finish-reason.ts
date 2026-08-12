@@ -159,7 +159,7 @@ export function createGuardrailProviderMetadata(
       violations,
       executionTime: summary.totalExecutionTime,
       guardrailsExecuted: summary.guardrailsExecuted,
-      ...(includeStats ? { stats: summary.stats } : {}),
+      ...(includeStats && { stats: summary.stats }),
     },
   };
 }

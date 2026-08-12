@@ -16,6 +16,8 @@
     "lib": ["es2023", "dom"],
     "types": ["node"],
     "noEmit": true,
+    // tsup's dts build injects the deprecated `baseUrl`; TS6 errors without this.
+    "ignoreDeprecations": "6.0",
     "outDir": "./dist"
   },
   "include": ["src/**/*", "examples/**/*"],

@@ -49,7 +49,7 @@ export class AsyncRunEngine {
   ): Promise<SampleResult[]> {
     const {
       batchSize = 32,
-      timeoutMs = 30000,
+      timeoutMs = 30_000,
       failFast = false,
       onProgress,
       signal,
@@ -131,7 +131,7 @@ export class AsyncRunEngine {
     timeoutMs: number,
   ): Promise<SampleResult> {
     const startTime = Date.now();
-    const actualResults: Record<string, any> = {};
+    const actualResults: SampleResult['actualResults'] = {};
     const actualTriggers: Record<string, boolean> = {};
     const errors: Array<{ guardrailId: string; error: string }> = [];
     const mismatches: Array<{
@@ -144,7 +144,7 @@ export class AsyncRunEngine {
     // Merge sample context with base context
     const mergedContext = {
       ...context,
-      ...(sample.context || {}),
+      ...sample.context,
     };
 
     // Run all guardrails in parallel for this sample
@@ -233,7 +233,7 @@ export class AsyncRunEngine {
    * Get list of guardrails being evaluated
    */
   getGuardrailIds(): string[] {
-    return Array.from(this.guardrails.keys());
+    return [...this.guardrails.keys()];
   }
 
   /**

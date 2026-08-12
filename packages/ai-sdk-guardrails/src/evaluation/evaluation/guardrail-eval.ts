@@ -2,8 +2,8 @@
  * Main guardrail evaluation runner
  */
 
-import { promises as fs } from 'fs';
-import { join } from 'path';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import type { GuardrailContext } from '../../enhanced-types';
 import {
   loadGuardrailBundle,
@@ -39,7 +39,7 @@ export class GuardrailEval {
     try {
       // Load configuration
       console.log('📋 Loading configuration...');
-      const configContent = await fs.readFile(this.config.configPath, 'utf-8');
+      const configContent = await fs.readFile(this.config.configPath, 'utf8');
       const bundle = loadGuardrailBundle(JSON.parse(configContent));
       const guardrails = await instantiateGuardrails(bundle);
       console.log(`   ✅ Loaded ${guardrails.length} guardrails`);
@@ -83,7 +83,7 @@ export class GuardrailEval {
       console.log(`   Total samples: ${stats.totalSamples}`);
       console.log(`   Categories: ${Object.keys(stats.byCategory).join(', ')}`);
       console.log(
-        `   Guardrails covered: ${Array.from(stats.guardrailsCovered).join(', ')}`,
+        `   Guardrails covered: ${[...stats.guardrailsCovered].join(', ')}`,
       );
       console.log(
         `   Average triggers per sample: ${stats.averageTriggersPerSample.toFixed(2)}`,
@@ -95,8 +95,8 @@ export class GuardrailEval {
       // Progress tracking
       let lastProgressUpdate = 0;
       const progressCallback:
-        | ((progress: EvaluationProgress) => void)
-        | undefined = this.config.batchSize
+        ((progress: EvaluationProgress) => void) | undefined = this.config
+        .batchSize
         ? (progress) => {
             const now = Date.now();
             // Update every second
@@ -118,7 +118,7 @@ export class GuardrailEval {
 
       const results = await engine.run(context, samples, {
         batchSize: this.config.batchSize || 32,
-        timeoutMs: this.config.timeoutMs || 30000,
+        timeoutMs: this.config.timeoutMs || 30_000,
         failFast: this.config.failFast || false,
         onProgress: progressCallback,
       });
@@ -165,7 +165,7 @@ export class GuardrailEval {
     await fs.mkdir(outputDir, { recursive: true });
 
     // Save main report
-    const reportPath = join(
+    const reportPath = path.join(
       outputDir,
       `report-${report.metadata.evaluationId}.json`,
     );
@@ -174,7 +174,7 @@ export class GuardrailEval {
 
     // Save detailed results if configured
     if (this.config.saveDetailedResults) {
-      const detailsPath = join(
+      const detailsPath = path.join(
         outputDir,
         `details-${report.metadata.evaluationId}.jsonl`,
       );
@@ -184,7 +184,7 @@ export class GuardrailEval {
     }
 
     // Save metrics summary
-    const metricsPath = join(
+    const metricsPath = path.join(
       outputDir,
       `metrics-${report.metadata.evaluationId}.txt`,
     );
@@ -223,25 +223,24 @@ export class GuardrailEval {
     for (const [guardrailId, metrics] of Object.entries(
       report.metrics.guardrailMetrics,
     )) {
-      lines.push('');
-      lines.push(`Guardrail: ${guardrailId}`);
-      lines.push(this.calculator.formatMetrics(metrics));
+      lines.push(
+        '',
+        `Guardrail: ${guardrailId}`,
+        this.calculator.formatMetrics(metrics),
+      );
     }
 
     if (
       report.summary.recommendations &&
       report.summary.recommendations.length > 0
     ) {
-      lines.push('');
-      lines.push('RECOMMENDATIONS');
-      lines.push('-'.repeat(40));
+      lines.push('', 'RECOMMENDATIONS', '-'.repeat(40));
       for (const rec of report.summary.recommendations) {
         lines.push(`• ${rec}`);
       }
     }
 
-    lines.push('');
-    lines.push('='.repeat(70));
+    lines.push('', '='.repeat(70));
 
     return lines.join('\n');
   }
@@ -319,7 +318,7 @@ export class GuardrailEval {
       outputDir: './evaluation-results',
       batchSize: 32,
       saveDetailedResults: true,
-      timeoutMs: 30000,
+      timeoutMs: 30_000,
       failFast: false,
     };
   }

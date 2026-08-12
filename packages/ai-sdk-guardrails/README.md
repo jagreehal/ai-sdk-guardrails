@@ -428,9 +428,7 @@ const agent = new ToolLoopAgent({
   model: openai('gpt-4o'),
   instructions: 'You are a database assistant.',
   tools: {
-    executeSQL: tool({
-      /* ... */
-    }),
+    executeSQL: tool({/* ... */}),
   },
   toolApproval: guardrailApproval(
     [

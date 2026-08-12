@@ -176,6 +176,14 @@ export {
   planRiskGuardrail,
   builtinPlanRiskClassifier,
 } from './guardrails/plan-risk';
+export { createPlanRiskSession } from './guardrails/plan-risk-session';
+export type { PlanRiskSession } from './guardrails/plan-risk-session';
+
+export { evaluationScopeGuardrail } from './guardrails/evaluation-scope';
+export type {
+  EvaluationScopeGuardrailOptions,
+  EvaluationScopeMetadata,
+} from './guardrails/evaluation-scope';
 export type {
   PlanRiskGuardrailOptions,
   PlanRiskClassifier,

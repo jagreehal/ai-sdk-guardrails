@@ -8,7 +8,7 @@ import type {
 } from 'ai';
 
 // Use the proper AI SDK types for testing
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 type TestGenerateTextResult = GenerateTextResult<ToolSet, any, any>;
 import {
   outputLengthLimit,
@@ -24,7 +24,6 @@ import {
 
 // Helper function to create mock GenerateTextResult
 const createMockGenerateTextResult = (
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   overrides: any = {},
 ): TestGenerateTextResult =>
   ({
@@ -76,7 +75,6 @@ const createMockGenerateTextResult = (
       timestamp: new Date(),
       modelId: 'test-model',
       messages: [],
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as LanguageModelResponseMetadata & { messages: any[] },
     providerMetadata: {
       generationTimeMs: 2000,
@@ -84,7 +82,6 @@ const createMockGenerateTextResult = (
     steps: [],
     experimental_output: undefined,
     ...overrides,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) as any as TestGenerateTextResult;
 
 // Helper function to create mock input context
@@ -190,7 +187,6 @@ describe('Output Guardrails', () => {
           }),
           output: obj,
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
 
       expect(result.tripwireTriggered).toBe(true);
@@ -467,7 +463,7 @@ describe('Output Guardrails', () => {
 
       expect(result.tripwireTriggered).toBe(true);
       expect(result.metadata?.threshold).toBe(0.7);
-      expect(result.metadata?.toxicityScore).toBe(0.899_999_999_999_999_9); // 3 toxic words * 0.3
+      expect(result.metadata?.toxicityScore).toBe(0.8999999999999999); // 3 toxic words * 0.3
     });
 
     it('should handle object content', async () => {
@@ -635,7 +631,6 @@ describe('Output Guardrails', () => {
           }),
           output: { name: 'John', age: 30 },
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
 
       expect(result.tripwireTriggered).toBe(false);
@@ -657,7 +652,6 @@ describe('Output Guardrails', () => {
           }),
           output: { name: 'John', age: 30 },
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
 
       expect(result.tripwireTriggered).toBe(false);

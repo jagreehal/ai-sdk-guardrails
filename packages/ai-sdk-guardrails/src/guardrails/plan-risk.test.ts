@@ -41,6 +41,43 @@ describe('builtinPlanRiskClassifier', () => {
       verdict: 'low',
     });
   });
+
+  it('flags package-manager SSRF chains', async () => {
+    expect(
+      await classify({
+        toolSequence: [
+          'artifactoryList',
+          'artifactoryUpload',
+          'artifactoryFetch',
+        ],
+      }),
+    ).toMatchObject({
+      verdict: 'high',
+      categories: ['package_manager_ssrf'],
+    });
+  });
+
+  it('flags cross-agent registry coordination', async () => {
+    expect(
+      await classify({
+        toolSequence: ['artifactoryUpload', 'agentSeekNote'],
+      }),
+    ).toMatchObject({
+      verdict: 'high',
+      categories: ['cross_agent_coordination'],
+    });
+  });
+
+  it('flags external eval cheating', async () => {
+    expect(
+      await classify({
+        toolSequence: ['huggingfaceFetch', 'parseDataset'],
+      }),
+    ).toMatchObject({
+      verdict: 'high',
+      categories: ['external_eval_cheat'],
+    });
+  });
 });
 
 describe('planRiskGuardrail', () => {

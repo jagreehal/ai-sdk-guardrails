@@ -29,7 +29,6 @@ export {
   normalizeGuardrailContext,
   toNormalizedGuardrailContext,
 } from './guardrails/internal';
-export { inputGuardrailsMiddleware, outputGuardrailsMiddleware };
 
 // ============================================================================
 // CORE GUARDRAIL FUNCTIONS
@@ -274,3 +273,8 @@ export function createGuardrails<
   return (model: LanguageModel): LanguageModel =>
     withGuardrails({ model, ...config });
 }
+
+export {
+  inputGuardrailsMiddleware,
+  outputGuardrailsMiddleware,
+} from './guardrails/middleware-factories';

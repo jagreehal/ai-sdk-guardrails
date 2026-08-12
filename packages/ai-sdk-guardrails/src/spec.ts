@@ -130,7 +130,7 @@ export class ConfiguredGuardrail<
           guardrailVersion: this.spec.metadata?.version,
           executedAt: new Date(),
           executionTimeMs: Date.now() - startedAt,
-          ...(result.context || {}),
+          ...result.context,
         },
       };
     } catch (error) {

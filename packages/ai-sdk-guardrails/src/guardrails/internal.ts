@@ -368,9 +368,7 @@ async function executeBatchInputGuardrails<M extends Record<string, unknown>>(
       const results = await Promise.allSettled(
         guardrails.map(async (guardrail) => {
           try {
-            return await Promise.resolve(
-              guardrail.execute(normalizedContext, { signal }),
-            );
+            return await guardrail.execute(normalizedContext, { signal });
           } catch (error) {
             if (logLevel !== 'none') {
               logger.error(

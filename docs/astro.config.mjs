@@ -76,6 +76,11 @@ export default defineConfig({
           items: [
             { label: 'Basic Protection', link: '/guides/basic-protection/' },
             { label: 'Security', link: '/guides/security/' },
+            { label: 'Eval Sandbox', link: '/guides/eval-sandbox/' },
+            {
+              label: 'Eval Sandbox Limits',
+              link: '/guides/eval-sandbox-limits/',
+            },
             { label: 'Streaming', link: '/guides/streaming/' },
             { label: 'Custom Guardrails', link: '/guides/custom-guardrails/' },
             { label: 'Advanced Features', link: '/guides/advanced-features/' },

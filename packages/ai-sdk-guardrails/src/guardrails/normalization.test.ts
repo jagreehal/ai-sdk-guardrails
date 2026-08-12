@@ -29,8 +29,8 @@ describe('normalizeForDetection', () => {
 
   it('strips zero-width and invisible characters', () => {
     // zero-width space (U+200B) and BOM/zero-width-no-break (U+FEFF)
-    expect(normalizeForDetection('ig\u200Bno\u200Bre')).toBe('ignore');
-    expect(normalizeForDetection('over\uFEFFride')).toBe('override');
+    expect(normalizeForDetection('ig\u{200B}no\u{200B}re')).toBe('ignore');
+    expect(normalizeForDetection('over\u{FEFF}ride')).toBe('override');
   });
 
   it('joins single letters separated by whitespace', () => {
