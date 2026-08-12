@@ -34,6 +34,7 @@ import { recordPlanRisk } from '../governance';
 import type { PlanRiskAssessment } from '../governance';
 import { SEVERITY_RANK } from '../severity';
 import { extractToolNamesFromResult } from './tools';
+import type { PlanRiskSession } from './plan-risk-session';
 
 export type { PlanRiskAssessment } from '../governance';
 
@@ -69,6 +70,11 @@ export interface PlanRiskGuardrailOptions {
    * Default: `false`.
    */
   emitSecurityEvent?: boolean;
+  /**
+   * Accumulate tool names across agent steps so classifiers see the full running
+   * plan (e.g. list → upload → fetch across turns). Use {@link createPlanRiskSession}.
+   */
+  session?: PlanRiskSession;
 }
 
 export interface PlanRiskMetadata extends Record<string, unknown> {
@@ -83,6 +89,12 @@ const DESTRUCTIVE_TOOL =
   /\b(delete|remove|send|post|transfer|pay|upload|execute|drop)\b/i;
 const UNTRUSTED_READ =
   /\b(read|fetch|get|search|load|parse|inbox|email|web|scrape|browse)\b/i;
+const PACKAGE_MANAGER_TOOL =
+  /\b(artifactory|registry|package|pip|npm|upload|fetch|list)\b/i;
+const EXTERNAL_CHEAT_TOOL =
+  /\b(huggingface|modal|external|internet|ssrf|proxy|bypass)\b/i;
+const COORDINATION_TOOL =
+  /\b(seek|message|board|swarm|mailbox|note|claim)\b/i;
 
 /**
  * Dependency-free first-pass plan-risk heuristic, mirroring autotel-genai's. It
@@ -103,6 +115,43 @@ export function builtinPlanRiskClassifier(): PlanRiskClassifier {
     );
     const hasDestructive = normalized.some((n) => DESTRUCTIVE_TOOL.test(n));
     const hasUntrustedRead = normalized.some((n) => UNTRUSTED_READ.test(n));
+
+    const hasPackageManager = normalized.some((n) =>
+      PACKAGE_MANAGER_TOOL.test(n),
+    );
+    const hasList = normalized.some((n) => /\blist\b|\bpackages\b/.test(n));
+    const hasUpload = normalized.some((n) => /\bupload\b|\bwrite\b/.test(n));
+    const hasFetch = normalized.some((n) =>
+      /\bfetch\b|\bpull\b|\bssrf\b/.test(n),
+    );
+    if (hasPackageManager && hasList && hasUpload && hasFetch) {
+      return {
+        verdict: 'high',
+        score: 0.9,
+        categories: ['package_manager_ssrf'],
+        reason: 'list_upload_fetch_registry_chain',
+      };
+    }
+
+    const hasCoordination = normalized.some((n) => COORDINATION_TOOL.test(n));
+    if (hasPackageManager && hasCoordination) {
+      return {
+        verdict: 'high',
+        score: 0.88,
+        categories: ['cross_agent_coordination'],
+        reason: 'registry_used_as_message_board',
+      };
+    }
+
+    const hasExternalCheat = normalized.some((n) => EXTERNAL_CHEAT_TOOL.test(n));
+    if (hasExternalCheat && (hasFetch || hasUntrustedRead)) {
+      return {
+        verdict: 'high',
+        score: 0.87,
+        categories: ['external_eval_cheat'],
+        reason: 'external_infrastructure_for_eval_answers',
+      };
+    }
 
     if (hasDestructive && hasUntrustedRead) {
       return {
@@ -140,6 +189,7 @@ export function planRiskGuardrail(
     blockAtOrAbove = 'high',
     toolExtractor = extractToolNamesFromResult,
     emitSecurityEvent = false,
+    session,
   } = options;
   const blockRank = SEVERITY_RANK[blockAtOrAbove];
 
@@ -147,7 +197,10 @@ export function planRiskGuardrail(
     'plan-risk',
     async (context: OutputGuardrailContext) => {
       const { result } = context;
-      const toolSequence = toolExtractor(result);
+      const stepTools = toolExtractor(result);
+      const toolSequence = session
+        ? session.record(stepTools)
+        : stepTools;
 
       const assessment = await classifier({ toolSequence });
       if (!assessment) {

@@ -53,6 +53,7 @@ import type {
 } from './peer';
 import {
   approvalStatusToPolicyDecision,
+  guardrailNameOf,
   observedToolsOf,
   policyDecision,
   riskScoreOf,
@@ -97,11 +98,35 @@ async function emitBlocked(
         ),
       );
 
-      // SAIF Principle 2/3: when a tool guardrail (e.g. toolEgressPolicy)
-      // blocks, characterize each observed tool's action risk class.
       for (const toolName of observedToolsOf(result)) {
         const riskClass = options.toolRiskClass?.(toolName);
         if (riskClass) tryEmit(() => agent.recordActionRiskClass(riskClass));
+      }
+
+      if (options.signBlockedEvents && agent.createSignedEventEnvelope) {
+        const signOpts =
+          typeof options.signBlockedEvents === 'object'
+            ? options.signBlockedEvents
+            : undefined;
+        const raw = {
+          action: `guardrail.block.${stage}`,
+          resource: guardrailNameOf(result),
+          category: 'policy',
+          outcome: 'denied',
+          agent: options.agent,
+          policy: {
+            decision: 'deny',
+            reason: result.message,
+          },
+        };
+        const metadata = agent.createAgentAuditMetadata
+          ? agent.createAgentAuditMetadata(raw)
+          : raw;
+        void agent
+          .createSignedEventEnvelope(metadata, signOpts)
+          .catch(() => {
+            /* best-effort */
+          });
       }
     }
 

@@ -14,3 +14,13 @@ minimumReleaseAgeExclude:
   - 'autotel'
   - 'autotel-genai'
   - 'autotel-audit'
+  # Docs site (Astro/Starlight) — upgraded in lockstep with astro releases.
+  - '@astrojs/*'
+  - 'astro'
+  - 'astro-mermaid'
+  - 'starlight-theme-next'
+  # Monorepo + lint/tooling dev deps we pin intentionally.
+  - 'turbo'
+  - 'eslint'
+  - 'tsx'
+  - '@types/node'

@@ -7,6 +7,10 @@ import type {
   RetryInstructionContext,
 } from '../types';
 import { extractContent } from './output';
+import {
+  extractToolCallPayloads,
+  scanTextEgressViolations,
+} from './tool-egress-scan';
 
 /**
  * Metadata returned by the expectedToolUse guardrail.
@@ -513,7 +517,34 @@ export function toolEgressPolicy(
         }
       }
 
-      // Scan for URLs if enabled
+      // Scan tool-call args for URLs (structured egress)
+      if (scanForUrls) {
+        const blockedPatterns = blockedHosts.map((h) =>
+          typeof h === 'string' ? h : h,
+        );
+        for (const payload of extractToolCallPayloads(result)) {
+          const argViolations = scanTextEgressViolations(
+            payload.argsText,
+            {
+              allowedHosts,
+              blockedHosts: blockedPatterns,
+              allowFileUrls,
+              allowLocalhost,
+            },
+            `tool:${payload.toolName}`,
+          );
+          for (const v of argViolations) {
+            violations.push(v);
+            detectedIssues.push({
+              tool: payload.toolName,
+              issue: v,
+              severity: 'high',
+            });
+          }
+        }
+      }
+
+      // Scan for URLs in text if enabled
       if (scanForUrls) {
         const urlPattern = /https?:\/\/[^\s]+|ftp:\/\/[^\s]+|file:\/\/[^\s]+/gi;
         const urls = text.match(urlPattern) || [];

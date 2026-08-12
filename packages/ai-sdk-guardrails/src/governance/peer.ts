@@ -78,6 +78,13 @@ export interface AutotelAgentModule {
     toolSequence?: string[];
     emitSecurityEvent?: boolean;
   }): void;
+  createSignedEventEnvelope?(
+    metadata: Record<string, unknown>,
+    options?: { signer?: (serialized: string) => string | Promise<string> },
+  ): Promise<{ eventHash: string; signature?: string }>;
+  createAgentAuditMetadata?(
+    metadata: Record<string, unknown>,
+  ): Record<string, unknown>;
 }
 
 /**
@@ -161,6 +168,10 @@ export interface GuardrailGovernanceOptions {
    * not spam logs. Set `'warn'` to surface mis-wired telemetry.
    */
   onMissingContext?: 'warn' | 'skip' | 'throw';
+  /**
+   * Emit a signed audit envelope (`createSignedEventEnvelope`) for each block.
+   */
+  signBlockedEvents?: boolean | { signer?: (serialized: string) => string | Promise<string> };
 }
 
 // ============================================================================

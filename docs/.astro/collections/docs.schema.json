@@ -449,7 +449,7 @@
                       },
                       {
                         "type": "string",
-                        "pattern": "^\\<svg"
+                        "pattern": "\\<svg"
                       }
                     ]
                   },

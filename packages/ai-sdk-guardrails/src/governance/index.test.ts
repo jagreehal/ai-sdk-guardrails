@@ -46,6 +46,8 @@ function fakeAgent() {
     recordHumanApproval: vi.fn(),
     recordActionRiskClass: vi.fn(),
     recordPlanRiskAssessment: vi.fn(),
+    createSignedEventEnvelope: vi.fn(async () => ({ eventHash: 'abc123' })),
+    createAgentAuditMetadata: vi.fn((raw: unknown) => raw),
   };
 }
 
@@ -160,6 +162,27 @@ describe('guardrailGovernance hooks', () => {
 
     expect(() => gov.onOutputBlocked(summary([result()]))).not.toThrow();
     await Promise.resolve();
+  });
+
+  it('signs blocked events when signBlockedEvents is enabled', async () => {
+    const agent = fakeAgent();
+    __setAutotelAgentModule(agent);
+    const gov = guardrailGovernance({
+      agent: { id: 'a' },
+      signBlockedEvents: true,
+    });
+
+    gov.onOutputBlocked(summary([result()]));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(agent.createSignedEventEnvelope).toHaveBeenCalledTimes(1);
+    expect(agent.createAgentAuditMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'guardrail.block.output',
+        resource: 'prompt-injection',
+      }),
+    );
   });
 });
 

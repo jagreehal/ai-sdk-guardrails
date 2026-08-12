@@ -497,6 +497,40 @@ const model = withGuardrails({
 
 Swap in a model-based classifier through the `classifier` option for production. **Use cases:** agent safety, SAIF Layer-2 reasoning defense.
 
+For agent loops that propose **one tool per step**, pass a shared session so the classifier sees the running chain across turns:
+
+```ts
+import { createPlanRiskSession, planRiskGuardrail } from 'ai-sdk-guardrails';
+
+const session = createPlanRiskSession();
+
+const model = withGuardrails({
+  model: openai('gpt-4o'),
+  outputGuardrails: [planRiskGuardrail({ session, blockAtOrAbove: 'high' })],
+});
+```
+
+### Evaluation Scope Guardrail
+
+Keep eval agents inside their sandbox — block external hosts, suspicious registry writes, and cross-agent coordination filenames (Artifactory message-board pattern):
+
+```ts
+import { evaluationScopeGuardrail } from 'ai-sdk-guardrails';
+
+const model = withGuardrails({
+  model: openai('gpt-4o'),
+  outputGuardrails: [
+    evaluationScopeGuardrail({
+      sharedStoreId: 'artifactory-eval-1',
+      denyRegistryWrites: true,
+      denySuspiciousFilenames: true,
+    }),
+  ],
+});
+```
+
+**Use cases:** eval sandboxes, exploit-gym isolation, preventing scope creep to HuggingFace or cloud metadata endpoints. See [Eval Sandbox guide](/guides/eval-sandbox/).
+
 ## Prompt Hardening
 
 Guardrails catch attacks at runtime; hardening lowers the odds one lands in the first place. `hardenSystemPrompt` wraps your system prompt with a block of defensive rules — instruction/data separation, anti-extraction, and a persona anchor:
