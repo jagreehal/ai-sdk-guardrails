@@ -211,10 +211,12 @@ export function agentGuardrails<TOOLS extends ToolSet = ToolSet>(
 
   if (stopOnGuardrailViolation) {
     fragments.onStepEnd = ((step: { stepNumber: number }) => {
-      if (pendingBlock) {
-        violationHistory.push({ step: step.stepNumber, summary: pendingBlock });
-        pendingBlock = null;
+      if (!pendingBlock) {
+        return;
       }
+
+      violationHistory.push({ step: step.stepNumber, summary: pendingBlock });
+      pendingBlock = null;
     }) as GenerateTextOnStepEndCallback<TOOLS>;
 
     fragments.stopWhen = buildGuardrailStopCondition<TOOLS>(

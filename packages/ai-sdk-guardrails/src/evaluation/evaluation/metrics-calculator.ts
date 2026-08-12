@@ -90,12 +90,13 @@ export class GuardrailMetricsCalculator {
 
     for (const result of results) {
       const expected = result.expectedTriggers[guardrailId];
-      const actual = result.actualTriggers[guardrailId];
 
       // Skip if this guardrail wasn't evaluated for this sample
       if (expected === undefined) {
         continue;
       }
+
+      const actual = result.actualTriggers[guardrailId];
 
       // Count confusion matrix values
       if (expected && actual) {
@@ -189,13 +190,13 @@ export class GuardrailMetricsCalculator {
     }
 
     // Sort times for percentile calculations
-    const sorted = [...times].sort((a, b) => a - b);
+    const sorted = times.toSorted((a, b) => a - b);
 
     return {
       mean: times.reduce((sum, t) => sum + t, 0) / times.length,
       median: this.calculatePercentile(sorted, 50),
       min: sorted[0]!,
-      max: sorted[sorted.length - 1]!,
+      max: sorted.at(-1)!,
       p95: this.calculatePercentile(sorted, 95),
       p99: this.calculatePercentile(sorted, 99),
     };

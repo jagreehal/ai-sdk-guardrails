@@ -69,10 +69,10 @@
   "type": "module",
   "scripts": {
     "build": "tsup",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check src/**/*.ts",
+    "format:check": "prettier --check .",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "check-exports": "attw --pack . --ignore-rules false-esm no-resolution"
@@ -110,7 +110,8 @@
     "prettier": "3.9.6",
     "tsup": "8.5.1",
     "tsx": "4.23.7",
-    "typescript": "7.0.2",
+    "@typescript/native": "npm:typescript@7.0.2",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
     "typescript-eslint": "8.66.0",
     "vitest": "4.1.10"
   }

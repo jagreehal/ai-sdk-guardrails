@@ -18,11 +18,7 @@ import type { GuardrailResult } from '../types';
 
 /** `autotel-genai` policy outcome. Mirrors its `PolicyDecision` union. */
 export type PolicyDecision =
-  | 'permit'
-  | 'deny'
-  | 'challenge'
-  | 'observe'
-  | 'error';
+  'permit' | 'deny' | 'challenge' | 'observe' | 'error';
 
 /** `autotel-genai` input-source classification. Mirrors `AgentInputProvenance`. */
 export type AgentInputProvenance =
@@ -39,11 +35,7 @@ export type AgentInputProvenance =
  * `AgentActionRiskClass`.
  */
 export type AgentActionRiskClass =
-  | 'read'
-  | 'write'
-  | 'destructive'
-  | 'financial'
-  | 'exfiltration_capable';
+  'read' | 'write' | 'destructive' | 'financial' | 'exfiltration_capable';
 
 /** Distinct agent identity (SAIF Principle 1). Mirrors `AgentIdentity`. */
 export interface GovernanceAgentIdentity {
@@ -171,7 +163,8 @@ export interface GuardrailGovernanceOptions {
   /**
    * Emit a signed audit envelope (`createSignedEventEnvelope`) for each block.
    */
-  signBlockedEvents?: boolean | { signer?: (serialized: string) => string | Promise<string> };
+  signBlockedEvents?:
+    boolean | { signer?: (serialized: string) => string | Promise<string> };
 }
 
 // ============================================================================

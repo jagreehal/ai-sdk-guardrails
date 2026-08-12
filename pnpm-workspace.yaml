@@ -21,6 +21,7 @@ minimumReleaseAgeExclude:
   - 'starlight-theme-next'
   # Monorepo + lint/tooling dev deps we pin intentionally.
   - 'turbo'
+  - '@turbo/*' # platform binaries; skipped silently (optional dep) if age-gated
   - 'eslint'
   - 'tsx'
   - '@types/node'

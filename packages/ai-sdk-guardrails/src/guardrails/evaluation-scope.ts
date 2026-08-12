@@ -4,10 +4,7 @@
  */
 
 import { createOutputGuardrail } from '../core';
-import type {
-  OutputGuardrail,
-  OutputGuardrailContext,
-} from '../types';
+import type { OutputGuardrail, OutputGuardrailContext } from '../types';
 import { extractToolNamesFromResult } from './tools';
 import {
   extractToolCallPayloads,
@@ -111,7 +108,11 @@ export function evaluationScopeGuardrail(
       return {
         tripwireTriggered: false,
         metadata: { violations: [], observedTools, sharedStoreId },
-        info: { guardrailName: 'evaluation-scope', observedTools, sharedStoreId },
+        info: {
+          guardrailName: 'evaluation-scope',
+          observedTools,
+          sharedStoreId,
+        },
       };
     },
   );

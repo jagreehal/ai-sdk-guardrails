@@ -165,12 +165,7 @@ export function extractContent(result: AIResult): ContentExtraction {
       .join('');
 
     // Check for output/object property (AI SDK v6 Output.object() includes both content and output)
-    const objectValue =
-      typedResult.output !== null && typedResult.output !== undefined
-        ? typedResult.output
-        : typedResult.object !== null && typedResult.object !== undefined
-          ? typedResult.object
-          : null;
+    const objectValue = typedResult.output ?? typedResult.object ?? null;
 
     return createContent({
       text: textContent || '',
@@ -1223,9 +1218,6 @@ export const contentConsistencyChecker = (
   createOutputGuardrail(
     'content-consistency-checker',
     (context: OutputGuardrailContext) => {
-      const { text, object } = extractContent(context.result);
-      const content = text || (object ? JSON.stringify(object) : '');
-
       if (!referenceContent) {
         return {
           tripwireTriggered: false,
@@ -1234,6 +1226,9 @@ export const contentConsistencyChecker = (
           },
         };
       }
+
+      const { text, object } = extractContent(context.result);
+      const content = text || (object ? JSON.stringify(object) : '');
 
       // Simple consistency check - in production, use semantic similarity
       const contentWords = content.toLowerCase().split(/\s+/);
@@ -1762,7 +1757,7 @@ export const enhancedHallucinationDetector = (options: {
         if (schemaConstraints.requiredFields) {
           const missingFields = schemaConstraints.requiredFields.filter(
             (field) =>
-              !(field in obj) ||
+              !Object.hasOwn(obj, field) ||
               obj[field] === null ||
               obj[field] === undefined,
           );
@@ -1777,10 +1772,15 @@ export const enhancedHallucinationDetector = (options: {
           for (const [field, allowedValues] of Object.entries(
             schemaConstraints.allowedValues,
           )) {
-            if (field in obj && !allowedValues.includes(String(obj[field]))) {
-              issues.push(`Invalid value for field '${field}': ${obj[field]}`);
-              hallucinationScore += 0.2;
+            if (
+              !Object.hasOwn(obj, field) ||
+              allowedValues.includes(String(obj[field]))
+            ) {
+              continue;
             }
+
+            issues.push(`Invalid value for field '${field}': ${obj[field]}`);
+            hallucinationScore += 0.2;
           }
         }
       }
@@ -1795,15 +1795,17 @@ export const enhancedHallucinationDetector = (options: {
       ];
 
       for (const [pos, neg] of contradictionPatterns) {
-        if (
+        if (!(
           pos &&
           neg &&
           content.toLowerCase().includes(pos) &&
           content.toLowerCase().includes(neg)
-        ) {
-          issues.push(`Potential contradiction detected: ${pos}/${neg}`);
-          hallucinationScore += 0.15;
+        )) {
+          continue;
         }
+
+        issues.push(`Potential contradiction detected: ${pos}/${neg}`);
+        hallucinationScore += 0.15;
       }
 
       const isHallucination = hallucinationScore > confidenceThreshold;

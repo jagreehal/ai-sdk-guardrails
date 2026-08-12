@@ -18,7 +18,7 @@ describe('MCP Security Guardrails', () => {
         reasoning: [],
         reasoningText: undefined,
         files: [],
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any,
     };
   });
 

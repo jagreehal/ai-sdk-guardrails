@@ -41,9 +41,7 @@ interface ToolCallInjectionPattern {
   weight: number;
   targetTool?: string;
   injectionType:
-    | 'parameter_manipulation'
-    | 'function_override'
-    | 'tool_chain_attack';
+    'parameter_manipulation' | 'function_override' | 'tool_chain_attack';
 }
 
 interface EnhancedPromptInjectionOptions {
@@ -253,8 +251,7 @@ function analyzeIncremental(
     Array.isArray(context.messages)
   ) {
     for (const message of context.messages) {
-      const text =
-        typeof message.content === 'string' ? message.content : '';
+      const text = typeof message.content === 'string' ? message.content : '';
       history.push({ content: text, score: scorePattern(text, normalize) });
     }
   }
@@ -549,7 +546,8 @@ export const enhancedPromptInjectionDetector = (
         : null;
 
       // 7. Tool call analysis (if enabled)
-      let toolCallAnalysis: EnhancedInjectionMetadata['toolCallAnalysis'] = null;
+      let toolCallAnalysis: EnhancedInjectionMetadata['toolCallAnalysis'] =
+        null;
       if (enableToolCallFocus) {
         const suspiciousCalls = analyzeToolCalls(content);
         toolCallAnalysis = {
@@ -559,10 +557,9 @@ export const enhancedPromptInjectionDetector = (
       }
 
       // 8. Intent extraction (if enabled)
-      let intentAnalysis: UserIntent | null = null;
-      if (enableIntentExtraction) {
-        intentAnalysis = extractUserIntent(content);
-      }
+      const intentAnalysis: UserIntent | null = enableIntentExtraction
+        ? extractUserIntent(content)
+        : null;
 
       // Determine if injection is detected
       const isInjectionDetected = Boolean(

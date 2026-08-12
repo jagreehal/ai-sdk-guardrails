@@ -13,7 +13,6 @@ import type {
   GuardrailContext,
   GuardrailResult,
 } from './enhanced-types';
-import type { LanguageModel } from 'ai';
 import { generateText } from 'ai';
 
 // ============================================================================
@@ -503,7 +502,7 @@ const hallucinationDetection: CheckFn<
   GuardrailContext,
   string,
   HallucinationConfig
-> = async (ctx, data, config): Promise<GuardrailResult> => {
+> = async (ctx, data, _config): Promise<GuardrailResult> => {
   // Placeholder implementation - would need source verification in production
   return {
     tripwireTriggered: false,
@@ -701,4 +700,5 @@ export function registerOpenAIGuardrails(): void {
 }
 
 // Auto-register on import
+// eslint-disable-next-line unicorn/no-top-level-side-effects -- self-registration is this module's contract
 registerOpenAIGuardrails();

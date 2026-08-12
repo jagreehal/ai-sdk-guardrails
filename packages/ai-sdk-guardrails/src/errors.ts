@@ -48,6 +48,9 @@ export abstract class GuardrailsError extends AISDKError {
    * Check if this error is of a specific guardrails error subclass.
    */
   is<T extends GuardrailsError>(
+    // `any[]`, not `unknown[]`: concrete constructors aren't assignable to a
+    // construct signature taking `unknown` params.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     errorClass: new (...args: any[]) => T,
   ): this is T {
     return this instanceof errorClass;
@@ -58,7 +61,7 @@ export abstract class GuardrailsError extends AISDKError {
    * versions (marker-based, like `AISDKError.isInstance`).
    */
   static override isInstance(error: unknown): error is GuardrailsError {
-    return AISDKError.hasMarker(error, marker);
+    return super.hasMarker(error, marker);
   }
 }
 

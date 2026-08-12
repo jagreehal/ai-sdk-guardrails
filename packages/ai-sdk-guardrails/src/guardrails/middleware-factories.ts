@@ -444,7 +444,7 @@ export function outputGuardrailsMiddleware<
               accumulatedText += anyChunk.delta ?? anyChunk.textDelta ?? '';
             }
             // Capture usage and finishReason from finish chunk
-            if (chunk.type === 'finish') {
+            else if (chunk.type === 'finish') {
               streamUsage = chunk.usage;
               streamFinishReason = chunk.finishReason;
             }

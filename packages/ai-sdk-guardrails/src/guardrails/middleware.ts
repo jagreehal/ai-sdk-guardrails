@@ -370,7 +370,7 @@ export function guardrailMiddleware<
             accumulatedText += chunk.delta || chunk.textDelta || '';
           }
           // Capture usage and finishReason from finish chunk
-          if (chunk.type === 'finish') {
+          else if (chunk.type === 'finish') {
             if (chunk.usage) {
               streamUsage = chunk.usage;
             }

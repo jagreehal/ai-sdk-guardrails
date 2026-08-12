@@ -398,7 +398,7 @@ function applyRedaction(
     if (typeof pattern === 'string') {
       result = result.split(pattern).join(redactionText);
     } else {
-      result = result.replace(pattern, redactionText);
+      result = result.replace(pattern, () => redactionText);
     }
   }
 

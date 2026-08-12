@@ -84,7 +84,7 @@ export class GuardrailRegistry {
   }
 
   all(): GuardrailSpec[] {
-    return Array.from(this.specs.values());
+    return [...this.specs.values()];
   }
 
   list(): GuardrailSpec[] {

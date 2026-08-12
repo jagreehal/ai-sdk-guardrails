@@ -33,6 +33,9 @@ const RE_WORD_CHAR = /\w/;
 // Zero-width and other invisible/format characters. Includes the soft hyphen
 // (U+00AD) and Mongolian vowel separator (U+180E) so the same set powers both
 // stripping (here) and detection (the MCP scanner via `isInvisibleChar`).
+// `\u{…}` escapes would need the `u` flag, which the `new RegExp(…, 'g')`
+// re-wrap below drops — silently breaking the class.
+// eslint-disable-next-line unicorn/prefer-unicode-code-point-escapes
 const INVISIBLE_CHARS = /[\u00AD\u180E\u200B-\u200F\u2028-\u202F\u2060\uFEFF]/;
 const RE_INVISIBLE = new RegExp(INVISIBLE_CHARS, 'g');
 const RE_REGEX_META = /[.*+?^${}()|[\]\\]/g;
@@ -216,12 +219,12 @@ function joinSeparatedLetters(input: string): string {
 function decodeLeetspeak(input: string): string {
   let result = input;
   for (const [pattern, replacement] of LEET_SEQUENCE_MAP) {
-    result = result.replace(pattern, replacement);
+    result = result.replace(pattern, () => replacement);
   }
   for (const [from, to] of Object.entries(LEET_MAP)) {
     result = result.replaceAll(
       new RegExp(from.replaceAll(RE_REGEX_META, String.raw`\$&`), 'gi'),
-      to,
+      () => to,
     );
   }
   return result;
@@ -233,7 +236,7 @@ function repairTypos(input: string): string {
     const escaped = typo.replaceAll(RE_REGEX_META, String.raw`\$&`);
     result = result.replaceAll(
       new RegExp(String.raw`\b${escaped}\b`, 'gi'),
-      correct,
+      () => correct,
     );
   }
   return result;
@@ -242,7 +245,7 @@ function repairTypos(input: string): string {
 function repairPhonetics(input: string): string {
   let result = input;
   for (const [pattern, replacement] of PHONETIC_PATTERNS) {
-    result = result.replace(pattern, replacement);
+    result = result.replace(pattern, () => replacement);
   }
   return result;
 }

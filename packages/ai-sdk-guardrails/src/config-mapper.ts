@@ -50,7 +50,7 @@ function mapToInputGuardrail(
 
       // Build context for OpenAI guardrails
       // Extract model if available (only LanguageModelV4, not EmbeddingModelV2)
-      let llm: GuardrailContext['llm'] = undefined;
+      let llm: GuardrailContext['llm'];
       if ('model' in params) {
         const model = params.model;
         // Only use if it's a LanguageModelV4 (has doGenerate method)
@@ -94,9 +94,9 @@ function mapToOutputGuardrail(
     description: spec.description,
     version: spec.metadata?.version || '1.0.0',
     tags: spec.metadata?.tags || [],
-    execute: async (params, accumulatedText) => {
+    execute: async (params, accumulatedText = '') => {
       // Extract text from result or use accumulated text
-      let text = accumulatedText || '';
+      let text = accumulatedText;
       if (!text && 'result' in params) {
         const result = params.result;
         if ('text' in result && typeof result.text === 'string') {
@@ -108,7 +108,7 @@ function mapToOutputGuardrail(
 
       // Build context for OpenAI guardrails
       // Extract model from input context if available
-      let llm: GuardrailContext['llm'] = undefined;
+      let llm: GuardrailContext['llm'];
       if (params.input && 'model' in params.input) {
         const model = params.input.model;
         // Only use if it's a LanguageModelV4 (has doGenerate method)
@@ -201,8 +201,8 @@ export function mapOpenAIConfigToGuardrails(openAIConfig: PipelineConfig): {
   }
 
   return {
-    ...(inputGuardrails.length > 0 ? { inputGuardrails } : {}),
-    ...(outputGuardrails.length > 0 ? { outputGuardrails } : {}),
+    ...(inputGuardrails.length > 0 && { inputGuardrails }),
+    ...(outputGuardrails.length > 0 && { outputGuardrails }),
   };
 }
 

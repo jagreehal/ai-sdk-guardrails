@@ -175,7 +175,6 @@ describe('backoff helpers', () => {
       const backoff = presets.networkResilient();
 
       const delay1 = backoff(1);
-      const delay2 = backoff(1);
 
       // Should be around 1000ms but with jitter variation
       expect(delay1).toBeGreaterThan(900);

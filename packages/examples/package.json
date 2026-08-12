@@ -27,7 +27,8 @@
   },
   "devDependencies": {
     "tsx": "4.23.7",
-    "typescript": "7.0.2",
+    "@typescript/native": "npm:typescript@7.0.2",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "4.1.10",
     "vitest-mock-extended": "5.1.1"
   }

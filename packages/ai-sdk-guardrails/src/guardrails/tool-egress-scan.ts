@@ -20,8 +20,10 @@ export interface EgressScanOptions {
   allowLocalhost?: boolean;
 }
 
-const BASE64_RUN = /(?:[A-Za-z0-9+/]{4}){8,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?/g;
-const URL_PATTERN = /https?:\/\/[^\s"'<>]+|ftp:\/\/[^\s"'<>]+|file:\/\/[^\s"'<>]+/gi;
+const BASE64_RUN =
+  /(?:[A-Za-z0-9+/]{4}){8,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?/g;
+const URL_PATTERN =
+  /https?:\/\/[^\s"'<>]+|ftp:\/\/[^\s"'<>]+|file:\/\/[^\s"'<>]+/gi;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
@@ -104,7 +106,9 @@ export function scanTextEgressViolations(
 
   for (const pattern of suspiciousFilenamePatterns) {
     if (pattern.test(text)) {
-      violations.push(`${prefix}: suspicious coordination pattern (${pattern})`);
+      violations.push(
+        `${prefix}: suspicious coordination pattern (${pattern})`,
+      );
     }
   }
 

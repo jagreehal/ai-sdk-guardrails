@@ -10,10 +10,7 @@
 import { homoglyphTarget, isInvisibleChar } from './normalization';
 
 export type McpThreatType =
-  | 'tool_poisoning'
-  | 'typosquatting'
-  | 'hidden_instruction'
-  | 'rug_pull';
+  'tool_poisoning' | 'typosquatting' | 'hidden_instruction' | 'rug_pull';
 
 export interface McpThreat {
   type: McpThreatType;

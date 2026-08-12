@@ -2,7 +2,7 @@
  * JSONL dataset loader for evaluation framework
  */
 
-import { promises as fs } from 'fs';
+import { promises as fs } from 'node:fs';
 import type { EvaluationSample } from './types';
 
 /**
@@ -14,7 +14,7 @@ export class JsonlDatasetLoader {
    */
   async load(filePath: string): Promise<EvaluationSample[]> {
     try {
-      const content = await fs.readFile(filePath, 'utf-8');
+      const content = await fs.readFile(filePath, 'utf8');
       const lines = content
         .trim()
         .split('\n')
@@ -23,9 +23,9 @@ export class JsonlDatasetLoader {
       const samples: EvaluationSample[] = [];
       const errors: string[] = [];
 
-      for (let i = 0; i < lines.length; i++) {
+      for (const [i, line_] of lines.entries()) {
         const lineNum = i + 1;
-        const line = lines[i]!;
+        const line = line_!;
 
         try {
           const sample = JSON.parse(line);
@@ -44,8 +44,10 @@ export class JsonlDatasetLoader {
 
       return samples;
     } catch (error) {
-      if ((error as any).code === 'ENOENT') {
-        throw new Error(`Dataset file not found: ${filePath}`);
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new Error(`Dataset file not found: ${filePath}`, {
+          cause: error,
+        });
       }
       throw error;
     }
@@ -54,6 +56,9 @@ export class JsonlDatasetLoader {
   /**
    * Validate a single sample
    */
+  // Input is a raw `JSON.parse` result — untyped by definition; this method is
+  // what turns it into an `EvaluationSample`.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private validateSample(sample: any, lineNum: number): EvaluationSample {
     // Required fields
     if (!sample.id || typeof sample.id !== 'string') {
@@ -78,7 +83,7 @@ export class JsonlDatasetLoader {
       sample.expectedTriggers,
     )) {
       if (typeof shouldTrigger !== 'boolean') {
-        throw new Error(
+        throw new TypeError(
           `Invalid expectedTriggers value for '${guardrailId}' at line ${lineNum}: expected boolean, got ${typeof shouldTrigger}`,
         );
       }
@@ -87,7 +92,7 @@ export class JsonlDatasetLoader {
     // Optional metadata validation
     if (sample.metadata) {
       if (typeof sample.metadata !== 'object') {
-        throw new Error(
+        throw new TypeError(
           `Invalid 'metadata' field at line ${lineNum}: expected object`,
         );
       }
@@ -117,7 +122,7 @@ export class JsonlDatasetLoader {
   async save(samples: EvaluationSample[], filePath: string): Promise<void> {
     const lines = samples.map((sample) => JSON.stringify(sample));
     const content = lines.join('\n') + '\n';
-    await fs.writeFile(filePath, content, 'utf-8');
+    await fs.writeFile(filePath, content, 'utf8');
   }
 
   /**
@@ -180,7 +185,7 @@ export class JsonlDatasetLoader {
       },
       {
         id: 'sample-5',
-        data: Array(2000).fill('word').join(' '), // Very long text
+        data: Array.from({ length: 2000 }, () => 'word').join(' '), // Very long text
         expectedTriggers: {
           'pii-detection': false,
           'profanity-filter': false,
@@ -195,7 +200,7 @@ export class JsonlDatasetLoader {
         id: 'sample-6',
         data:
           'Email john@example.com about the badword1 issue ' +
-          Array(1000).fill('word').join(' '),
+          Array.from({ length: 1000 }, () => 'word').join(' '),
         expectedTriggers: {
           'pii-detection': true,
           'profanity-filter': true,
@@ -242,13 +247,11 @@ export class JsonlDatasetLoader {
       }
 
       // Filter by sample IDs
-      if (filter.sampleIds && filter.sampleIds.length > 0) {
-        if (!filter.sampleIds.includes(sample.id)) {
-          return false;
-        }
-      }
-
-      return true;
+      return !(
+        filter.sampleIds &&
+        filter.sampleIds.length > 0 &&
+        !filter.sampleIds.includes(sample.id)
+      );
     });
   }
 

@@ -17,9 +17,9 @@ describe('createPlanRiskSession', () => {
     const session = createPlanRiskSession();
     const classify = builtinPlanRiskClassifier();
 
-    expect(
-      await classify({ toolSequence: ['artifactoryList'] }),
-    ).toMatchObject({ verdict: 'low' });
+    expect(await classify({ toolSequence: ['artifactoryList'] })).toMatchObject(
+      { verdict: 'low' },
+    );
 
     session.record(['artifactoryList']);
     session.record(['artifactoryUpload']);

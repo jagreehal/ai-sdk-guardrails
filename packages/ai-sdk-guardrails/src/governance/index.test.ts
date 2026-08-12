@@ -47,7 +47,7 @@ function fakeAgent() {
     recordActionRiskClass: vi.fn(),
     recordPlanRiskAssessment: vi.fn(),
     createSignedEventEnvelope: vi.fn(async () => ({ eventHash: 'abc123' })),
-    createAgentAuditMetadata: vi.fn((raw: unknown) => raw),
+    createAgentAuditMetadata: vi.fn((raw: Record<string, unknown>) => raw),
   };
 }
 

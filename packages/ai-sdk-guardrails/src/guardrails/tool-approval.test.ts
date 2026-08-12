@@ -72,7 +72,6 @@ type ApprovalFn = (args: {
 }) => Promise<ToolApprovalStatus>;
 
 function build(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   guardrails: ToolParameterGuardrail<any, any>[],
   options?: GuardrailApprovalOptions,
 ) {

@@ -122,11 +122,9 @@ async function emitBlocked(
         const metadata = agent.createAgentAuditMetadata
           ? agent.createAgentAuditMetadata(raw)
           : raw;
-        void agent
-          .createSignedEventEnvelope(metadata, signOpts)
-          .catch(() => {
-            /* best-effort */
-          });
+        void agent.createSignedEventEnvelope(metadata, signOpts).catch(() => {
+          /* best-effort */
+        });
       }
     }
 

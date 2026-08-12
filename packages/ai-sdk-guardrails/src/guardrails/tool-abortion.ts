@@ -409,6 +409,6 @@ export function wrapToolWithAbortion<T extends Record<string, unknown>>(
   return {
     ...tool,
     execute: wrappedExecute,
-    ...(wrappedOnInputDelta ? { onInputDelta: wrappedOnInputDelta } : {}),
+    ...(wrappedOnInputDelta && { onInputDelta: wrappedOnInputDelta }),
   };
 }

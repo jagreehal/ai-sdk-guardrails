@@ -5,7 +5,7 @@ import type { OutputGuardrailContext } from '../types';
 function ctx(result: unknown): OutputGuardrailContext {
   return {
     result: result as OutputGuardrailContext['result'],
-    context: {},
+    input: {} as OutputGuardrailContext['input'],
   };
 }
 

@@ -96,7 +96,7 @@ function findMatchingSubstrings(
     if (promptNgrams.has(ngram)) {
       const end = Math.min(i + windowSize, outputTokens.length);
       const fragment = outputTokens.slice(i, end).join(' ');
-      if (!matches.some((m) => m.includes(ngram))) {
+      if (matches.every((m) => !m.includes(ngram))) {
         matches.push(fragment);
       }
     }
@@ -210,7 +210,7 @@ export function detectSystemPromptLeak(
           .replaceAll(/\s+/g, String.raw`\s+`),
         'gi',
       );
-      sanitized = sanitized.replace(regex, redactionText);
+      sanitized = sanitized.replace(regex, () => redactionText);
     }
   }
 

@@ -38,7 +38,6 @@ export type InferOutputMetadata<T extends readonly OutputGuardrail<unknown>[]> =
  * Re-exported from enhanced-types.ts for OpenAI compatibility.
  * This type includes the OpenAI-compatible `info` object structure.
  */
-export type { GuardrailResult };
 
 export type GuardrailsParams = {
   inputGuardrails?: InputGuardrail[];
@@ -695,3 +694,5 @@ export interface OutputGuardrailsMiddlewareConfig<
     }) => LMCallOptions;
   };
 }
+
+export { type GuardrailResult } from './enhanced-types';

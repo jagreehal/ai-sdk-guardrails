@@ -93,8 +93,7 @@ const PACKAGE_MANAGER_TOOL =
   /\b(artifactory|registry|package|pip|npm|upload|fetch|list)\b/i;
 const EXTERNAL_CHEAT_TOOL =
   /\b(huggingface|modal|external|internet|ssrf|proxy|bypass)\b/i;
-const COORDINATION_TOOL =
-  /\b(seek|message|board|swarm|mailbox|note|claim)\b/i;
+const COORDINATION_TOOL = /\b(seek|message|board|swarm|mailbox|note|claim)\b/i;
 
 /**
  * Dependency-free first-pass plan-risk heuristic, mirroring autotel-genai's. It
@@ -143,7 +142,9 @@ export function builtinPlanRiskClassifier(): PlanRiskClassifier {
       };
     }
 
-    const hasExternalCheat = normalized.some((n) => EXTERNAL_CHEAT_TOOL.test(n));
+    const hasExternalCheat = normalized.some((n) =>
+      EXTERNAL_CHEAT_TOOL.test(n),
+    );
     if (hasExternalCheat && (hasFetch || hasUntrustedRead)) {
       return {
         verdict: 'high',
@@ -198,9 +199,7 @@ export function planRiskGuardrail(
     async (context: OutputGuardrailContext) => {
       const { result } = context;
       const stepTools = toolExtractor(result);
-      const toolSequence = session
-        ? session.record(stepTools)
-        : stepTools;
+      const toolSequence = session ? session.record(stepTools) : stepTools;
 
       const assessment = await classifier({ toolSequence });
       if (!assessment) {

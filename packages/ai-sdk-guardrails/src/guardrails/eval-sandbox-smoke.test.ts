@@ -16,7 +16,7 @@ function stepContext(toolName: string, input: unknown): OutputGuardrailContext {
         },
       ],
     } as OutputGuardrailContext['result'],
-    context: {},
+    input: {} as OutputGuardrailContext['input'],
   };
 }
 

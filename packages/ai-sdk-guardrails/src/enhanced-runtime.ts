@@ -66,16 +66,15 @@ export async function runGuardrails(
     );
 
     // Apply global timeout if specified
-    if (globalTimeoutMs) {
-      results = await Promise.race([
-        Promise.all(promises),
-        timeoutPromise(globalTimeoutMs).then(() => {
-          throw new Error(`Global timeout of ${globalTimeoutMs}ms exceeded`);
-        }),
-      ]);
-    } else {
-      results = await Promise.all(promises);
-    }
+    results = globalTimeoutMs
+      ? await Promise.race([
+          Promise.all(promises),
+          rejectAfter(
+            globalTimeoutMs,
+            `Global timeout of ${globalTimeoutMs}ms exceeded`,
+          ),
+        ])
+      : await Promise.all(promises);
   } else {
     // Run guardrails sequentially
     results = [];
@@ -161,9 +160,7 @@ async function runSingleGuardrail(
     if (timeoutMs) {
       return await Promise.race([
         guardrail.run(context, input),
-        timeoutPromise(timeoutMs).then(() => {
-          throw new Error(`Guardrail timeout after ${timeoutMs}ms`);
-        }),
+        rejectAfter(timeoutMs, `Guardrail timeout after ${timeoutMs}ms`),
       ]);
     }
 
@@ -214,6 +211,7 @@ export async function instantiateGuardrails(
         `Failed to instantiate guardrail '${config.name}': ${
           error instanceof Error ? error.message : String(error)
         }`,
+        { cause: error },
       );
     }
   }
@@ -235,8 +233,8 @@ export async function loadPipelineConfig(
       config.includes('/')
     ) {
       // Dynamic import to avoid bundling issues
-      const fs = await import('fs/promises');
-      const content = await fs.readFile(config, 'utf-8');
+      const fs = await import('node:fs/promises');
+      const content = await fs.readFile(config, 'utf8');
 
       // Parse based on extension
       if (config.endsWith('.yaml') || config.endsWith('.yml')) {
@@ -245,10 +243,9 @@ export async function loadPipelineConfig(
       }
 
       return JSON.parse(content) as PipelineConfig;
-    } else {
-      // It's a JSON string
-      return JSON.parse(config) as PipelineConfig;
     }
+    // It's a JSON string
+    return JSON.parse(config) as PipelineConfig;
   }
   return config;
 }
@@ -256,16 +253,20 @@ export async function loadPipelineConfig(
 /**
  * Load a guardrail bundle from configuration
  */
-export function loadGuardrailBundle(config: any): GuardrailBundle {
+export function loadGuardrailBundle(config: unknown): GuardrailBundle {
   // Validate and normalize the bundle configuration
   const guardrails: GuardrailConfig[] = [];
+  const bundle =
+    typeof config === 'object' && config !== null && !Array.isArray(config)
+      ? (config as Partial<GuardrailBundle>)
+      : undefined;
 
   if (Array.isArray(config)) {
     // Direct array of guardrail configs
-    guardrails.push(...config);
-  } else if (config.guardrails && Array.isArray(config.guardrails)) {
+    guardrails.push(...(config as GuardrailConfig[]));
+  } else if (bundle && Array.isArray(bundle.guardrails)) {
     // Bundle format
-    guardrails.push(...config.guardrails);
+    guardrails.push(...bundle.guardrails);
   } else {
     throw new Error('Invalid guardrail bundle format');
   }
@@ -284,8 +285,8 @@ export function loadGuardrailBundle(config: any): GuardrailBundle {
   }
 
   return {
-    version: config.version || 1,
-    stageName: config.stageName,
+    version: bundle?.version || 1,
+    stageName: bundle?.stageName,
     guardrails,
   };
 }
@@ -310,18 +311,19 @@ export async function checkPlainText(
     const error = new Error(
       `Content validation failed: ${result.metadata?.triggeredCount} violation(s) detected: ${triggeredGuardrails}`,
     );
-    (error as any).guardrailResults = result.results.filter(
-      (r) => r.tripwireTriggered,
-    );
-    throw error;
+    throw Object.assign(error, {
+      guardrailResults: result.results.filter((r) => r.tripwireTriggered),
+    });
   }
 }
 
 /**
- * Create a promise that resolves after a timeout
+ * Create a promise that rejects after a timeout
  */
-function timeoutPromise(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function rejectAfter(ms: number, message: string): Promise<never> {
+  return new Promise((_resolve, reject) =>
+    setTimeout(() => reject(new Error(message)), ms),
+  );
 }
 
 /**

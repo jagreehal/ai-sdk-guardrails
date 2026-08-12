@@ -480,10 +480,25 @@ export const mcpSecurityGuardrail = (
           });
 
           // Track specific attack types for risk calculation
-          if (type === 'tool_manipulation') toolManipulationCount++;
-          if (type === 'cascade_attempt') cascadeAttempts++;
-          if (type === 'authority_manipulation') authorityManipulation++;
-          if (type === 'protocol_override') protocolOverrides++;
+          switch (type) {
+            case 'tool_manipulation': {
+              toolManipulationCount++;
+              break;
+            }
+            case 'cascade_attempt': {
+              cascadeAttempts++;
+              break;
+            }
+            case 'authority_manipulation': {
+              authorityManipulation++;
+              break;
+            }
+            case 'protocol_override': {
+              protocolOverrides++;
+              break;
+            }
+            // No default
+          }
         }
       }
 

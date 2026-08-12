@@ -50,7 +50,7 @@ describe('scanMcpTool', () => {
   it('detects zero-width characters (hidden instruction)', () => {
     const r = scanMcpTool({
       name: 'reader',
-      description: 'Reads a fi\u200Ble from disk safely.',
+      description: 'Reads a fi\u{200B}le from disk safely.',
     });
     expect(r.threats.some((t) => t.type === 'hidden_instruction')).toBe(true);
   });

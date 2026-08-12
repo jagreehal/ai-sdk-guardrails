@@ -25,7 +25,7 @@
     "type-check": "turbo type-check",
     "check-exports": "turbo check-exports",
     "clean": "turbo clean",
-    "ci": "pnpm build && pnpm format:check && pnpm check-exports && pnpm lint && pnpm test",
+    "ci": "pnpm build && pnpm format:check && pnpm check-exports && pnpm lint && pnpm type-check && pnpm test",
     "quality": "pnpm lint && pnpm type-check && pnpm test && pnpm format && pnpm check-exports",
     "local-release": "pnpm build && pnpm format:check && pnpm check-exports && pnpm lint && pnpm test && changeset version && changeset publish",
     "release": "changeset publish",
