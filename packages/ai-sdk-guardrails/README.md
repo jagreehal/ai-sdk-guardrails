@@ -399,6 +399,33 @@ const result = await agent.generate({ prompt: '...' }); // .stream() is guarded 
 > middleware, tool-parameter gating uses native `toolApproval`
 > (`guardrailApproval([...])`), loop-stop uses `stopWhen`. Nothing wraps your agent.
 
+**Input guardrails run on every step of the tool loop**: first against the
+user's message, then again on each step whose newest message is a tool result,
+and each time against the whole context (system prompt, conversation, tool
+results). `promptInjectionDetector` wants that, since a tool result can carry an
+injection too, and it makes `inputLengthLimit` a cap on the full context rather
+than on one message.
+
+For a guardrail that should only run when the user speaks (an LLM-judged topic
+check, a rate limit, a per-message rule) wrap it in `onUserTurn()`. It skips the
+tool-loop steps and runs again on the next user turn of a conversation, decided
+from the request alone so it is safe under concurrent calls. It controls when
+the check runs, not what it sees: the wrapped guardrail still receives the whole
+context, so a per-message rule should read the latest user message with
+`extractTextContent(ctx).messages.at(-1)`:
+
+```ts
+import { agentGuardrails, onUserTurn, promptInjectionDetector } from 'ai-sdk-guardrails';
+
+agentGuardrails({
+  model,
+  inputGuardrails: [
+    promptInjectionDetector(), // every step
+    onUserTurn(offTopicJudge), // once per user message
+  ],
+});
+```
+
 ## Tool Approval (AI SDK v7)
 
 AI SDK v7 added a first-class `toolApproval` hook to `generateText`, `streamText`,

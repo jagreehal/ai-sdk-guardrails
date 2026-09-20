@@ -191,6 +191,24 @@ const model = withGuardrails({
 
 **Use cases:** Catching encoded payloads, defence against obfuscated injection
 
+### On User Turn
+
+Run any input guardrail only when the newest message is the user's. Inside a `ToolLoopAgent` input guardrails otherwise run on every step, including the ones whose newest message is a tool result:
+
+```ts
+import { agentGuardrails, onUserTurn, promptInjectionDetector } from 'ai-sdk-guardrails';
+
+agentGuardrails({
+  model,
+  inputGuardrails: [
+    promptInjectionDetector(), // every step
+    onUserTurn(offTopicJudge), // once per user message
+  ],
+});
+```
+
+**Use cases:** LLM-judged checks, rate limits, per-message rules in agent loops
+
 ## Output Guardrails
 
 Output guardrails run **after** the AI model responds, ensuring quality and safety.

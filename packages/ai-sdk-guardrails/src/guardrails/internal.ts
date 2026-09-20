@@ -434,10 +434,14 @@ export function normalizeGuardrailContext(
 
   const promptMessages = Array.isArray(params.prompt) ? params.prompt : [];
   const systemMessage = promptMessages.find((msg) => msg.role === 'system');
+  // In the LanguageModel prompt format a system message carries a plain
+  // string; only user/assistant/tool messages carry part arrays.
   const system =
-    systemMessage && Array.isArray(systemMessage.content)
-      ? extractTextFromContent(systemMessage.content as MessageContent)
-      : '';
+    typeof systemMessage?.content === 'string'
+      ? systemMessage.content
+      : systemMessage && Array.isArray(systemMessage.content)
+        ? extractTextFromContent(systemMessage.content as MessageContent)
+        : '';
   const messages = promptMessages
     .filter((msg) => msg.role !== 'system')
     .map((msg) => ({
