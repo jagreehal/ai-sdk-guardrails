@@ -271,3 +271,5 @@ export type {
   ProviderMetadata,
   ToolSet,
 } from './types';
+
+export { onUserTurn } from './guardrails/on-user-turn';

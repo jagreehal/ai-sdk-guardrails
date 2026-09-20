@@ -142,6 +142,28 @@ const result = await researchAgent.generate({ prompt: 'What is the tallest mount
 
 This run is honest about what the guardrail does. The local `llama3.2` model returned a short answer without calling the search tool, so the quality guardrail blocked it and, because `replaceOnBlocked` is set, returned the safe replacement message instead of the weak answer. That is the guardrail doing its job: a substandard agent response never reached the user. A stronger model would call the tool, clear the length and citation checks, and return the real answer. The guardrail is what guarantees the floor regardless of which model you run.
 
+## Run an input guardrail once per user message
+
+Input guardrails are model middleware, so inside a `ToolLoopAgent` they run on every step: first against the user's message, then again on each step whose newest message is a tool result, each time against the whole context. `promptInjectionDetector` wants that, since a tool result can carry an injection too. A guardrail that costs money or only applies to what the user said, such as an LLM-judged topic check or a rate limit, should run once. Wrap it in `onUserTurn()`:
+
+```ts
+import { agentGuardrails, onUserTurn, promptInjectionDetector } from 'ai-sdk-guardrails';
+
+const agent = new ToolLoopAgent({
+  ...agentGuardrails({
+    model,
+    inputGuardrails: [
+      promptInjectionDetector(), // every step
+      onUserTurn(offTopicJudge), // once per user message
+    ],
+  }),
+  instructions: 'You are a support assistant.',
+  tools,
+});
+```
+
+`onUserTurn` decides from the request alone, with no shared step counter, so it is safe under concurrent calls to the same agent. It controls when the check runs, not what it sees: the wrapped guardrail still receives the whole context, so a per-message rule should read the latest user message with `extractTextContent(ctx).messages.at(-1)`.
+
 ## Next steps
 
 - [Quality and Judges](/cookbook/quality-and-judges/) explains the retry mechanism these tool guardrails reuse.
