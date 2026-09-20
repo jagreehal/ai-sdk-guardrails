@@ -460,9 +460,33 @@ const model = withGuardrails({
 
 ## Telemetry & governance (AI SDK v7-native)
 
-Guardrails no longer ship a bespoke OpenTelemetry tracer. Observability now rides
-the AI SDK's own `telemetry` slot, so guardrail signals land in the **same** GenAI
-trace as the model calls they guard — no separate tracer to wire up.
+### Tracing, on by default
+
+Every guardrail run is an OpenTelemetry span. If `@opentelemetry/api` is installed
+and a tracer provider is registered (autotel, the official `NodeSDK`, or any
+other), `guardrails.input` and `guardrails.output` spans appear as children of
+the active span with `guardrails.count`, `guardrails.passed` and
+`guardrails.blocked` attributes, plus one `gen_ai.guard.stop` event per blocked
+result carrying `gen_ai.guard.rule`, `gen_ai.guard.action`,
+`gen_ai.guard.message` and `gen_ai.guard.severity`. A guardrail that throws
+records the exception and marks the span as an error.
+
+There is nothing to configure. Without `@opentelemetry/api`, or without a
+registered provider, the spans are no-ops.
+
+```ts
+import { NodeSDK } from '@opentelemetry/sdk-node';
+
+new NodeSDK().start(); // or `init()` from autotel
+
+// guardrail spans now land in the same trace as the model calls
+const model = withGuardrails({ model: baseModel, inputGuardrails: [piiDetector()] });
+```
+
+### Governance signals
+
+Observability rides the AI SDK's own `telemetry` slot, so guardrail signals land
+in the **same** GenAI trace as the model calls they guard.
 
 For SAIF agent-governance signals, compose explicit helpers from
 `ai-sdk-guardrails/governance`:

@@ -9,6 +9,7 @@
  * `../guardrails`, so the public barrel can re-export from here without a cycle.
  */
 
+import { traceGuardrails } from './otel';
 import { GuardrailTimeoutError } from '../errors';
 import {
   executeInputGuardrailsWithEnhancedRuntime,
@@ -573,46 +574,49 @@ export async function executeInputGuardrails<
   } = options;
 
   const enabledGuardrails = prepareGuardrails(guardrails);
-  const invokeWithTimeout = makeInvokeWithTimeout<M, InputGuardrail<M>>(
-    (guardrail, signal) =>
-      Promise.resolve(
-        guardrail.execute(toNormalizedGuardrailContext(params), { signal }),
-      ),
-    timeout,
-  );
-
-  if (!parallel) {
-    return executeSequential(enabledGuardrails, invokeWithTimeout, {
-      continueOnFailure,
-      logLevel,
-      logger,
-      label: 'Input',
-    });
-  }
-
-  // Parallel: shared-timeout batch, with the enhanced runtime tried first.
-  const runFallback = () =>
-    executeBatchInputGuardrails<M>(
-      enabledGuardrails,
-      toNormalizedGuardrailContext(params),
+  if (enabledGuardrails.length === 0) return [];
+  return traceGuardrails('input', enabledGuardrails.length, async () => {
+    const invokeWithTimeout = makeInvokeWithTimeout<M, InputGuardrail<M>>(
+      (guardrail, signal) =>
+        Promise.resolve(
+          guardrail.execute(toNormalizedGuardrailContext(params), { signal }),
+        ),
       timeout,
-      logLevel,
-      logger,
     );
 
-  if (USE_ENHANCED_RUNTIME) {
-    try {
-      return await executeInputGuardrailsWithEnhancedRuntime<M>(
+    if (!parallel) {
+      return executeSequential(enabledGuardrails, invokeWithTimeout, {
+        continueOnFailure,
+        logLevel,
+        logger,
+        label: 'Input',
+      });
+    }
+
+    // Parallel: shared-timeout batch, with the enhanced runtime tried first.
+    const runFallback = () =>
+      executeBatchInputGuardrails<M>(
         enabledGuardrails,
         toNormalizedGuardrailContext(params),
-        { parallel: true, timeout, continueOnFailure },
+        timeout,
+        logLevel,
+        logger,
       );
-    } catch {
-      // Fallback to standard batch execution if enhanced runtime fails
-      return runFallback();
+
+    if (USE_ENHANCED_RUNTIME) {
+      try {
+        return await executeInputGuardrailsWithEnhancedRuntime<M>(
+          enabledGuardrails,
+          toNormalizedGuardrailContext(params),
+          { parallel: true, timeout, continueOnFailure },
+        );
+      } catch {
+        // Fallback to standard batch execution if enhanced runtime fails
+        return runFallback();
+      }
     }
-  }
-  return runFallback();
+    return runFallback();
+  });
 }
 
 /**
@@ -642,42 +646,45 @@ export async function executeOutputGuardrails<
   } = options;
 
   const enabledGuardrails = prepareGuardrails(guardrails);
-  const invokeWithTimeout = makeInvokeWithTimeout<M, OutputGuardrail<M>>(
-    (guardrail, signal) =>
-      Promise.resolve(guardrail.execute(params, accumulatedText, { signal })),
-    timeout,
-  );
-
-  if (!parallel) {
-    return executeSequential(enabledGuardrails, invokeWithTimeout, {
-      continueOnFailure,
-      logLevel,
-      logger,
-      label: 'Output',
-    });
-  }
-
-  // Parallel: each guardrail gets its own timeout, with the enhanced runtime tried first.
-  const runFallback = () =>
-    executeParallelPerGuardrail(
-      enabledGuardrails,
-      invokeWithTimeout,
-      'Output',
-      logLevel,
-      logger,
+  if (enabledGuardrails.length === 0) return [];
+  return traceGuardrails('output', enabledGuardrails.length, async () => {
+    const invokeWithTimeout = makeInvokeWithTimeout<M, OutputGuardrail<M>>(
+      (guardrail, signal) =>
+        Promise.resolve(guardrail.execute(params, accumulatedText, { signal })),
+      timeout,
     );
 
-  if (USE_ENHANCED_RUNTIME) {
-    try {
-      return await executeOutputGuardrailsWithEnhancedRuntime<M>(
-        enabledGuardrails,
-        params,
-        { parallel: true, timeout, continueOnFailure, accumulatedText },
-      );
-    } catch {
-      // Fallback to standard parallel execution if enhanced runtime fails
-      return runFallback();
+    if (!parallel) {
+      return executeSequential(enabledGuardrails, invokeWithTimeout, {
+        continueOnFailure,
+        logLevel,
+        logger,
+        label: 'Output',
+      });
     }
-  }
-  return runFallback();
+
+    // Parallel: each guardrail gets its own timeout, with the enhanced runtime tried first.
+    const runFallback = () =>
+      executeParallelPerGuardrail(
+        enabledGuardrails,
+        invokeWithTimeout,
+        'Output',
+        logLevel,
+        logger,
+      );
+
+    if (USE_ENHANCED_RUNTIME) {
+      try {
+        return await executeOutputGuardrailsWithEnhancedRuntime<M>(
+          enabledGuardrails,
+          params,
+          { parallel: true, timeout, continueOnFailure, accumulatedText },
+        );
+      } catch {
+        // Fallback to standard parallel execution if enhanced runtime fails
+        return runFallback();
+      }
+    }
+    return runFallback();
+  });
 }

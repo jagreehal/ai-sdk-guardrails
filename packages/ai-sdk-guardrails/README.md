@@ -927,6 +927,14 @@ Name changes:
 - `InputBlockedError` → `GuardrailsInputError`
 - `OutputBlockedError` → `GuardrailsOutputError`
 
+## Observability
+
+Every guardrail run is an OpenTelemetry span. Install `@opentelemetry/api` and
+register any tracer provider (autotel, the official `NodeSDK`) and
+`guardrails.input` / `guardrails.output` spans appear under the active span,
+with one `gen_ai.guard.stop` event per blocked result. No configuration; without
+a provider the spans are no-ops.
+
 ## Compatibility
 
 - **Runtime**: Node.js 18+ recommended
