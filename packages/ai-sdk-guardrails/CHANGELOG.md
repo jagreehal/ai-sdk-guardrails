@@ -1,5 +1,12 @@
 # ai-sdk-guardrails
 
+## 6.2.0
+
+### Minor Changes
+
+- 5b55f3a: Add `onUserTurn(guardrail)`, which runs an input guardrail only when the newest message is the user's and skips the tool-loop steps that follow. Read a system message with string content when normalising the guardrail context, so `systemPromptLeakDetector()` picks up `ToolLoopAgent` instructions with no configuration. Widen the optional `autotel-genai` peer range to `>=0.4.2`. Update dependencies.
+- a2e9eb9: Emit an OpenTelemetry span for every input and output guardrail run when `@opentelemetry/api` (new optional peer) is installed and a tracer provider is registered. Spans carry pass and block counts and one `gen_ai.guard.stop` event per blocked result. No configuration needed; without a provider the spans are no-ops.
+
 ## 6.1.1
 
 ### Patch Changes
