@@ -8,7 +8,8 @@ describe('normalizeGuardrailContext', () => {
         { role: 'system', content: 'You are the payments assistant.' },
         { role: 'user', content: [{ type: 'text', text: 'hi' }] },
       ],
-    } as never);
+    });
+
     expect(ctx.system).toBe('You are the payments assistant.');
     expect(ctx.prompt).toBe('hi');
   });

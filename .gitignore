@@ -7,3 +7,6 @@ dist
 *.tgz
 
 prototype/
+___temp/
+coverage
+.pnpm-store/

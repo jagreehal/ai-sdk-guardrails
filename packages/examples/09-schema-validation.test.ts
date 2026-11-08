@@ -12,7 +12,11 @@ import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { generateText, Output } from 'ai';
 import { model } from './model';
-import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
+import {
+  defineOutputGuardrail,
+  withGuardrails,
+  type GuardrailMetadata,
+} from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
 // Define schemas for different object types
@@ -32,10 +36,10 @@ const productSchema = z.object({
 });
 
 // Define the metadata type for schema validation
-interface SchemaValidationMetadata extends Record<string, unknown> {
+interface SchemaValidationMetadata extends GuardrailMetadata {
   schemaName: string;
   valid?: boolean;
-  errors?: z.ZodIssue[];
+  errors?: Array<{ path: string; message: string }>;
   errorCount?: number;
 }
 
@@ -70,7 +74,10 @@ function createSchemaValidator<T>(schema: z.ZodSchema<T>, schemaName: string) {
             metadata: {
               schemaName,
               valid: false,
-              errors: error.issues,
+              errors: error.issues.map((issue) => ({
+                path: issue.path.join('.'),
+                message: issue.message,
+              })),
               errorCount: error.issues.length,
             },
           };

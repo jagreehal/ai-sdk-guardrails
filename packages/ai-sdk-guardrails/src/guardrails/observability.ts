@@ -1,23 +1,17 @@
 /**
- * Observability & Metrics
- *
- * Provides metrics collection, violation analytics, and performance tracking
- * for guardrail execution.
+ * Metrics collection, violation analytics, execution summaries and health
+ * checks for guardrail execution.
  */
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable unicorn/numeric-separators-style */
-/* eslint-disable unicorn/no-zero-fractions */
-/* eslint-disable unicorn/no-array-sort */
-/* eslint-disable unicorn/prefer-at */
 
 import type {
   InputGuardrail,
   OutputGuardrail,
   GuardrailResult,
   GuardrailExecutionSummary,
+  Logger,
 } from '../types';
 
+import type { GuardrailMetadata } from '../enhanced-types';
 // ============================================================================
 // Types
 // ============================================================================
@@ -93,16 +87,20 @@ export interface MetricsCollectorOptions {
   /** Whether to auto-start flushing */
   autoStart?: boolean;
   /** Custom logger */
-  logger?: {
-    info: (msg: string, ...args: any[]) => void;
-    warn: (msg: string, ...args: any[]) => void;
-    error: (msg: string, ...args: any[]) => void;
-  };
+  logger?: Pick<Logger, 'info' | 'warn' | 'error'>;
 }
 
 // ============================================================================
 // Internal State
 // ============================================================================
+
+/** The input/output guardrail shape with its execute arguments left generic. */
+type TrackableGuardrail<M, A extends unknown[]> = Omit<
+  InputGuardrail<M>,
+  'execute'
+> & {
+  execute: (...args: A) => Promise<GuardrailResult<M>> | GuardrailResult<M>;
+};
 
 interface InternalMetrics {
   executionCount: number;
@@ -186,7 +184,6 @@ export function createMetricsCollector(options: MetricsCollectorOptions = {}) {
     result: GuardrailResult,
     executionTimeMs: number,
   ): void {
-    // Apply sampling
     if (sampling < 1.0 && Math.random() > sampling) {
       return;
     }
@@ -209,12 +206,12 @@ export function createMetricsCollector(options: MetricsCollectorOptions = {}) {
     metrics.executionCount++;
     metrics.lastSeen = new Date();
 
-    // Track execution time (with limit)
     if (metrics.executionTimes.length < maxExecutionTimeSamples) {
       metrics.executionTimes.push(executionTimeMs);
     } else {
       // Reservoir sampling for bounded memory
       const idx = Math.floor(Math.random() * metrics.executionCount);
+
       if (idx < maxExecutionTimeSamples) {
         metrics.executionTimes[idx] = executionTimeMs;
       }
@@ -240,6 +237,7 @@ export function createMetricsCollector(options: MetricsCollectorOptions = {}) {
   function percentile(sortedArr: number[], p: number): number {
     if (sortedArr.length === 0) return 0;
     const idx = Math.ceil(sortedArr.length * p) - 1;
+
     return sortedArr[Math.max(0, Math.min(idx, sortedArr.length - 1))]!;
   }
 
@@ -258,6 +256,7 @@ export function createMetricsCollector(options: MetricsCollectorOptions = {}) {
 
     for (const [name, internal] of metricsStore) {
       const sortedTimes = [...internal.executionTimes].sort((a, b) => a - b);
+
       const avgTime =
         sortedTimes.length > 0
           ? sortedTimes.reduce((a, b) => a + b, 0) / sortedTimes.length
@@ -358,64 +357,69 @@ export function createMetricsCollector(options: MetricsCollectorOptions = {}) {
     flushInterval = null;
   }
 
-  /**
-   * Wraps a guardrail with metrics tracking
-   */
-  function track<M extends Record<string, unknown>>(
-    guardrail: InputGuardrail<M>,
-  ): InputGuardrail<M>;
-  function track<M extends Record<string, unknown>>(
-    guardrail: OutputGuardrail<M>,
-  ): OutputGuardrail<M>;
-  function track<M extends Record<string, unknown>>(
-    guardrail: InputGuardrail<M> | OutputGuardrail<M>,
-  ): InputGuardrail<M> | OutputGuardrail<M> {
+  /** Returns a copy of the guardrail whose execute calls are timed and recorded. */
+  function instrument<M extends GuardrailMetadata, A extends unknown[]>(
+    guardrail: TrackableGuardrail<M, A>,
+  ): TrackableGuardrail<M, A> {
     return {
       ...guardrail,
-      execute: async (context: any, ...rest: any[]) => {
+      execute: async (...args) => {
         const startTime = Date.now();
 
         try {
-          const result = await (guardrail as any).execute(context, ...rest);
-          const executionTime = Date.now() - startTime;
-
-          recordExecution(guardrail.name, result, executionTime);
+          // Called as a method so guardrails that use `this` keep working.
+          const result = await guardrail.execute(...args);
+          recordExecution(guardrail.name, result, Date.now() - startTime);
 
           return result;
         } catch (error) {
-          const executionTime = Date.now() - startTime;
-
-          const errorResult: GuardrailResult<M> = {
-            tripwireTriggered: true,
-            message: `Execution error: ${error instanceof Error ? error.message : 'Unknown'}`,
-            severity: 'critical',
-            metadata: { error: String(error) } as unknown as M,
-          };
-
-          recordExecution(guardrail.name, errorResult, executionTime);
+          recordExecution(
+            guardrail.name,
+            {
+              tripwireTriggered: true,
+              message: `Execution error: ${error instanceof Error ? error.message : 'Unknown'}`,
+              severity: 'critical',
+              metadata: { error: String(error) },
+            },
+            Date.now() - startTime,
+          );
 
           throw error;
         }
       },
-    } as any;
+    };
+  }
+
+  /**
+   * Wraps a guardrail with metrics tracking
+   */
+  function track<M extends GuardrailMetadata>(
+    guardrail: InputGuardrail<M>,
+  ): InputGuardrail<M>;
+  function track<M extends GuardrailMetadata>(
+    guardrail: OutputGuardrail<M>,
+  ): OutputGuardrail<M>;
+  function track<M extends GuardrailMetadata, A extends unknown[]>(
+    guardrail: TrackableGuardrail<M, A>,
+  ): TrackableGuardrail<M, A> {
+    return instrument(guardrail);
   }
 
   /**
    * Tracks multiple guardrails at once
    */
-  function trackAll<M extends Record<string, unknown>>(
+  function trackAll<M extends GuardrailMetadata>(
     guardrails: InputGuardrail<M>[],
   ): InputGuardrail<M>[];
-  function trackAll<M extends Record<string, unknown>>(
+  function trackAll<M extends GuardrailMetadata>(
     guardrails: OutputGuardrail<M>[],
   ): OutputGuardrail<M>[];
-  function trackAll<M extends Record<string, unknown>>(
-    guardrails: Array<InputGuardrail<M> | OutputGuardrail<M>>,
-  ): Array<InputGuardrail<M> | OutputGuardrail<M>> {
-    return guardrails.map((g) => track(g as any));
+  function trackAll<M extends GuardrailMetadata, A extends unknown[]>(
+    guardrails: TrackableGuardrail<M, A>[],
+  ): TrackableGuardrail<M, A>[] {
+    return guardrails.map((g) => instrument(g));
   }
 
-  // Auto-start if configured
   if (autoStart) {
     start();
   }
@@ -450,10 +454,7 @@ export function createMetricsCollector(options: MetricsCollectorOptions = {}) {
 export function logExecutionSummary(
   summary: GuardrailExecutionSummary,
   options: {
-    logger?: {
-      info: (msg: string, ...args: any[]) => void;
-      warn: (msg: string, ...args: any[]) => void;
-    };
+    logger?: Pick<Logger, 'info' | 'warn'>;
     level?: 'info' | 'warn';
     includeDetails?: boolean;
   } = {},
@@ -544,6 +545,7 @@ export function createHealthCheck(
 
         const errorRate =
           guardrailMetrics.errorCount / guardrailMetrics.executionCount;
+
         const blockRate = guardrailMetrics.blockRate;
 
         if (errorRate > errorRateThreshold) {
@@ -559,6 +561,7 @@ export function createHealthCheck(
             status: 'degraded',
             reason: `High block rate: ${(blockRate * 100).toFixed(1)}%`,
           });
+
           if (overallStatus === 'healthy') {
             overallStatus = 'degraded';
           }
@@ -570,7 +573,7 @@ export function createHealthCheck(
         }
       }
     } else {
-      // No metrics collector, just check if guardrails are configured
+      // Without a collector, only the enabled flag is known.
       for (const guardrail of guardrails) {
         guardrailStatuses.push({
           name: guardrail.name,

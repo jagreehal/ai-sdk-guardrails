@@ -1,8 +1,9 @@
 /**
- * Shared tool-call egress scanning — used by `toolEgressPolicy` and
+ * Shared tool-call egress scanning, used by `toolEgressPolicy` and
  * `evaluationScopeGuardrail` so host/URL rules stay consistent.
  */
 
+import { z } from 'zod';
 import type { AIResult } from '../types';
 
 export interface ToolCallPayload {
@@ -22,53 +23,76 @@ export interface EgressScanOptions {
 
 const BASE64_RUN =
   /(?:[A-Za-z0-9+/]{4}){8,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?/g;
+
 const URL_PATTERN =
   /https?:\/\/[^\s"'<>]+|ftp:\/\/[^\s"'<>]+|file:\/\/[^\s"'<>]+/gi;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object';
-}
+const optionalText = z.string().optional().catch(undefined);
 
-export function stringifyToolArgs(value: unknown): string {
-  if (typeof value === 'string') return value;
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
+/** Serializes tool arguments: strings pass through, everything else as JSON. */
+const argsTextSchema = z.union([
+  z.string(),
+  z.unknown().transform((value) => {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }),
+]);
+
+/** A tool call as found in `content` or `toolCalls`, across SDK and provider shapes. */
+const toolCallSchema = z
+  .object({
+    type: z.unknown().optional(),
+    toolName: optionalText,
+    name: optionalText,
+    input: z.unknown().optional(),
+    args: z.unknown().optional(),
+    parameters: z.unknown().optional(),
+  })
+  .transform((call) => ({
+    type: call.type,
+    toolName: call.toolName ?? call.name ?? 'unknown',
+    argsText: argsTextSchema.parse(
+      call.input ?? call.args ?? call.parameters ?? {},
+    ),
+  }));
+
+const optionalList = z.array(z.unknown()).optional().catch(undefined);
+
+const resultToolFieldsSchema = z.object({
+  content: optionalList,
+  toolCalls: optionalList,
+});
 
 /** Extract tool-call names and serialized args from an AI SDK result. */
 export function extractToolCallPayloads(result: AIResult): ToolCallPayload[] {
   const payloads: ToolCallPayload[] = [];
-  const resultRecord = result as AIResult & Record<string, unknown>;
+  const fields = resultToolFieldsSchema.safeParse(result);
 
-  if (Array.isArray(resultRecord.content)) {
-    for (const item of resultRecord.content) {
-      if (!isRecord(item) || item.type !== 'tool-call') continue;
-      const toolName =
-        typeof item.toolName === 'string'
-          ? item.toolName
-          : typeof item.name === 'string'
-            ? item.name
-            : 'unknown';
-      const rawInput = item.input ?? item.args ?? item.parameters ?? {};
-      payloads.push({ toolName, argsText: stringifyToolArgs(rawInput) });
-    }
+  if (!fields.success) return payloads;
+
+  for (const item of fields.data.content ?? []) {
+    const call = toolCallSchema.safeParse(item);
+
+    if (!call.success || call.data.type !== 'tool-call') continue;
+
+    payloads.push({
+      toolName: call.data.toolName,
+      argsText: call.data.argsText,
+    });
   }
 
-  if (Array.isArray(resultRecord.toolCalls)) {
-    for (const call of resultRecord.toolCalls) {
-      if (!isRecord(call)) continue;
-      const toolName =
-        typeof call.toolName === 'string'
-          ? call.toolName
-          : typeof call.name === 'string'
-            ? call.name
-            : 'unknown';
-      const rawInput = call.input ?? call.args ?? call.parameters ?? {};
-      payloads.push({ toolName, argsText: stringifyToolArgs(rawInput) });
-    }
+  for (const item of fields.data.toolCalls ?? []) {
+    const call = toolCallSchema.safeParse(item);
+
+    if (!call.success) continue;
+
+    payloads.push({
+      toolName: call.data.toolName,
+      argsText: call.data.argsText,
+    });
   }
 
   return payloads;
@@ -79,7 +103,7 @@ export function hostMatches(
   patterns: (string | RegExp)[],
 ): boolean {
   return patterns.some((pattern) =>
-    typeof pattern === 'string' ? host === pattern : pattern.test(host),
+    pattern instanceof RegExp ? pattern.test(host) : host === pattern,
   );
 }
 
@@ -94,6 +118,7 @@ export function scanTextEgressViolations(
   prefix: string,
 ): string[] {
   const violations: string[] = [];
+
   const {
     allowedHosts = [],
     blockedHosts = [],
@@ -113,6 +138,7 @@ export function scanTextEgressViolations(
   }
 
   const urls = text.match(URL_PATTERN) ?? [];
+
   for (const url of urls) {
     try {
       const parsed = new URL(url);
@@ -123,6 +149,7 @@ export function scanTextEgressViolations(
       }
 
       const host = parsed.hostname;
+
       if (
         !allowLocalhost &&
         (host === 'localhost' ||
@@ -149,6 +176,7 @@ export function scanTextEgressViolations(
 
   if (blockBase64Payloads) {
     const runs = text.match(BASE64_RUN) ?? [];
+
     for (const run of runs) {
       if (run.length >= minBase64Length) {
         violations.push(

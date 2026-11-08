@@ -1,5 +1,8 @@
+import type { GuardrailResult } from '../enhanced-types';
 import type { InputGuardrail, InputGuardrailContext } from '../types';
 import { toNormalizedGuardrailContext } from './internal';
+
+import type { GuardrailMetadata } from '../enhanced-types';
 
 /**
  * Run an input guardrail only on a user turn (the newest message in the
@@ -25,7 +28,7 @@ import { toNormalizedGuardrailContext } from './internal';
  * Decided from the request alone, with no shared step counter, so it is safe
  * under concurrent calls to the same agent.
  */
-export function onUserTurn<M extends Record<string, unknown>>(
+export function onUserTurn<M extends GuardrailMetadata>(
   guardrail: InputGuardrail<M>,
 ): InputGuardrail<M> {
   return {
@@ -36,12 +39,14 @@ export function onUserTurn<M extends Record<string, unknown>>(
     ) => {
       const { messages } = toNormalizedGuardrailContext(context);
       const newest = messages.at(-1);
+
       // A bare `prompt` with no messages is a user turn by definition.
       if (newest && newest.role !== 'user') {
-        return { tripwireTriggered: false } as Awaited<
-          ReturnType<InputGuardrail<M>['execute']>
-        >;
+        const skipped: GuardrailResult<M> = { tripwireTriggered: false };
+
+        return skipped;
       }
+
       return guardrail.execute(context, options);
     },
   };

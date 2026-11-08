@@ -11,16 +11,20 @@
 import { describe, it, expect } from 'vitest';
 import { generateText } from 'ai';
 import { model } from './model';
-import { defineInputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
+import {
+  defineInputGuardrail,
+  withGuardrails,
+  type GuardrailMetadata,
+} from 'ai-sdk-guardrails';
 import { extractTextContent } from 'ai-sdk-guardrails/guardrails/input';
 
 // Define types for PII detection metadata
-interface DetectedPII {
+type DetectedPII = {
   type: string;
   description: string;
-}
+};
 
-interface PIIMetadata extends Record<string, unknown> {
+interface PIIMetadata extends GuardrailMetadata {
   detectedTypes: DetectedPII[];
   count: number;
 }

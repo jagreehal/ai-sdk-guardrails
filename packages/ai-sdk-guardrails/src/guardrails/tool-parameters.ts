@@ -7,13 +7,21 @@
 
 /* eslint-disable unicorn/numeric-separators-style */
 
+import type { JSONValue } from '@ai-sdk/provider';
 import type { ToolSet } from 'ai';
-import type { RequestContext } from '../types';
+import { z } from 'zod';
+import type { GuardrailResult, RequestContext } from '../types';
+
+/** Default payload type of a {@link RequestContext}. */
+type RequestContextData = NonNullable<RequestContext['metadata']>;
+
+/** Metadata attached to a guardrail result. */
+type ResultMetadata = NonNullable<GuardrailResult['metadata']>;
 
 /**
  * Context provided to tool parameter validators
  */
-export interface ToolValidationContext<TContext = Record<string, unknown>> {
+export interface ToolValidationContext<TContext = RequestContextData> {
   /** Name of the tool being called */
   toolName: string;
   /** The tool call ID */
@@ -37,7 +45,7 @@ export interface ToolValidationResult<T = unknown> {
   /** Severity of the issue */
   severity?: 'low' | 'medium' | 'high' | 'critical';
   /** Additional metadata about the validation */
-  metadata?: Record<string, unknown>;
+  metadata?: ResultMetadata;
 }
 
 /**
@@ -45,7 +53,7 @@ export interface ToolValidationResult<T = unknown> {
  */
 export interface ToolParameterGuardrail<
   TInput = unknown,
-  TContext = Record<string, unknown>,
+  TContext = RequestContextData,
 > {
   /** Unique name for this guardrail */
   name: string;
@@ -53,19 +61,21 @@ export interface ToolParameterGuardrail<
   description?: string;
   /** Tool name(s) this guardrail applies to */
   toolName: string | RegExp | string[];
-  /** Validation function */
-  validateInput: (
+  /**
+   * Validation function. Method syntax keeps the guardrail bivariant in
+   * TInput, so typed guardrails (e.g. `sqlInjectionGuardrail()`) mix in one
+   * array with untyped ones.
+   */
+  validateInput(
     input: TInput,
     context: ToolValidationContext<TContext>,
-  ) => Promise<ToolValidationResult<TInput>> | ToolValidationResult<TInput>;
+  ): Promise<ToolValidationResult<TInput>> | ToolValidationResult<TInput>;
 }
 
 /**
  * Options for tool parameter guardrails wrapper
  */
-export interface ToolParameterGuardrailsOptions<
-  TContext = Record<string, unknown>,
-> {
+export interface ToolParameterGuardrailsOptions<TContext = RequestContextData> {
   /** Request-scoped context */
   requestContext?: RequestContext<TContext>;
   /** Whether to throw on validation failure (default: true) */
@@ -73,7 +83,7 @@ export interface ToolParameterGuardrailsOptions<
   /** Callback when validation fails */
   onValidationFailed?: (
     toolName: string,
-    input: unknown,
+    input: JSONValue,
     results: ToolValidationResult[],
   ) => void;
 }
@@ -85,16 +95,15 @@ function matchesToolName(
   guardrailToolName: string | RegExp | string[],
   toolName: string,
 ): boolean {
-  if (typeof guardrailToolName === 'string') {
-    return guardrailToolName === toolName || guardrailToolName === '*';
-  }
   if (guardrailToolName instanceof RegExp) {
     return guardrailToolName.test(toolName);
   }
+
   if (Array.isArray(guardrailToolName)) {
     return guardrailToolName.includes(toolName);
   }
-  return false;
+
+  return guardrailToolName === toolName || guardrailToolName === '*';
 }
 
 /**
@@ -154,7 +163,7 @@ function matchesToolName(
  */
 export function withToolParameterGuardrails<
   TOOLS extends ToolSet,
-  TContext = Record<string, unknown>,
+  TContext = RequestContextData,
 >(
   tools: TOOLS,
   guardrails: ToolParameterGuardrail<unknown, TContext>[],
@@ -162,27 +171,21 @@ export function withToolParameterGuardrails<
 ): TOOLS {
   const { throwOnInvalid = true, onValidationFailed, requestContext } = options;
 
-  const wrappedTools: Record<string, unknown> = {};
+  const wrappedTools: ToolSet = {};
 
   for (const [toolName, tool] of Object.entries(tools)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const originalTool = tool as any;
-
-    // Find guardrails that apply to this tool
     const applicableGuardrails = guardrails.filter((g) =>
       matchesToolName(g.toolName, toolName),
     );
 
     if (applicableGuardrails.length === 0) {
-      // No guardrails for this tool, pass through unchanged
       wrappedTools[toolName] = tool;
       continue;
     }
 
-    // Create wrapped tool with validation
     wrappedTools[toolName] = {
-      ...originalTool,
-      execute: async (input: unknown, execOptions?: unknown) => {
+      ...tool,
+      execute: async (input, execOptions) => {
         const context: ToolValidationContext<TContext> = {
           toolName,
           requestContext,
@@ -191,7 +194,6 @@ export function withToolParameterGuardrails<
         let currentInput = input;
         const failedResults: ToolValidationResult[] = [];
 
-        // Run all applicable guardrails
         for (const guardrail of applicableGuardrails) {
           const result = await guardrail.validateInput(currentInput, context);
 
@@ -199,7 +201,6 @@ export function withToolParameterGuardrails<
             failedResults.push(result);
 
             if (result.block) {
-              // Immediate block
               if (onValidationFailed) {
                 onValidationFailed(toolName, input, [result]);
               }
@@ -220,12 +221,10 @@ export function withToolParameterGuardrails<
               };
             }
           } else if (result.sanitizedInput !== undefined) {
-            // Use sanitized input for next guardrail and execution
             currentInput = result.sanitizedInput;
           }
         }
 
-        // If any guardrails failed (but didn't block), report them
         if (failedResults.length > 0) {
           if (onValidationFailed) {
             onValidationFailed(toolName, input, failedResults);
@@ -242,12 +241,13 @@ export function withToolParameterGuardrails<
           }
         }
 
-        // Execute with (potentially sanitized) input
-        return originalTool.execute(currentInput, execOptions);
+        return tool.execute!(currentInput, execOptions);
       },
     };
   }
 
+  // SAFETY: wrappedTools has exactly the keys of `tools`; each value is the
+  // original tool, or a copy whose `execute` forwards to the original's.
   return wrappedTools as TOOLS;
 }
 
@@ -357,6 +357,7 @@ export function pathTraversalGuardrail(
         const isAllowed = options.allowedPaths.some((allowed) =>
           path.startsWith(allowed),
         );
+
         if (!isAllowed) {
           return {
             valid: false,
@@ -376,13 +377,15 @@ export function pathTraversalGuardrail(
 /**
  * Creates a guardrail that enforces parameter length limits
  */
-export function parameterLengthGuardrail(
+export function parameterLengthGuardrail<
+  TInput extends Record<string, unknown>,
+>(
   options: {
     toolName?: string | string[];
     maxLength?: number;
     fields?: string[];
   } = {},
-): ToolParameterGuardrail<Record<string, unknown>> {
+): ToolParameterGuardrail<TInput> {
   const maxLength = options.maxLength || 10000;
 
   return {
@@ -393,14 +396,15 @@ export function parameterLengthGuardrail(
       const fields = options.fields || Object.keys(input);
 
       for (const field of fields) {
-        const value = input[field];
-        if (typeof value === 'string' && value.length > maxLength) {
+        const value = z.string().safeParse(input[field]);
+
+        if (value.success && value.data.length > maxLength) {
           return {
             valid: false,
             block: true,
-            message: `Parameter "${field}" exceeds maximum length (${value.length} > ${maxLength})`,
+            message: `Parameter "${field}" exceeds maximum length (${value.data.length} > ${maxLength})`,
             severity: 'medium',
-            metadata: { field, length: value.length, maxLength },
+            metadata: { field, length: value.data.length, maxLength },
           };
         }
       }
@@ -413,7 +417,7 @@ export function parameterLengthGuardrail(
 /**
  * Creates a role-based access control guardrail for tools
  */
-export function toolRBACGuardrail<TContext = Record<string, unknown>>(options: {
+export function toolRBACGuardrail<TContext = RequestContextData>(options: {
   toolName: string | string[];
   requiredPermissions: string[];
   mode?: 'any' | 'all';

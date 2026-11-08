@@ -1,11 +1,18 @@
+import type { GuardrailMetadata } from '../enhanced-types';
+import { z } from 'zod';
 import { createInputGuardrail, type InputGuardrail } from '../core';
-import type { InputGuardrailContext } from '../types';
+import type {
+  EmbedParams,
+  GuardrailResult,
+  InputGuardrailContext,
+} from '../types';
 import {
   normalizeForDetection,
   type DetectNormalizationOptions,
 } from './normalization';
+import { matchInjectionSignals } from './injection-signals';
+import { assessToxicity } from './toxicity-signals';
 
-// Standardized severity levels
 const SEVERITY_LEVELS = {
   LOW: 'low',
   MEDIUM: 'medium',
@@ -15,8 +22,11 @@ const SEVERITY_LEVELS = {
 
 type SeverityLevel = (typeof SEVERITY_LEVELS)[keyof typeof SEVERITY_LEVELS];
 
-// Standardized metadata schema
-interface StandardMetadata {
+/** Metadata attached to a guardrail result. */
+type ResultMetadata = NonNullable<GuardrailResult['metadata']>;
+
+/** Fields every built-in input guardrail reports, plus its own extras. */
+interface StandardMetadata extends ResultMetadata {
   ruleId: string;
   ruleVersion: string;
   phase: 'pre-input';
@@ -27,11 +37,10 @@ interface StandardMetadata {
   model?: string;
   temperature?: number;
   maxOutputTokens?: number;
-  [key: string]: unknown;
 }
 
-// Type definitions for message content
 interface MessageContent {
+  role?: string;
   content?: unknown;
 }
 
@@ -42,16 +51,20 @@ interface ContextWithUser {
   };
 }
 
-// Discriminated union for input types - removed unused interfaces
-
-// Improved type guards
-function isEmbedParams(context: InputGuardrailContext): boolean {
+function isEmbedParams(context: InputGuardrailContext): context is EmbedParams {
   return (
     'value' in context && !('prompt' in context) && !('messages' in context)
   );
 }
 
 // cspell:ignore AISDK
+const optionsObject = z.looseObject({});
+
+/** True when an `options | number` argument is the options object, not the numeric shorthand. */
+function isOptionsObject<T extends object>(options: T | number): options is T {
+  return optionsObject.safeParse(options).success;
+}
+
 function isAISDKParams(context: InputGuardrailContext): boolean {
   return 'prompt' in context || 'messages' in context || 'system' in context;
 }
@@ -62,18 +75,47 @@ function hasContextProperty(
   return 'context' in context;
 }
 
-// Precompiled regexes for performance
 const PII_PATTERNS = {
   email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+  // Needs separators or parentheses: a bare 10-digit run is more often a Unix
+  // timestamp or order id than a phone number.
   phone:
-    /\b(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/g,
+    /(?<![\w.])(?:\+?1[-.\s])?(?:\(\d{3}\)\s?|\d{3}[-.\s])\d{3}[-.\s]\d{4}(?![\w.])/g,
+  internationalPhone:
+    /(?<![\w+])\+(?:[2-9]\d{0,2})[\s.-]?\(?\d{1,4}\)?(?:[\s.-]?\d{2,4}){2,4}(?!\w)/g,
   ssn: /\b\d{3}-\d{2}-\d{4}\b/g,
   creditCard: /\b(?:\d{4}[\s-]?){3}\d{4}\b/g,
   ipAddress:
     /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g,
+  iban: /\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,4})?\b/g,
+  // "jane dot doe at example dot com", "jane [at] example [dot] com"
+  obfuscatedEmail:
+    /\b[a-z0-9._%+-]+\s*[([{]?\s*(?:at|@)\s*[)\]}]?\s*[a-z0-9-]+\s*[([{]?\s*(?:dot|\.)\s*[)\]}]?\s*(?:com|org|net|io|co|uk|edu|gov|dev|info|me)\b/gi,
+  streetAddress:
+    /\b\d{1,5}\s+(?:[A-Z][a-z]+\.?\s+){1,3}(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Way|Place|Pl|Terrace|Close|Crescent|Parkway|Pkwy|Highway|Hwy)\b\.?/g,
 } as const;
 
-// Utility functions for text processing
+/** ISO 13616 mod-97 check, so random letter/digit runs are not reported as IBANs. */
+function ibanCheck(value: string): boolean {
+  const iban = value.replaceAll(' ', '');
+
+  if (iban.length < 15 || iban.length > 34) return false;
+  const rearranged = iban.slice(4) + iban.slice(0, 4);
+  let remainder = 0;
+
+  for (const ch of rearranged) {
+    const n = Number.parseInt(ch, 36);
+
+    if (Number.isNaN(n)) return false;
+
+    for (const digit of String(n)) {
+      remainder = (remainder * 10 + Number(digit)) % 97;
+    }
+  }
+
+  return remainder === 1;
+}
+
 function countBytes(text: string): number {
   return new TextEncoder().encode(text).length;
 }
@@ -88,7 +130,7 @@ function countWords(text: string): number {
 function createStandardMetadata(
   ruleId: string,
   context: InputGuardrailContext,
-  additionalData: Record<string, unknown> = {},
+  additionalData: ResultMetadata = {},
 ): StandardMetadata {
   const { prompt, messages, system } = extractTextContent(context);
   const { model, temperature, maxOutputTokens } = extractMetadata(context);
@@ -111,13 +153,8 @@ function createStandardMetadata(
   };
 }
 
-// Centralized content extraction with caching
-const contentCache = new WeakMap<
-  InputGuardrailContext,
-  ReturnType<typeof extractTextContent>
->();
-
-export function extractTextContent(context: InputGuardrailContext): {
+/** Text gathered from an input guardrail context. */
+interface ExtractedTextContent {
   prompt: string;
   messages: Array<{ content?: unknown }>;
   system: string;
@@ -125,33 +162,54 @@ export function extractTextContent(context: InputGuardrailContext): {
   allTextLower: string;
   totalBytes: number;
   totalWords: number;
-} {
-  // Check cache first
-  const cached = contentCache.get(context);
+}
+
+const contentCache = new WeakMap<InputGuardrailContext, ExtractedTextContent>();
+
+const contentWithToolsCache = new WeakMap<
+  InputGuardrailContext,
+  ExtractedTextContent
+>();
+
+/** Extracts prompt, messages, system text and derived counts. Cached per context object. */
+/**
+ * Text an input guardrail should scan. Tool results (`tool` messages) are left
+ * out unless `includeToolResults` is set, so length, PII and similar rails judge
+ * what the user sent; injection detectors opt in to scan tool output too.
+ */
+export function extractTextContent(
+  context: InputGuardrailContext,
+  { includeToolResults = false }: { includeToolResults?: boolean } = {},
+): ExtractedTextContent {
+  const cache = includeToolResults ? contentWithToolsCache : contentCache;
+  const cached = cache.get(context);
+
   if (cached) return cached;
 
   let prompt: string;
   let messages: Array<{ content?: unknown }>;
   let system: string;
 
-  // Handle embed params - only has 'value' property
   if (isEmbedParams(context)) {
-    const embedContext = context as { value: unknown };
-    prompt = String(embedContext.value || '');
+    prompt = String(context.value || '');
     messages = [];
     system = '';
   } else if (isAISDKParams(context)) {
-    // Handle AI SDK params that have prompt/messages/system
+    // SAFETY: these fields are read as-is for text scanning. A normalized
+    // context matches this type exactly; raw generate/stream params may carry
+    // `prompt` as a message array, which is then stringified the same way.
     const aiContext = context as {
       prompt?: string;
       messages?: MessageContent[];
       system?: string;
     };
+
     prompt = aiContext.prompt || '';
-    messages = aiContext.messages || [];
+    messages = (aiContext.messages || []).filter(
+      (message) => includeToolResults || message.role !== 'tool',
+    );
     system = aiContext.system || '';
   } else {
-    // Fallback for unknown types
     prompt = '';
     messages = [];
     system = '';
@@ -173,29 +231,32 @@ export function extractTextContent(context: InputGuardrailContext): {
     totalWords: countWords(allText),
   };
 
-  // Cache the result
-  contentCache.set(context, result);
+  cache.set(context, result);
+
   return result;
 }
 
-// Helper function to safely extract metadata from context
-export function extractMetadata(context: InputGuardrailContext): {
+/** Model settings read from an input guardrail context. */
+interface ContextModelSettings {
   model?: unknown;
   temperature?: number;
   maxOutputTokens?: number;
-} {
+}
+
+/** Reads model, temperature and maxOutputTokens from AI SDK params, if present. */
+export function extractMetadata(
+  context: InputGuardrailContext,
+): ContextModelSettings {
   if (isAISDKParams(context)) {
-    const aiContext = context as {
-      model?: unknown;
-      temperature?: number;
-      maxOutputTokens?: number;
-    };
+    const aiContext: ContextModelSettings = context;
+
     return {
       model: aiContext.model,
       temperature: aiContext.temperature,
       maxOutputTokens: aiContext.maxOutputTokens,
     };
   }
+
   return {};
 }
 
@@ -209,18 +270,17 @@ export interface LengthLimitOptions {
 export const inputLengthLimit = (
   options: LengthLimitOptions | number,
 ): InputGuardrail => {
-  const opts =
-    typeof options === 'number'
-      ? {
-          maxLength: options,
-          countMethod: 'characters' as const,
-          severity: SEVERITY_LEVELS.MEDIUM,
-        }
-      : {
-          countMethod: 'characters' as const,
-          severity: SEVERITY_LEVELS.MEDIUM,
-          ...options,
-        };
+  const opts = isOptionsObject(options)
+    ? {
+        countMethod: 'characters' as const,
+        severity: SEVERITY_LEVELS.MEDIUM,
+        ...options,
+      }
+    : {
+        maxLength: options,
+        countMethod: 'characters' as const,
+        severity: SEVERITY_LEVELS.MEDIUM,
+      };
 
   return createInputGuardrail(
     'input-length-limit',
@@ -237,11 +297,13 @@ export const inputLengthLimit = (
           unit = 'bytes';
           break;
         }
+
         case 'words': {
           currentLength = content.totalWords;
           unit = 'words';
           break;
         }
+
         default: {
           currentLength = content.allText.length;
           unit = 'characters';
@@ -279,7 +341,7 @@ export const inputLengthLimit = (
 export const lengthLimit = (maxLength: number): InputGuardrail =>
   inputLengthLimit({ maxLength, countMethod: 'characters' });
 
-// Improved blocked words with word boundaries and allowlist support
+// Blocked words matched on word boundaries, with an allowlist
 export interface BlockedWordsOptions {
   words: string[];
   allowlist?: string[];
@@ -290,6 +352,7 @@ export interface BlockedWordsOptions {
 function createWordBoundaryRegex(word: string): RegExp {
   // Escape special regex characters and create word boundary pattern
   const escaped = word.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+
   return new RegExp(String.raw`\b${escaped}\b`, 'i');
 }
 
@@ -326,6 +389,7 @@ export const blockedWords = (
         const allowlistMatch = opts.allowlist.some((phrase) =>
           content.allTextLower.includes(phrase.toLowerCase()),
         );
+
         if (allowlistMatch) {
           return {
             tripwireTriggered: false,
@@ -383,7 +447,7 @@ export const blockedKeywords = (keywords: string[]): InputGuardrail =>
     severity: SEVERITY_LEVELS.HIGH,
   });
 
-// Enhanced rate limiting with server hints and backoff recommendations
+// Rate limiting with server hints and backoff recommendations
 export interface RateLimitingOptions {
   maxRequestsPerMinute: number;
   windowMs?: number;
@@ -394,20 +458,19 @@ export interface RateLimitingOptions {
 export const rateLimiting = (
   options: RateLimitingOptions | number,
 ): InputGuardrail => {
-  const opts =
-    typeof options === 'number'
-      ? {
-          maxRequestsPerMinute: options,
-          windowMs: 60_000,
-          privacyMode: true,
-          includeServerHints: true,
-        }
-      : {
-          windowMs: 60_000,
-          privacyMode: true,
-          includeServerHints: true,
-          ...options,
-        };
+  const opts = isOptionsObject(options)
+    ? {
+        windowMs: 60_000,
+        privacyMode: true,
+        includeServerHints: true,
+        ...options,
+      }
+    : {
+        maxRequestsPerMinute: options,
+        windowMs: 60_000,
+        privacyMode: true,
+        includeServerHints: true,
+      };
 
   const requestCounts = new Map<
     string,
@@ -423,12 +486,14 @@ export const rateLimiting = (
 
       let contextData:
         { user?: { id?: string }; request?: { ip?: string } } | undefined;
+
       if (hasContextProperty(inputContext)) {
         contextData = inputContext.context;
       }
 
       const key =
         contextData?.user?.id || contextData?.request?.ip || 'default';
+
       const now = Date.now();
       const windowMs = opts.windowMs;
 
@@ -502,7 +567,7 @@ export const rateLimiting = (
   );
 };
 
-// Improved profanity filter with categories and severity mapping
+// Profanity filter with categories and severity mapping
 export interface ProfanityCategory {
   words: string[];
   severity: SeverityLevel;
@@ -516,7 +581,7 @@ export interface ProfanityFilterOptions {
   useWordBoundaries?: boolean;
 }
 
-// Default profanity categories (externalized for easy configuration)
+// Default profanity categories
 const DEFAULT_PROFANITY_CATEGORIES: ProfanityCategory[] = [
   {
     category: 'mild',
@@ -620,7 +685,7 @@ export const profanityFilter = (
   );
 };
 
-// Enhanced custom validation with clear contract and reason codes
+// Custom validation with reason codes
 export interface CustomValidationInput {
   prompt: string;
   messages: Array<{ content?: unknown }>;
@@ -637,7 +702,7 @@ export interface CustomValidationInput {
 export interface CustomValidationResult {
   isValid: boolean;
   reasonCode?: string;
-  details?: Record<string, unknown>;
+  details?: GuardrailMetadata;
 }
 
 type CustomValidationFn = (
@@ -686,11 +751,11 @@ export const customValidation = (
 
     const result = opts.validator(validatorInput);
 
-    // Handle both boolean and object results for backward compatibility
-    const isValid = typeof result === 'boolean' ? result : result.isValid;
-    const reasonCode =
-      typeof result === 'object' ? result.reasonCode : opts.reasonCode;
-    const details = typeof result === 'object' ? result.details : {};
+    // Validators may return a bare boolean or a detailed result.
+    const detailed = result === true || result === false ? undefined : result;
+    const isValid = detailed ? detailed.isValid : result === true;
+    const reasonCode = detailed ? detailed.reasonCode : opts.reasonCode;
+    const details = detailed ? detailed.details : {};
 
     const metadata = createStandardMetadata('GR-IN-009', context, {
       validatorName: opts.name,
@@ -715,6 +780,12 @@ export const customValidation = (
     };
   });
 };
+
+interface DetectedInjectionPattern {
+  pattern: string;
+  weight: number;
+  example: string | undefined;
+}
 
 // Prompt injection patterns with confidence scoring
 export interface PromptInjectionOptions {
@@ -907,34 +978,55 @@ export const promptInjectionDetector = (
     'prompt-injection-detector',
     'Detects potential prompt injection attempts with confidence scoring',
     (context) => {
-      const content = extractTextContent(context);
+      const content = extractTextContent(context, { includeToolResults: true });
       // Normalization is additive: a pattern matches if it hits either the raw
       // or the normalized text, so de-obfuscation never *loses* a detection
       // (e.g. leetspeak decoding must not mangle a literal IP like 169.254.x.x).
       const rawText = content.allText;
+
       const scanText =
         normalize === false
           ? rawText
           : normalizeForDetection(rawText, normalize);
 
-      const detectedPatterns = injectionPatterns
-        .filter(
-          ({ pattern }) => pattern.test(scanText) || pattern.test(rawText),
-        )
-        .map(({ pattern, weight, example }) => ({
-          pattern: pattern.source,
-          weight,
-          example: includeExamples ? example : undefined,
-        }));
+      const detectedPatterns = injectionPatterns.flatMap(
+        ({ pattern, weight, example }): DetectedInjectionPattern[] =>
+          pattern.test(scanText) || pattern.test(rawText)
+            ? [
+                {
+                  pattern: pattern.source,
+                  weight,
+                  example: includeExamples ? example : undefined,
+                },
+              ]
+            : [],
+      );
 
       let confidence = 0;
+
       if (detectedPatterns.length > 0) {
         let totalWeight = 0;
+
         for (const p of detectedPatterns) {
           totalWeight += p.weight;
         }
+
         confidence = Math.min(totalWeight / detectedPatterns.length, 1);
       }
+
+      // Shared phrase-level signals, checked against decoded/de-obfuscated
+      // variants too (base64, hex, NFKC, split letters, multilingual…).
+      const signals = matchInjectionSignals(rawText, normalize);
+
+      for (const sig of signals) {
+        detectedPatterns.push({
+          pattern: sig.pattern,
+          weight: sig.weight,
+          example: undefined,
+        });
+      }
+
+      confidence = Math.max(confidence, signals[0]?.weight ?? 0);
 
       const metadata = createStandardMetadata('GR-IN-005', context, {
         patternsDetected: detectedPatterns.length,
@@ -942,7 +1034,7 @@ export const promptInjectionDetector = (
         threshold,
         suspiciousPatterns: detectedPatterns.map((p) => p.pattern),
         examples: includeExamples
-          ? detectedPatterns.map((p) => p.example).filter(Boolean)
+          ? detectedPatterns.flatMap((p) => (p.example ? [p.example] : []))
           : undefined,
       });
 
@@ -971,15 +1063,20 @@ export const promptInjectionDetector = (
 // Shannon entropy in bits/char — high values flag encoded/obfuscated payloads.
 function shannonEntropy(text: string): number {
   const freq = new Map<string, number>();
+
   for (const char of text) {
     freq.set(char, (freq.get(char) ?? 0) + 1);
   }
+
   let entropy = 0;
   const len = text.length;
+
   for (const count of freq.values()) {
     const p = count / len;
+
     if (p > 0) entropy -= p * Math.log2(p);
   }
+
   return entropy;
 }
 
@@ -1047,6 +1144,7 @@ export const highEntropyDetector = (
 // cspell:ignore luhn
 function luhnCheck(cardNumber: string): boolean {
   const digits = cardNumber.replaceAll(/\D/g, '');
+
   if (digits.length < 13 || digits.length > 19) return false;
 
   let sum = 0;
@@ -1057,6 +1155,7 @@ function luhnCheck(cardNumber: string): boolean {
 
     if (isEven) {
       digit *= 2;
+
       if (digit > 9) digit -= 9;
     }
 
@@ -1073,15 +1172,19 @@ function maskSensitiveData(text: string, type: string): string {
     case 'email': {
       return text.replace(/(.{2}).*(@.*)/, '$1***$2');
     }
+
     case 'phone': {
       return text.replace(/(\d{3})\d{3}(\d{4})/, '$1***$2');
     }
+
     case 'ssn': {
       return text.replace(/(\d{3})-\d{2}-(\d{4})/, '$1-**-$2');
     }
+
     case 'creditCard': {
       return text.replace(/(\d{4})\d{8,12}(\d{4})/, '$1****$2');
     }
+
     default: {
       return text.slice(0, 4) + '***' + text.slice(-4);
     }
@@ -1101,15 +1204,26 @@ export const piiDetector = (): InputGuardrail =>
         maskedMatches: string[];
       }> = [];
 
-      // Check each PII type
       for (const [type, pattern] of Object.entries(PII_PATTERNS)) {
         const matches = content.allText.match(pattern);
+
         if (matches) {
           let validMatches = [...matches];
 
           // Additional validation for credit cards
           if (type === 'creditCard') {
             validMatches = validMatches.filter((match) => luhnCheck(match));
+          } else if (type === 'iban') {
+            validMatches = validMatches.filter((match) => ibanCheck(match));
+          } else if (type === 'obfuscatedEmail') {
+            // Only the spelled-out form; real addresses are caught by `email`.
+            validMatches = validMatches.filter((match) =>
+              /\b(?:at|dot)\b/i.test(match),
+            );
+          } else if (type === 'internationalPhone') {
+            validMatches = validMatches.filter(
+              (match) => match.replaceAll(/\D/g, '').length >= 9,
+            );
           }
 
           // Filter out emails in URLs
@@ -1170,6 +1284,7 @@ export const toxicityDetector = (threshold: number = 0.7): InputGuardrail =>
     'Detects toxic and harmful content in input',
     (context) => {
       const { prompt, messages, system } = extractTextContent(context);
+
       const allText = [
         prompt,
         ...messages.map((msg: MessageContent) => String(msg?.content || '')),
@@ -1178,24 +1293,17 @@ export const toxicityDetector = (threshold: number = 0.7): InputGuardrail =>
         .join(' ')
         .toLowerCase();
 
-      // Simple toxicity detection - in production, use a proper toxicity API
-      const toxicWords = [
-        'hate',
-        'kill',
-        'die',
-        'stupid',
-        'idiot',
-        'moron',
-        'toxic',
-        'harmful',
-      ];
-      const detectedWords = toxicWords.filter((word) => allText.includes(word));
-      const toxicityScore = detectedWords.length * 0.3;
+      // Phrase-level abuse signals (threats, insults, harassment aimed at a
+      // person), checked on raw and de-obfuscated text.
+      const assessment = assessToxicity(allText);
+      const toxicityScore = assessment.score;
+      const detectedWords = assessment.matches;
+      const categories = assessment.categories;
 
       return {
-        tripwireTriggered: toxicityScore > threshold,
+        tripwireTriggered: toxicityScore >= threshold,
         message:
-          toxicityScore > threshold
+          toxicityScore >= threshold
             ? `Toxic content detected (score: ${toxicityScore})`
             : undefined,
         severity: toxicityScore > 0.8 ? 'critical' : 'high',
@@ -1203,6 +1311,7 @@ export const toxicityDetector = (threshold: number = 0.7): InputGuardrail =>
           toxicityScore,
           threshold,
           detectedWords,
+          categories,
           textLength: allText.length,
         },
         suggestion: 'Please use respectful and constructive language',
@@ -1285,7 +1394,6 @@ export const mathHomeworkDetector = (
     (context) => {
       const content = extractTextContent(context);
 
-      // Check if context suggests educational use
       const hasEducationalContext = educationalContexts.some((ctx) =>
         content.allTextLower.includes(ctx),
       );
@@ -1294,7 +1402,6 @@ export const mathHomeworkDetector = (
         content.allTextLower.includes(ctx.toLowerCase()),
       );
 
-      // Skip detection if educational context is present
       if (hasEducationalContext || hasAllowedContext) {
         return {
           tripwireTriggered: false,
@@ -1315,6 +1422,7 @@ export const mathHomeworkDetector = (
       const keywordMatches = mathKeywords.filter((keyword) =>
         content.allTextLower.includes(keyword),
       );
+
       const patternMatches = mathPatterns.filter((pattern) =>
         pattern.test(content.allText),
       );
@@ -1351,7 +1459,7 @@ export const mathHomeworkDetector = (
   );
 };
 
-// Enhanced code generation limiter with canonical language names and modes
+// Code generation limiter with canonical language names and modes
 export type CodeGenerationMode = 'deny' | 'allow-only';
 
 export interface CodeGenerationOptions {
@@ -1362,55 +1470,56 @@ export interface CodeGenerationOptions {
 }
 
 // cspell:ignore cplusplus aspnet laravel symfony
-// Canonical language mapping
-const LANGUAGE_ALIASES: Record<string, string> = {
-  javascript: 'javascript',
-  js: 'javascript',
-  node: 'javascript',
-  react: 'javascript',
-  angular: 'javascript',
-  vue: 'javascript',
-  python: 'python',
-  py: 'python',
-  django: 'python',
-  flask: 'python',
-  pandas: 'python',
-  java: 'java',
-  spring: 'java',
-  hibernate: 'java',
-  'c++': 'cpp',
-  cpp: 'cpp',
-  'c plus plus': 'cpp',
-  cplusplus: 'cpp',
-  'c#': 'csharp',
-  csharp: 'csharp',
-  dotnet: 'csharp',
-  'asp.net': 'csharp',
-  aspnet: 'csharp',
-  php: 'php',
-  laravel: 'php',
-  symfony: 'php',
-  ruby: 'ruby',
-  rails: 'ruby',
-  gem: 'ruby',
-  go: 'go',
-  golang: 'go',
-  rust: 'rust',
-  cargo: 'rust',
-  sql: 'sql',
-  mysql: 'sql',
-  postgresql: 'sql',
-  oracle: 'sql',
-  typescript: 'typescript',
-  ts: 'typescript',
-  html: 'html',
-  css: 'css',
-  scss: 'css',
-  sass: 'css',
-};
+const LANGUAGE_ALIASES = new Map(
+  Object.entries({
+    javascript: 'javascript',
+    js: 'javascript',
+    node: 'javascript',
+    react: 'javascript',
+    angular: 'javascript',
+    vue: 'javascript',
+    python: 'python',
+    py: 'python',
+    django: 'python',
+    flask: 'python',
+    pandas: 'python',
+    java: 'java',
+    spring: 'java',
+    hibernate: 'java',
+    'c++': 'cpp',
+    cpp: 'cpp',
+    'c plus plus': 'cpp',
+    cplusplus: 'cpp',
+    'c#': 'csharp',
+    csharp: 'csharp',
+    dotnet: 'csharp',
+    'asp.net': 'csharp',
+    aspnet: 'csharp',
+    php: 'php',
+    laravel: 'php',
+    symfony: 'php',
+    ruby: 'ruby',
+    rails: 'ruby',
+    gem: 'ruby',
+    go: 'go',
+    golang: 'go',
+    rust: 'rust',
+    cargo: 'rust',
+    sql: 'sql',
+    mysql: 'sql',
+    postgresql: 'sql',
+    oracle: 'sql',
+    typescript: 'typescript',
+    ts: 'typescript',
+    html: 'html',
+    css: 'css',
+    scss: 'css',
+    sass: 'css',
+  }),
+);
 
 function normalizeLanguageName(input: string): string {
-  return LANGUAGE_ALIASES[input.toLowerCase()] || input.toLowerCase();
+  return LANGUAGE_ALIASES.get(input.toLowerCase()) || input.toLowerCase();
 }
 
 export const codeGenerationLimiter = (
@@ -1481,6 +1590,7 @@ export const codeGenerationLimiter = (
       }
 
       const detectedLanguages: string[] = [];
+
       for (const [lang, pattern] of Object.entries(languagePatterns)) {
         if (pattern.test(content.allText)) {
           detectedLanguages.push(normalizeLanguageName(lang));
@@ -1499,6 +1609,7 @@ export const codeGenerationLimiter = (
             uniqueLanguages.filter(
               (lang) => !opts.allowedLanguages?.includes(lang),
             );
+
       const isBlocked = blockedLanguages.length > 0;
 
       const metadata = createStandardMetadata('GR-IN-008', context, {
@@ -1553,30 +1664,29 @@ export interface AllowedToolsOptions {
   toolPatterns?: RegExp[];
 }
 
-// Helper function to extract tool calls from AI SDK context
+const messageWithToolCalls = z.looseObject({
+  toolCalls: z.array(z.unknown()),
+});
+
+const toolCallRecord = z.looseObject({});
+
+/** Tool names from `toolCalls` arrays on the context's messages. */
 function extractToolCalls(context: InputGuardrailContext): string[] {
   const { messages } = extractTextContent(context);
   const toolCalls: string[] = [];
 
-  // Look for tool calls in messages (AI SDK pattern)
   for (const message of messages) {
-    if (!(message && typeof message === 'object' && 'toolCalls' in message)) {
+    const parsed = messageWithToolCalls.safeParse(message);
+
+    if (!parsed.success) {
       continue;
     }
 
-    const messageWithToolCalls = message as {
-      toolCalls?: Array<{ toolName?: string }>;
-    };
-    const toolCallsArray = messageWithToolCalls.toolCalls;
-    if (Array.isArray(toolCallsArray)) {
-      for (const toolCall of toolCallsArray) {
-        if (
-          toolCall &&
-          typeof toolCall === 'object' &&
-          'toolName' in toolCall
-        ) {
-          toolCalls.push(String(toolCall.toolName));
-        }
+    for (const toolCall of parsed.data.toolCalls) {
+      const call = toolCallRecord.safeParse(toolCall);
+
+      if (call.success && 'toolName' in call.data) {
+        toolCalls.push(String(call.data.toolName));
       }
     }
   }
@@ -1584,7 +1694,7 @@ function extractToolCalls(context: InputGuardrailContext): string[] {
   return toolCalls;
 }
 
-// Helper function to detect tool usage in natural language
+// Detects tool usage requested in natural language
 function detectNaturalLanguageToolRequests(
   text: string,
   patterns: RegExp[],
@@ -1593,12 +1703,14 @@ function detectNaturalLanguageToolRequests(
 
   for (const pattern of patterns) {
     const matches = text.match(pattern);
+
     if (matches) {
       for (const match of matches) {
-        // Extract tool name from match - more precise extraction
         const toolMatch = match.match(/(\w+)/);
+
         if (toolMatch && toolMatch[1]) {
           const toolName = toolMatch[1].toLowerCase();
+
           // Filter out common English words that aren't tools
           const commonWords = new Set([
             'the',
@@ -1624,6 +1736,7 @@ function detectNaturalLanguageToolRequests(
             'give',
             'put',
           ]);
+
           if (!commonWords.has(toolName) && toolName.length > 2) {
             detectedTools.push(toolName);
           }
@@ -1666,21 +1779,19 @@ export const allowedToolsGuardrail = (
     'Validates tool usage against allowed/denied lists',
     (context) => {
       const { prompt, messages, system } = extractTextContent(context);
+
       const allText = [
         prompt,
         ...messages.map((msg: MessageContent) => String(msg?.content || '')),
         system,
       ].join(' ');
 
-      // Extract tool calls from AI SDK context
       const contextToolCalls = extractToolCalls(context);
 
-      // Detect natural language tool requests if enabled
       const naturalLanguageTools = detectNaturalLanguageTools
         ? detectNaturalLanguageToolRequests(allText, toolPatterns)
         : [];
 
-      // Combine all detected tools
       const allDetectedTools = [
         ...new Set([...contextToolCalls, ...naturalLanguageTools]),
       ];
@@ -1713,7 +1824,6 @@ export const allowedToolsGuardrail = (
           continue;
         }
 
-        // Check custom validator
         if (customValidator && !customValidator(toolName, context)) {
           violations.push(`Tool '${toolName}' failed custom validation`);
           blockedTools.push(toolName);

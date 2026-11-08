@@ -4,28 +4,35 @@ import {
   syncGenerateResultTextAfterGuardrails,
 } from './generate-result-sync';
 
+interface MutableResult {
+  text?: string;
+  content?: Array<{ type: string; text: string }>;
+}
+
 describe('generate-result-sync', () => {
   it('propagates guardrail mutations from text to content', () => {
-    const result = {
+    const result: MutableResult = {
       content: [{ type: 'text', text: 'Email: jag@example.com' }],
     };
+
     const before = snapshotGenerateResultText(result);
 
-    (result as { text?: string }).text = 'Email: <redacted>';
+    result.text = 'Email: <redacted>';
 
     syncGenerateResultTextAfterGuardrails(result, before);
 
     expect(result.content).toEqual([
       { type: 'text', text: 'Email: <redacted>' },
     ]);
-    expect((result as { text?: string }).text).toBe('Email: <redacted>');
+    expect(result.text).toBe('Email: <redacted>');
   });
 
   it('propagates guardrail mutations from content to text', () => {
-    const result = {
+    const result: MutableResult = {
       text: 'Email: jag@example.com',
       content: [{ type: 'text', text: 'Email: <redacted>' }],
     };
+
     const before = snapshotGenerateResultText({
       text: 'Email: jag@example.com',
       content: [{ type: 'text', text: 'Email: jag@example.com' }],
@@ -33,24 +40,26 @@ describe('generate-result-sync', () => {
 
     syncGenerateResultTextAfterGuardrails(result, before);
 
-    expect((result as { text?: string }).text).toBe('Email: <redacted>');
+    expect(result.text).toBe('Email: <redacted>');
   });
 
   it('aligns text when only content is present', () => {
-    const result = {
+    const result: MutableResult = {
       content: [{ type: 'text', text: 'hello' }],
     };
+
     const before = snapshotGenerateResultText(result);
 
     syncGenerateResultTextAfterGuardrails(result, before);
 
-    expect((result as { text?: string }).text).toBe('hello');
+    expect(result.text).toBe('hello');
   });
 
   it('creates content when only text is present', () => {
     const result = {
       text: 'hello',
     };
+
     const before = snapshotGenerateResultText(result);
 
     syncGenerateResultTextAfterGuardrails(result, before);

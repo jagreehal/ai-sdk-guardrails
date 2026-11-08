@@ -1,0 +1,46 @@
+{
+  "prompt-injection / promptInjectionDetector": {
+    "recall": 0.68,
+    "falsePositiveRate": 0.0584
+  },
+  "prompt-injection / enhancedPromptInjectionDetector": {
+    "recall": 0.6666,
+    "falsePositiveRate": 0.0417
+  },
+  "prompt-injection / intentBasedInjectionDetector": {
+    "recall": 0.6666,
+    "falsePositiveRate": 0.0417
+  },
+  "prompt-injection / mcpToolResultGuardrail (as tool result)": {
+    "recall": 0.7133,
+    "falsePositiveRate": 0.1417
+  },
+  "pii / piiDetector": {
+    "recall": 0.775,
+    "falsePositiveRate": 0.0667
+  },
+  "secrets / secretRedaction": {
+    "recall": 0.8833,
+    "falsePositiveRate": 0
+  },
+  "secrets / sensitiveDataFilter": {
+    "recall": 0.3333,
+    "falsePositiveRate": 0.02
+  },
+  "toxicity / toxicityDetector": {
+    "recall": 0.46,
+    "falsePositiveRate": 0.02
+  },
+  "toxicity / toxicityFilter": {
+    "recall": 0.46,
+    "falsePositiveRate": 0.02
+  },
+  "mcp-tools / scanMcpTool": {
+    "recall": 0.84,
+    "falsePositiveRate": 0.02
+  },
+  "mcp-tools / guardMcpTools": {
+    "recall": 0.72,
+    "falsePositiveRate": 0.02
+  }
+}

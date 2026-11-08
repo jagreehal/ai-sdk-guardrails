@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
+import { MockLanguageModelV4 } from 'ai/test';
 import {
   createGuardrailPrepareStep,
   createAdaptivePrepareStep,
 } from './prepare-step';
 import type { GuardrailViolation } from './stop-conditions';
-import type { LanguageModelV4 } from '../types';
+
+const model = new MockLanguageModelV4();
 
 describe('createGuardrailPrepareStep', () => {
   it('should return undefined when no violations', () => {
@@ -15,7 +17,7 @@ describe('createGuardrailPrepareStep', () => {
       steps: [],
       stepNumber: 0,
       messages: [],
-      model: {} as LanguageModelV4,
+      model,
     });
 
     expect(result).toBeUndefined();
@@ -50,7 +52,7 @@ describe('createGuardrailPrepareStep', () => {
       steps: [],
       stepNumber: 1,
       messages: [],
-      model: {} as LanguageModelV4,
+      model,
     });
 
     expect(result).toBeDefined();
@@ -86,7 +88,7 @@ describe('createGuardrailPrepareStep', () => {
       steps: [],
       stepNumber: 1,
       messages: [],
-      model: {} as LanguageModelV4,
+      model,
     });
 
     expect(result?.system).toContain('Previous responses violated guidelines');
@@ -123,13 +125,10 @@ describe('createGuardrailPrepareStep', () => {
       steps: [],
       stepNumber: 1,
       messages: [],
-      model: {} as LanguageModelV4,
+      model,
     });
 
-    expect(result?.stopWhen).toBeDefined();
-    const stopWhen = result?.stopWhen;
-    const stopResult = stopWhen ? stopWhen() : false;
-    expect(stopResult).toBe(true);
+    expect(result?.activeTools).toEqual([]);
   });
 
   it('should only consider recent violations based on lookback', () => {
@@ -163,7 +162,7 @@ describe('createGuardrailPrepareStep', () => {
       steps: [{ content: null }, { content: null }, { content: null }],
       stepNumber: 5,
       messages: [],
-      model: {} as LanguageModelV4,
+      model,
     });
 
     // Step 5 with lookback 1 should not consider step 0
@@ -201,7 +200,7 @@ describe('createGuardrailPrepareStep', () => {
       steps: [],
       stepNumber: 1,
       messages: [],
-      model: {} as LanguageModelV4,
+      model,
     });
 
     expect(result?.temperature).toBe(0.5);
@@ -214,11 +213,12 @@ describe('createAdaptivePrepareStep', () => {
       violations: [],
     });
 
-    expect(typeof prepareStep).toBe('function');
+    expect(prepareStep).toBeTypeOf('function');
   });
 
   it('should call onViolationDetected callback', () => {
     const onViolationDetected = vi.fn();
+
     const violations: GuardrailViolation[] = [
       {
         step: 0,
@@ -250,7 +250,7 @@ describe('createAdaptivePrepareStep', () => {
       steps: [],
       stepNumber: 1,
       messages: [],
-      model: {} as LanguageModelV4,
+      model,
     });
 
     expect(onViolationDetected).toHaveBeenCalledWith(
@@ -297,7 +297,7 @@ describe('createAdaptivePrepareStep', () => {
       steps: [],
       stepNumber: 1,
       messages: [],
-      model: {} as LanguageModelV4,
+      model,
     });
 
     expect(result?.temperature).toBe(0.1);
@@ -374,11 +374,11 @@ describe('createAdaptivePrepareStep', () => {
       steps: [{ content: null }, { content: null }, { content: null }],
       stepNumber: 3,
       messages: [],
-      model: {} as LanguageModelV4,
+      model,
     });
 
-    // After 3 violations, should stop
-    expect(result?.stopWhen).toBeDefined();
+    // After 3 violations, should end the tool loop
+    expect(result?.activeTools).toEqual([]);
   });
 
   it('should handle no violations gracefully', () => {
@@ -390,7 +390,7 @@ describe('createAdaptivePrepareStep', () => {
       steps: [],
       stepNumber: 0,
       messages: [],
-      model: {} as LanguageModelV4,
+      model,
     });
 
     expect(result).toBeUndefined();

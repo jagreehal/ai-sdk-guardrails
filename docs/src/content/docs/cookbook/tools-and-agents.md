@@ -36,7 +36,10 @@ const toolAllowlistGuardrail = defineOutputGuardrail({
           tripwireTriggered: true,
           message: `Function '${fn}' is not allowed. Allowed functions: ${ALLOWED_FUNCTIONS.join(', ')}`,
           severity: 'high',
-          metadata: { blockedFunction: fn, allowedFunctions: ALLOWED_FUNCTIONS },
+          metadata: {
+            blockedFunction: fn,
+            allowedFunctions: ALLOWED_FUNCTIONS,
+          },
         };
       }
     }
@@ -89,7 +92,7 @@ const toolGuarded = withGuardrails({
 const { text } = await generateText({
   model: toolGuarded,
   prompt: 'Add 17 and 29. Provide your reasoning and final answer.',
-  tools: calculatorTool,
+  tools: { calculator: calculatorTool },
 });
 ```
 
@@ -120,13 +123,16 @@ const researchAgent = new ToolLoopAgent({
     replaceOnBlocked: true,
     retry: { maxRetries: 2 },
   }),
-  instructions: 'You are a research assistant. Use the search tool, then cite your sources.',
+  instructions:
+    'You are a research assistant. Use the search tool, then cite your sources.',
   tools: { search: searchTool, analyze: analysisTool },
   stopWhen: stepCountIs(5),
   toolChoice: 'auto',
 });
 
-const result = await researchAgent.generate({ prompt: 'What is the tallest mountain in the world?' });
+const result = await researchAgent.generate({
+  prompt: 'What is the tallest mountain in the world?',
+});
 ```
 
 ```text frame="terminal" title="npx tsx 36-agent-example.ts"
@@ -147,7 +153,11 @@ This run is honest about what the guardrail does. The local `llama3.2` model ret
 Input guardrails are model middleware, so inside a `ToolLoopAgent` they run on every step: first against the user's message, then again on each step whose newest message is a tool result, each time against the whole context. `promptInjectionDetector` wants that, since a tool result can carry an injection too. A guardrail that costs money or only applies to what the user said, such as an LLM-judged topic check or a rate limit, should run once. Wrap it in `onUserTurn()`:
 
 ```ts
-import { agentGuardrails, onUserTurn, promptInjectionDetector } from 'ai-sdk-guardrails';
+import {
+  agentGuardrails,
+  onUserTurn,
+  promptInjectionDetector,
+} from 'ai-sdk-guardrails';
 
 const agent = new ToolLoopAgent({
   ...agentGuardrails({

@@ -7,7 +7,7 @@ Thank you for your interest in contributing to AI SDK Guardrails! We welcome con
 ### Prerequisites
 
 - Node.js 22+
-- pnpm 9+
+- pnpm 10+ (pinned via `packageManager`)
 
 ### Setup
 
@@ -81,8 +81,8 @@ pnpm --filter @ai-sdk-guardrails/examples dev examples/01-input-length-limit.ts
 
 - Follow the existing code style
 - Use `pnpm format` to format your code
-- Run `pnpm lint` to check for linting issues
-- Ensure TypeScript types are properly defined
+- Run `pnpm lint`: oxlint with the vendored anti-slop rules (`packages/ai-sdk-guardrails/tools/oxlint/anti-slop`). Fix findings; don't disable rules
+- `pnpm type-check` runs TypeScript 7 (`tsc`) on the library and type-checks every code sample in the docs
 
 ### Testing
 
@@ -130,7 +130,7 @@ When adding a new guardrail:
    - Output guardrails: `packages/ai-sdk-guardrails/src/guardrails/output.ts`
    - Tool guardrails: `packages/ai-sdk-guardrails/src/guardrails/tools.ts`
 
-2. Add tests in the corresponding `.test.ts` file
+2. Add tests in the corresponding `.test.ts` file. If it detects attacks, add it to `bench/detectors.ts` and add hard cases (attacks and benign look-alikes) to `bench/corpus/`, then run `pnpm --filter ai-sdk-guardrails bench:update` and commit the new floors and `bench/RESULTS.md`
 
 3. Export the guardrail from `packages/ai-sdk-guardrails/src/index.ts`
 

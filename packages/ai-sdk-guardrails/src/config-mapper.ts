@@ -1,13 +1,12 @@
 /**
- * Configuration mapper for converting between OpenAI config format and our internal convention
- *
- * This module provides utilities to map from OpenAI's guardrails config format
- * (used at https://guardrails.openai.com) to our internal `withGuardrails` API format.
- * This enables public-facing APIs to accept OpenAI configs while using our internal conventions.
+ * Maps the OpenAI guardrails config format (https://guardrails.openai.com) to
+ * the `withGuardrails` config format.
  */
 
+import { isObjectLike } from './guardrails/internal';
+import { z } from 'zod';
 import { defaultRegistry } from './registry';
-// Ensure OpenAI guardrails are registered
+// Registers the OpenAI guardrail specs in defaultRegistry.
 import './openai-guardrails';
 import type {
   PipelineConfig,
@@ -18,13 +17,14 @@ import type {
 import type { InputGuardrail, OutputGuardrail } from './types';
 import { defineInputGuardrail, defineOutputGuardrail } from './guardrails';
 
+const textSchema = z.string();
+
 /**
  * Maps OpenAI guardrail config to our internal InputGuardrail format
  */
-function mapToInputGuardrail(
-  guardrailConfig: GuardrailConfig,
-): InputGuardrail<Record<string, unknown>> {
+function mapToInputGuardrail(guardrailConfig: GuardrailConfig): InputGuardrail {
   const spec = defaultRegistry.get(guardrailConfig.name);
+
   if (!spec) {
     throw new Error(
       `Guardrail "${guardrailConfig.name}" not found in registry. Make sure OpenAI guardrails are registered.`,
@@ -37,25 +37,30 @@ function mapToInputGuardrail(
     version: spec.metadata?.version || '1.0.0',
     tags: spec.metadata?.tags || [],
     execute: async (params) => {
-      // Extract prompt text from various input context types
       let promptText = '';
-      if ('prompt' in params && typeof params.prompt === 'string') {
-        promptText = params.prompt;
+
+      const prompt =
+        'prompt' in params
+          ? textSchema.safeParse(params.prompt).data
+          : undefined;
+
+      if (prompt !== undefined) {
+        promptText = prompt;
       } else if ('messages' in params && Array.isArray(params.messages)) {
-        // Extract text from messages array
         promptText = params.messages
-          .map((msg) => (typeof msg.content === 'string' ? msg.content : ''))
+          .map((msg) => textSchema.safeParse(msg.content).data ?? '')
           .join('\n');
       }
 
-      // Build context for OpenAI guardrails
-      // Extract model if available (only LanguageModelV4, not EmbeddingModelV2)
+      // Language models expose doGenerate; model id strings and embedding
+      // models are left out.
       let llm: GuardrailContext['llm'];
+
       if ('model' in params) {
         const model = params.model;
-        // Only use if it's a LanguageModelV4 (has doGenerate method)
-        if (model && typeof model === 'object' && 'doGenerate' in model) {
-          llm = model as GuardrailContext['llm'];
+
+        if (isObjectLike(model) && 'doGenerate' in model) {
+          llm = model;
         }
       }
 
@@ -71,6 +76,7 @@ function mapToInputGuardrail(
         promptText,
         guardrailConfig.config,
       );
+
       return result;
     },
   });
@@ -81,8 +87,9 @@ function mapToInputGuardrail(
  */
 function mapToOutputGuardrail(
   guardrailConfig: GuardrailConfig,
-): OutputGuardrail<Record<string, unknown>> {
+): OutputGuardrail {
   const spec = defaultRegistry.get(guardrailConfig.name);
+
   if (!spec) {
     throw new Error(
       `Guardrail "${guardrailConfig.name}" not found in registry. Make sure OpenAI guardrails are registered.`,
@@ -95,24 +102,30 @@ function mapToOutputGuardrail(
     version: spec.metadata?.version || '1.0.0',
     tags: spec.metadata?.tags || [],
     execute: async (params, accumulatedText = '') => {
-      // Extract text from result or use accumulated text
       let text = accumulatedText;
+
       if (!text && 'result' in params) {
         const result = params.result;
-        if ('text' in result && typeof result.text === 'string') {
-          text = result.text;
+
+        // Stream results expose text as a promise; only a settled string counts.
+        const resultText =
+          'text' in result ? textSchema.safeParse(result.text).data : undefined;
+
+        if (resultText !== undefined) {
+          text = resultText;
         } else if ('object' in result && result.object) {
           text = JSON.stringify(result.object);
         }
       }
 
-      // Build context for OpenAI guardrails
-      // Extract model from input context if available
       let llm: GuardrailContext['llm'];
+
       if (params.input && 'model' in params.input) {
         const model = params.input.model;
-        // Only use if it's a LanguageModelV4 (has doGenerate method)
-        if (model && typeof model === 'object' && 'doGenerate' in model) {
+
+        if (isObjectLike(model) && 'doGenerate' in model) {
+          // SAFETY: an object exposing doGenerate is the LanguageModel the
+          // caller passed through on the input context.
           llm = model as GuardrailContext['llm'];
         }
       }
@@ -125,16 +138,22 @@ function mapToOutputGuardrail(
       };
 
       const result = await spec.checkFn(context, text, guardrailConfig.config);
+
       return result;
     },
   });
 }
 
+/** Guardrail arrays for `withGuardrails()`, produced from an OpenAI config. */
+export type GuardrailsConfigFromOpenAI = {
+  inputGuardrails?: InputGuardrail[];
+  outputGuardrails?: OutputGuardrail[];
+};
+
 /**
- * Converts OpenAI PipelineConfig format to our internal `withGuardrails` config format
- *
- * This function maps from OpenAI's config structure (with pre_flight, input, output stages)
- * to our internal format that can be used with `withGuardrails()`.
+ * Converts an OpenAI PipelineConfig (pre_flight, input, output stages) to the
+ * `withGuardrails()` config format. Guardrails missing from the registry are
+ * skipped with a console warning.
  *
  * @param openAIConfig - OpenAI guardrails config format
  * @returns Config object compatible with `withGuardrails()` API
@@ -158,16 +177,14 @@ function mapToOutputGuardrail(
  * const model = withGuardrails(openai('gpt-4o'), guardrailsConfig);
  * ```
  */
-export function mapOpenAIConfigToGuardrails(openAIConfig: PipelineConfig): {
-  inputGuardrails?: InputGuardrail<Record<string, unknown>>[];
-  outputGuardrails?: OutputGuardrail<Record<string, unknown>>[];
-} {
-  const inputGuardrails: InputGuardrail<Record<string, unknown>>[] = [];
-  const outputGuardrails: OutputGuardrail<Record<string, unknown>>[] = [];
+export function mapOpenAIConfigToGuardrails(
+  openAIConfig: PipelineConfig,
+): GuardrailsConfigFromOpenAI {
+  const inputGuardrails: InputGuardrail[] = [];
+  const outputGuardrails: OutputGuardrail[] = [];
 
-  // Map pre_flight and input stages to inputGuardrails
-  // Note: pre_flight guardrails are typically run before input, but for withGuardrails
-  // we combine them into inputGuardrails since they both run before the model call
+  // pre_flight and input both run before the model call, so both become
+  // inputGuardrails.
   const inputStages: Array<GuardrailBundle | undefined> = [
     openAIConfig.pre_flight,
     openAIConfig.input,
@@ -187,7 +204,6 @@ export function mapOpenAIConfigToGuardrails(openAIConfig: PipelineConfig): {
     }
   }
 
-  // Map output stage to outputGuardrails
   if (openAIConfig.output?.guardrails) {
     for (const guardrailConfig of openAIConfig.output.guardrails) {
       try {
@@ -205,10 +221,3 @@ export function mapOpenAIConfigToGuardrails(openAIConfig: PipelineConfig): {
     ...(outputGuardrails.length > 0 && { outputGuardrails }),
   };
 }
-
-/**
- * Type helper for the result of mapOpenAIConfigToGuardrails
- */
-export type GuardrailsConfigFromOpenAI = ReturnType<
-  typeof mapOpenAIConfigToGuardrails
->;

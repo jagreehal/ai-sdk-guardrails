@@ -1,9 +1,10 @@
 /**
- * Pure SAIF policy mappers — the guardrail-result → policy-decision mapping,
- * unit-tested in isolation. No I/O, no optional-peer lifecycle; just data shape
- * transforms over {@link ../types.GuardrailResult} and the peer type vocabulary.
+ * Pure SAIF policy mappers: the guardrail-result to policy-decision mapping.
+ * No I/O and no optional-peer lifecycle; data shape transforms over
+ * {@link ../types.GuardrailResult} and the peer type vocabulary.
  */
 
+import { z } from 'zod';
 import type { GuardrailResult } from '../types';
 import { severityToRisk } from '../severity';
 import type {
@@ -18,34 +19,43 @@ import type {
 export function severityToRiskScore(
   result: GuardrailResult,
 ): number | undefined {
-  if (typeof result.confidence === 'number') return result.confidence;
+  if (result.confidence !== undefined) return result.confidence;
+
   if (result.severity) return severityToRisk(result.severity);
+
   return undefined;
 }
 
 /** Best-available human name for the guardrail that produced a result. */
 export function guardrailNameOf(result: GuardrailResult): string {
-  const fromContext = result.context?.guardrailName;
-  const fromInfo = result.info?.guardrailName;
   return (
-    (typeof fromContext === 'string' && fromContext) ||
-    (typeof fromInfo === 'string' && fromInfo) ||
-    'guardrail'
+    result.context?.guardrailName || result.info?.guardrailName || 'guardrail'
   );
 }
 
+const observedToolsSchema = z.array(z.unknown());
+
+const toolNameSchema = z.string();
+
 /** Pull observed tool names from a guardrail result's metadata/info, if any. */
 export function observedToolsOf(result: GuardrailResult): string[] {
-  const fromMeta = (result.metadata as { observedTools?: unknown } | undefined)
-    ?.observedTools;
-  const fromInfo = (result.info as { observedTools?: unknown } | undefined)
-    ?.observedTools;
-  const tools = Array.isArray(fromMeta)
-    ? fromMeta
-    : Array.isArray(fromInfo)
-      ? fromInfo
+  const fromMeta = observedToolsSchema.safeParse(
+    result.metadata?.observedTools,
+  );
+
+  const fromInfo = observedToolsSchema.safeParse(result.info?.observedTools);
+
+  const tools = fromMeta.success
+    ? fromMeta.data
+    : fromInfo.success
+      ? fromInfo.data
       : [];
-  return tools.filter((t): t is string => typeof t === 'string');
+
+  return tools.flatMap((tool) => {
+    const parsed = toolNameSchema.safeParse(tool);
+
+    return parsed.success ? [parsed.data] : [];
+  });
 }
 
 /** Resolve a result's 0..1 risk score: the caller's override, else severity. */
@@ -115,12 +125,15 @@ export function approvalStatusToPolicyDecision(
     case 'approved': {
       return 'permit';
     }
+
     case 'denied': {
       return 'deny';
     }
+
     case 'user-approval': {
       return 'challenge';
     }
+
     case 'not-applicable': {
       return undefined;
     }

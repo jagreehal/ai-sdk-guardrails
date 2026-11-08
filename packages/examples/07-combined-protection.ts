@@ -11,12 +11,13 @@ import {
   defineInputGuardrail,
   defineOutputGuardrail,
   withGuardrails,
+  type GuardrailMetadata,
 } from 'ai-sdk-guardrails';
 import { extractTextContent } from 'ai-sdk-guardrails/guardrails/input';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
 // Unified metadata types so multiple guardrails can be composed safely
-interface CombinedInputMetadata extends Record<string, unknown> {
+interface CombinedInputMetadata extends GuardrailMetadata {
   length?: number;
   limit?: number;
   blockedTerm?: string;
@@ -24,7 +25,7 @@ interface CombinedInputMetadata extends Record<string, unknown> {
   hasPhone?: boolean;
 }
 
-interface CombinedOutputMetadata extends Record<string, unknown> {
+interface CombinedOutputMetadata extends GuardrailMetadata {
   length?: number;
   responseType?: string;
   dataType?: string;

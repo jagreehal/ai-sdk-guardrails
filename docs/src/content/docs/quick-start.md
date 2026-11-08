@@ -79,6 +79,32 @@ const model = withGuardrails({
 });
 ```
 
+## Policy Packs
+
+Packs bundle the rails above for a threat model. Spread one in, then append your own:
+
+```ts
+import {
+  withGuardrails,
+  piiPack,
+  mcpHardenedPack,
+  evalSandboxPack,
+} from 'ai-sdk-guardrails';
+
+const pii = piiPack(); // piiDetector in, sensitiveDataFilter out
+const model = withGuardrails({
+  model: openai('gpt-4o'),
+  ...pii,
+  outputGuardrails: [...pii.outputGuardrails, minLengthRequirement(50)],
+});
+```
+
+- `piiPack()`: detect PII in prompts, filter it from responses.
+- `mcpHardenedPack({ injection, mcp, egress })`: prompt-injection scan on every step, MCP payload scanning, response sanitising, tool egress policy. Pair with `guardMcpTools` and `guardrailApproval` ([MCP guide](/guides/mcp/)).
+- `evalSandboxPack({ scope, session, budget })`: evaluation scope, plan-risk across steps, optional budget ceiling ([Eval Sandbox](/guides/eval-sandbox/)).
+
+See [`58-policy-packs.ts`](https://github.com/jagreehal/ai-sdk-guardrails/blob/main/packages/examples/58-policy-packs.ts).
+
 ## Handling Violations
 
 If you set `throwOnBlocked: true`, guardrails throw errors when blocked. Handle them with try-catch:
@@ -102,7 +128,7 @@ Guardrail errors extend the AI SDK's own `AISDKError`, so `AISDKError.isInstance
 
 ## Warning Mode
 
-Use callbacks instead of throwing errors (default behavior):
+By default (`throwOnBlocked: false`) a blocked call returns a replacement message instead of throwing. Add callbacks to observe blocks:
 
 ```ts
 const model = withGuardrails({
@@ -117,25 +143,39 @@ const model = withGuardrails({
 
 ## Streaming
 
-Guardrails work with streaming:
+`withGuardrails` guards `streamText` too. Pick one of two modes:
+
+**1. Buffer (default): safest.** Output guardrails see the whole response before
+any of it reaches the user. Use it whenever a rail needs the complete text
+(length, schema, quality judges).
 
 ```ts
 import { streamText } from 'ai';
 
 const model = withGuardrails({
   model: openai('gpt-4o'),
-  outputGuardrails: [minLengthRequirement(100)],
+  outputGuardrails: [sensitiveDataFilter()],
 });
 
-const { textStream } = await streamText({
-  model,
-  prompt: 'Write a summary...',
-});
-
-for await (const chunk of textStream) {
-  process.stdout.write(chunk);
-}
+const { textStream } = streamText({ model, prompt: 'Write a summary...' });
+for await (const chunk of textStream) process.stdout.write(chunk);
 ```
+
+**2. Progressive: low latency, stops early.** Tokens stream as they arrive and
+rails run on the text so far; a block ends the stream.
+
+```ts
+const model = withGuardrails({
+  model: openai('gpt-4o'),
+  outputGuardrails: [sensitiveDataFilter()],
+  streamMode: 'progressive',
+  stopOnGuardrailViolation: true, // stop on any critical or 2 violations
+});
+```
+
+Start with buffer and switch a route to progressive only when latency matters
+and your rails work on partial text. Stream transforms (`./advanced`) are there
+for finer control; see the [Streaming guide](/guides/streaming/).
 
 ## OpenAI Config Compatibility
 
@@ -157,6 +197,8 @@ const model = withGuardrails({ model: openai('gpt-4o'), ...guardrailsConfig });
 Or use the config directly:
 
 ```ts
+import { mapOpenAIConfigToGuardrails } from 'ai-sdk-guardrails/config';
+
 const config = {
   version: 1,
   input: {

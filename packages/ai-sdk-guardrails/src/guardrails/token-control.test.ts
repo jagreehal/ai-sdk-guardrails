@@ -31,9 +31,11 @@ describe('estimateTokenCount', () => {
 describe('createTokenBudgetTransform', () => {
   it('should stop stream after token budget exceeded', async () => {
     const stopStream = vi.fn();
+
     const transform = createTokenBudgetTransform({
       maxTokens: 5,
     });
+
     const transformStream = transform({ tools: {}, stopStream });
 
     const chunks = [
@@ -55,22 +57,28 @@ describe('createTokenBudgetTransform', () => {
 
     const results = [];
     let result = await reader.read();
+
     while (!result.done) {
       results.push(result.value);
       result = await reader.read();
     }
 
     expect(stopStream).toHaveBeenCalled();
-    expect(results.length).toBeLessThan(chunks.length);
+    expect(results.filter((r) => r.type === 'text-delta').length).toBeLessThan(
+      chunks.length,
+    );
+    expect(results.at(-1)).toMatchObject({ type: 'finish' });
   });
 
   it('should call onBudgetExceeded when budget exceeded', async () => {
     const onBudgetExceeded = vi.fn();
     const stopStream = vi.fn();
+
     const transform = createTokenBudgetTransform({
       maxTokens: 3,
       onBudgetExceeded,
     });
+
     const transformStream = transform({ tools: {}, stopStream });
 
     const chunks = [
@@ -87,6 +95,7 @@ describe('createTokenBudgetTransform', () => {
       .getReader();
 
     let result = await reader.read();
+
     while (!result.done) {
       // consume stream
       result = await reader.read();
@@ -102,9 +111,11 @@ describe('createTokenBudgetTransform', () => {
 
   it('should not stop if within budget', async () => {
     const stopStream = vi.fn();
+
     const transform = createTokenBudgetTransform({
       maxTokens: 100,
     });
+
     const transformStream = transform({ tools: {}, stopStream });
 
     const chunks = [
@@ -123,6 +134,7 @@ describe('createTokenBudgetTransform', () => {
 
     const results = [];
     let result = await reader.read();
+
     while (!result.done) {
       results.push(result.value);
       result = await reader.read();
@@ -151,9 +163,11 @@ describe('createTokenAwareGuardrailTransform', () => {
     ];
 
     const stopStream = vi.fn();
+
     const transform = createTokenAwareGuardrailTransform(guardrails, {
       checkEveryTokens: 5,
     });
+
     const transformStream = transform({ tools: {}, stopStream });
 
     const chunks = [
@@ -174,6 +188,7 @@ describe('createTokenAwareGuardrailTransform', () => {
       .getReader();
 
     let result = await reader.read();
+
     while (!result.done) {
       // consume stream
       result = await reader.read();
@@ -199,10 +214,12 @@ describe('createTokenAwareGuardrailTransform', () => {
     ];
 
     const stopStream = vi.fn();
+
     const transform = createTokenAwareGuardrailTransform(guardrails, {
       maxTokens: 3,
       checkEveryTokens: 2,
     });
+
     const transformStream = transform({ tools: {}, stopStream });
 
     const chunks = [
@@ -223,6 +240,7 @@ describe('createTokenAwareGuardrailTransform', () => {
       .getReader();
 
     let result = await reader.read();
+
     while (!result.done) {
       // consume stream
       result = await reader.read();
@@ -236,10 +254,8 @@ describe('createTokenAwareGuardrailTransform', () => {
       {
         name: 'toxic-filter',
         execute: async ({ result }) => {
-          const text =
-            typeof result === 'object' && result && 'text' in result
-              ? String((result as { text: string }).text)
-              : '';
+          const text = 'text' in result ? String(result.text) : '';
+
           if (text.includes('toxic')) {
             return {
               tripwireTriggered: true,
@@ -250,6 +266,7 @@ describe('createTokenAwareGuardrailTransform', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             message: '',
@@ -262,11 +279,13 @@ describe('createTokenAwareGuardrailTransform', () => {
     ];
 
     const stopStream = vi.fn();
+
     const transform = createTokenAwareGuardrailTransform(guardrails, {
       maxTokens: 100,
       checkEveryTokens: 2,
       stopOnSeverity: 'critical',
     });
+
     const transformStream = transform({ tools: {}, stopStream });
 
     const chunks = [
@@ -284,6 +303,7 @@ describe('createTokenAwareGuardrailTransform', () => {
 
     const results = [];
     let result = await reader.read();
+
     while (!result.done) {
       results.push(result.value);
       result = await reader.read();
@@ -310,10 +330,12 @@ describe('createTokenAwareGuardrailTransform', () => {
     ];
 
     const stopStream = vi.fn();
+
     const transform = createTokenAwareGuardrailTransform(guardrails, {
       maxTokens: 5,
       tokenizer: customTokenizer,
     });
+
     const transformStream = transform({ tools: {}, stopStream });
 
     const chunks = [
@@ -334,6 +356,7 @@ describe('createTokenAwareGuardrailTransform', () => {
       .getReader();
 
     let result = await reader.read();
+
     while (!result.done) {
       // consume stream
       result = await reader.read();

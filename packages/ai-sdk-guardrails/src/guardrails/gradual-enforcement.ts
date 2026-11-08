@@ -5,17 +5,13 @@
  * for introducing new guardrails without immediately blocking users.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable unicorn/numeric-separators-style */
-/* eslint-disable unicorn/no-useless-switch-case */
-/* eslint-disable unicorn/switch-case-braces */
-
 import type {
   InputGuardrail,
   OutputGuardrail,
   GuardrailResult,
 } from '../types';
 
+import type { GuardrailMetadata } from '../enhanced-types';
 // ============================================================================
 // Types
 // ============================================================================
@@ -100,7 +96,6 @@ function getViolationRecord(key: string, windowMs: number): ViolationRecord {
   let record = violationStorage.get(key);
 
   if (!record || now - record.windowStart > windowMs) {
-    // Reset or create new record
     record = {
       count: 0,
       windowStart: now,
@@ -119,10 +114,13 @@ function incrementViolation(
 ): ViolationRecord {
   const record = getViolationRecord(key, windowMs);
   record.count++;
+
   if (severity) {
     record.bySeverity[severity] = (record.bySeverity[severity] || 0) + 1;
   }
+
   violationStorage.set(key, record);
+
   return record;
 }
 
@@ -179,26 +177,68 @@ function incrementViolation(
  * });
  * ```
  */
-export function withGradualEnforcement<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function withGradualEnforcement<M extends GuardrailMetadata>(
   guardrail: InputGuardrail<M>,
   options: GradualEnforcementOptions,
 ): InputGuardrail<M>;
 
-export function withGradualEnforcement<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function withGradualEnforcement<M extends GuardrailMetadata>(
   guardrail: OutputGuardrail<M>,
   options: GradualEnforcementOptions,
 ): OutputGuardrail<M>;
 
 export function withGradualEnforcement<
-  M extends Record<string, unknown> = Record<string, unknown>,
+  M extends GuardrailMetadata,
+  A extends unknown[],
 >(
-  guardrail: InputGuardrail<M> | OutputGuardrail<M>,
+  guardrail: EnforceableGuardrail<M, A>,
   options: GradualEnforcementOptions,
-): InputGuardrail<M> | OutputGuardrail<M> {
+): EnforceableGuardrail<M, A> {
+  return applyGradualEnforcement(guardrail, options);
+}
+
+/** The part of an input or output guardrail that gradual enforcement wraps. */
+interface EnforceableGuardrail<M, A extends unknown[]> {
+  name: string;
+  description?: string;
+  execute(...args: A): Promise<GuardrailResult<M>> | GuardrailResult<M>;
+}
+
+/** Arguments accepted by either an input or an output guardrail's `execute`. */
+type GuardrailArgs<M> =
+  | Parameters<InputGuardrail<M>['execute']>
+  | Parameters<OutputGuardrail<M>['execute']>;
+
+/** Recorded under `metadata.gradualEnforcement` when a violation is softened or escalated. */
+interface GradualEnforcementInfo {
+  mode: 'grace-period' | 'warn' | 'escalate';
+  phase?: 'warn' | 'warn-elevated' | 'block';
+  wouldBlock?: boolean;
+  gracePeriodUntil?: string;
+  violationCount?: number;
+  severityFiltered?: boolean;
+  warnThreshold?: number;
+  blockThreshold?: number;
+  remainingBeforeBlock?: number;
+}
+
+function withEnforcementInfo<M extends GuardrailMetadata>(
+  result: GuardrailResult<M>,
+  tripwireTriggered: boolean,
+  gradualEnforcement: GradualEnforcementInfo,
+): GuardrailResult<M> {
+  const metadata = Object.assign({}, result.metadata, { gradualEnforcement });
+
+  return { ...result, tripwireTriggered, metadata };
+}
+
+function applyGradualEnforcement<
+  M extends GuardrailMetadata,
+  A extends unknown[],
+>(
+  guardrail: EnforceableGuardrail<M, A>,
+  options: GradualEnforcementOptions,
+): EnforceableGuardrail<M, A> {
   const {
     mode,
     escalation,
@@ -208,215 +248,157 @@ export function withGradualEnforcement<
     storageKey = guardrail.name,
   } = options;
 
+  const enforce = (result: GuardrailResult<M>): GuardrailResult<M> => {
+    if (!result.tripwireTriggered) {
+      return result;
+    }
+
+    if (gracePeriod && new Date() < gracePeriod.until) {
+      const logFn =
+        gracePeriod.logLevel === 'debug'
+          ? console.debug
+          : gracePeriod.logLevel === 'info'
+            ? console.info
+            : console.warn;
+
+      logFn(
+        `[Grace Period] ${guardrail.name}: ${result.message}`,
+        gracePeriod.message ||
+          `Enforcement begins ${gracePeriod.until.toISOString()}`,
+      );
+
+      return withEnforcementInfo(result, false, {
+        mode: 'grace-period',
+        wouldBlock: true,
+        gracePeriodUntil: gracePeriod.until.toISOString(),
+      });
+    }
+
+    switch (mode) {
+      case 'warn': {
+        const record = incrementViolation(
+          storageKey,
+          escalation?.windowMs || 60000,
+          result.severity,
+        );
+
+        const stats: ViolationStats = {
+          count: record.count,
+          windowStart: new Date(record.windowStart),
+          isBlocking: false,
+          bySeverity: record.bySeverity,
+        };
+
+        onWarn?.(result, stats);
+
+        console.warn(
+          `[Warn Mode] ${guardrail.name}: ${result.message} (violation #${record.count})`,
+        );
+
+        return withEnforcementInfo(result, false, {
+          mode: 'warn',
+          wouldBlock: true,
+          violationCount: record.count,
+        });
+      }
+
+      case 'escalate': {
+        if (!escalation) {
+          throw new Error('Escalation config required for escalate mode');
+        }
+
+        const record = incrementViolation(
+          storageKey,
+          escalation.windowMs,
+          result.severity,
+        );
+
+        const stats: ViolationStats = {
+          count: record.count,
+          windowStart: new Date(record.windowStart),
+          isBlocking: record.count > escalation.blockAfter,
+          bySeverity: record.bySeverity,
+        };
+
+        const { severities } = escalation;
+
+        const matchesSeverity =
+          !severities ||
+          severities.length === 0 ||
+          (result.severity && severities.includes(result.severity));
+
+        if (!matchesSeverity) {
+          // Outside the escalation severity filter: treated as a warning.
+          onWarn?.(result, stats);
+
+          return withEnforcementInfo(result, false, {
+            mode: 'escalate',
+            phase: 'warn',
+            wouldBlock: true,
+            violationCount: record.count,
+            severityFiltered: true,
+          });
+        }
+
+        if (record.count <= escalation.warnCount) {
+          onWarn?.(result, stats);
+
+          console.warn(
+            `[Escalate: Warning] ${guardrail.name}: ${result.message} ` +
+              `(${record.count}/${escalation.warnCount} before blocking)`,
+          );
+
+          return withEnforcementInfo(result, false, {
+            mode: 'escalate',
+            phase: 'warn',
+            wouldBlock: true,
+            violationCount: record.count,
+            warnThreshold: escalation.warnCount,
+            blockThreshold: escalation.blockAfter,
+          });
+        }
+
+        if (record.count > escalation.blockAfter) {
+          if (record.count === escalation.blockAfter + 1) {
+            onEscalation?.(stats);
+          }
+
+          console.error(
+            `[Escalate: Blocking] ${guardrail.name}: ${result.message} ` +
+              `(${record.count} violations, blocking enabled)`,
+          );
+
+          return withEnforcementInfo(result, true, {
+            mode: 'escalate',
+            phase: 'block',
+            violationCount: record.count,
+            blockThreshold: escalation.blockAfter,
+          });
+        }
+
+        // Between the warn and block thresholds.
+        onWarn?.(result, stats);
+
+        return withEnforcementInfo(result, false, {
+          mode: 'escalate',
+          phase: 'warn-elevated',
+          wouldBlock: true,
+          violationCount: record.count,
+          remainingBeforeBlock: escalation.blockAfter - record.count,
+        });
+      }
+
+      default:
+        return result;
+    }
+  };
+
   return {
     ...guardrail,
     name: `gradual(${guardrail.name})`,
     description: `${guardrail.description || guardrail.name} [mode: ${mode}]`,
-    execute: async (context: any, ...rest: any[]) => {
-      // Execute the underlying guardrail
-      const result = await (guardrail as any).execute(context, ...rest);
-
-      // If guardrail didn't trigger, pass through
-      if (!result.tripwireTriggered) {
-        return result;
-      }
-
-      // Check grace period
-      if (gracePeriod && new Date() < gracePeriod.until) {
-        const logFn =
-          gracePeriod.logLevel === 'debug'
-            ? console.debug
-            : gracePeriod.logLevel === 'info'
-              ? console.info
-              : console.warn;
-
-        logFn(
-          `[Grace Period] ${guardrail.name}: ${result.message}`,
-          gracePeriod.message ||
-            `Enforcement begins ${gracePeriod.until.toISOString()}`,
-        );
-
-        return {
-          ...result,
-          tripwireTriggered: false,
-          metadata: {
-            ...result.metadata,
-            gradualEnforcement: {
-              mode: 'grace-period',
-              wouldBlock: true,
-              gracePeriodUntil: gracePeriod.until.toISOString(),
-            },
-          } as M,
-        };
-      }
-
-      // Handle based on mode
-      switch (mode) {
-        case 'warn': {
-          const record = incrementViolation(
-            storageKey,
-            escalation?.windowMs || 60000,
-            result.severity,
-          );
-
-          const stats: ViolationStats = {
-            count: record.count,
-            windowStart: new Date(record.windowStart),
-            isBlocking: false,
-            bySeverity: record.bySeverity,
-          };
-
-          if (onWarn) {
-            onWarn(result, stats);
-          }
-
-          console.warn(
-            `[Warn Mode] ${guardrail.name}: ${result.message} (violation #${record.count})`,
-          );
-
-          return {
-            ...result,
-            tripwireTriggered: false,
-            metadata: {
-              ...result.metadata,
-              gradualEnforcement: {
-                mode: 'warn',
-                wouldBlock: true,
-                violationCount: record.count,
-              },
-            } as M,
-          };
-        }
-
-        case 'escalate': {
-          if (!escalation) {
-            throw new Error('Escalation config required for escalate mode');
-          }
-
-          const record = incrementViolation(
-            storageKey,
-            escalation.windowMs,
-            result.severity,
-          );
-
-          const stats: ViolationStats = {
-            count: record.count,
-            windowStart: new Date(record.windowStart),
-            isBlocking: record.count > escalation.blockAfter,
-            bySeverity: record.bySeverity,
-          };
-
-          // Check if we should escalate based on severity filter
-          const shouldCheckSeverity =
-            escalation.severities && escalation.severities.length > 0;
-          const matchesSeverity =
-            !shouldCheckSeverity ||
-            (result.severity &&
-              escalation.severities!.includes(result.severity));
-
-          if (!matchesSeverity) {
-            // Severity doesn't match escalation filter, treat as warn
-            if (onWarn) {
-              onWarn(result, stats);
-            }
-            return {
-              ...result,
-              tripwireTriggered: false,
-              metadata: {
-                ...result.metadata,
-                gradualEnforcement: {
-                  mode: 'escalate',
-                  phase: 'warn',
-                  wouldBlock: true,
-                  violationCount: record.count,
-                  severityFiltered: true,
-                },
-              } as M,
-            };
-          }
-
-          if (record.count <= escalation.warnCount) {
-            // Still in warning phase
-            if (onWarn) {
-              onWarn(result, stats);
-            }
-
-            console.warn(
-              `[Escalate: Warning] ${guardrail.name}: ${result.message} ` +
-                `(${record.count}/${escalation.warnCount} before blocking)`,
-            );
-
-            return {
-              ...result,
-              tripwireTriggered: false,
-              metadata: {
-                ...result.metadata,
-                gradualEnforcement: {
-                  mode: 'escalate',
-                  phase: 'warn',
-                  wouldBlock: true,
-                  violationCount: record.count,
-                  warnThreshold: escalation.warnCount,
-                  blockThreshold: escalation.blockAfter,
-                },
-              } as M,
-            };
-          }
-
-          if (record.count > escalation.blockAfter) {
-            // Blocking phase
-            if (record.count === escalation.blockAfter + 1 && onEscalation) {
-              onEscalation(stats);
-            }
-
-            console.error(
-              `[Escalate: Blocking] ${guardrail.name}: ${result.message} ` +
-                `(${record.count} violations, blocking enabled)`,
-            );
-
-            return {
-              ...result,
-              tripwireTriggered: true,
-              metadata: {
-                ...result.metadata,
-                gradualEnforcement: {
-                  mode: 'escalate',
-                  phase: 'block',
-                  violationCount: record.count,
-                  blockThreshold: escalation.blockAfter,
-                },
-              } as M,
-            };
-          }
-
-          // Between warn and block thresholds - still warning
-          if (onWarn) {
-            onWarn(result, stats);
-          }
-
-          return {
-            ...result,
-            tripwireTriggered: false,
-            metadata: {
-              ...result.metadata,
-              gradualEnforcement: {
-                mode: 'escalate',
-                phase: 'warn-elevated',
-                wouldBlock: true,
-                violationCount: record.count,
-                remainingBeforeBlock: escalation.blockAfter - record.count,
-              },
-            } as M,
-          };
-        }
-
-        case 'enforce':
-        default:
-          // Full enforcement, just pass through the result
-          return result;
-      }
-    },
-  } as any;
+    execute: async (...args: A) => enforce(await guardrail.execute(...args)),
+  };
 }
 
 /**
@@ -454,7 +436,7 @@ export function getViolationStats(
   return {
     count: record.count,
     windowStart: new Date(record.windowStart),
-    isBlocking: false, // Would need escalation config to determine
+    isBlocking: false, // Escalation thresholds are not stored with the record.
     bySeverity: record.bySeverity,
   };
 }
@@ -466,15 +448,13 @@ export function getViolationStats(
 /**
  * Creates a warn-only enforcement (for A/B testing new rules)
  */
-export function warnOnly<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function warnOnly<M extends GuardrailMetadata>(
   guardrail: InputGuardrail<M> | OutputGuardrail<M>,
   options?: {
     onWarn?: (result: GuardrailResult, stats: ViolationStats) => void;
   },
 ): InputGuardrail<M> | OutputGuardrail<M> {
-  return withGradualEnforcement(guardrail as any, {
+  return applyGradualEnforcement<M, GuardrailArgs<M>>(guardrail, {
     mode: 'warn',
     onWarn: options?.onWarn,
   });
@@ -483,16 +463,14 @@ export function warnOnly<
 /**
  * Creates a lenient escalation (3 warnings, block after 5)
  */
-export function lenientEscalation<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function lenientEscalation<M extends GuardrailMetadata>(
   guardrail: InputGuardrail<M> | OutputGuardrail<M>,
   options?: {
     onWarn?: (result: GuardrailResult, stats: ViolationStats) => void;
     onEscalation?: (stats: ViolationStats) => void;
   },
 ): InputGuardrail<M> | OutputGuardrail<M> {
-  return withGradualEnforcement(guardrail as any, {
+  return applyGradualEnforcement<M, GuardrailArgs<M>>(guardrail, {
     mode: 'escalate',
     escalation: {
       warnCount: 3,
@@ -507,16 +485,14 @@ export function lenientEscalation<
 /**
  * Creates a strict escalation (1 warning, block after 2)
  */
-export function strictEscalation<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function strictEscalation<M extends GuardrailMetadata>(
   guardrail: InputGuardrail<M> | OutputGuardrail<M>,
   options?: {
     onWarn?: (result: GuardrailResult, stats: ViolationStats) => void;
     onEscalation?: (stats: ViolationStats) => void;
   },
 ): InputGuardrail<M> | OutputGuardrail<M> {
-  return withGradualEnforcement(guardrail as any, {
+  return applyGradualEnforcement<M, GuardrailArgs<M>>(guardrail, {
     mode: 'escalate',
     escalation: {
       warnCount: 1,
@@ -531,9 +507,7 @@ export function strictEscalation<
 /**
  * Creates enforcement with a grace period
  */
-export function withGracePeriod<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function withGracePeriod<M extends GuardrailMetadata>(
   guardrail: InputGuardrail<M> | OutputGuardrail<M>,
   until: Date,
   options?: {
@@ -541,7 +515,7 @@ export function withGracePeriod<
     message?: string;
   },
 ): InputGuardrail<M> | OutputGuardrail<M> {
-  return withGradualEnforcement(guardrail as any, {
+  return applyGradualEnforcement<M, GuardrailArgs<M>>(guardrail, {
     mode: 'enforce',
     gracePeriod: {
       until,

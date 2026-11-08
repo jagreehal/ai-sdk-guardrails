@@ -1,5 +1,30 @@
+import type { LanguageModel } from 'ai';
 import type { GuardrailViolation } from './stop-conditions';
-import type { LanguageModelV4 } from '../types';
+
+/**
+ * Arguments the guardrail `prepareStep` functions read. A subset of the SDK's
+ * `prepareStep` options, so the functions drop into `generateText` /
+ * `streamText` / `ToolLoopAgent` for any tool set.
+ */
+export interface GuardrailPrepareStepArgs {
+  steps: Array<{ content: unknown }>;
+  stepNumber: number;
+  messages: unknown[];
+  model: LanguageModel;
+}
+
+/**
+ * Per-step overrides, assignable to the SDK's `PrepareStepResult`. To end the
+ * tool loop, `activeTools` is set to `[]`: the model must answer without
+ * calling tools, so no further step runs.
+ */
+export interface GuardrailPrepareStepResult {
+  temperature?: number;
+  topP?: number;
+  topK?: number;
+  system?: string;
+  activeTools?: [];
+}
 
 /**
  * Options for guardrail-aware prepareStep
@@ -18,7 +43,8 @@ export interface GuardrailPrepareStepOptions {
   temperatureReduction?: number;
 
   /**
-   * Whether to stop execution on critical violations
+   * Whether to end the tool loop on critical violations (disables tools for
+   * the step, so the model gives its final answer)
    * @default false
    */
   stopOnCritical?: boolean;
@@ -78,18 +104,7 @@ export interface GuardrailPrepareStepOptions {
 export function createGuardrailPrepareStep(
   violations: GuardrailViolation[],
   options: GuardrailPrepareStepOptions = {},
-): (args: {
-  steps: Array<{ content: unknown }>;
-  stepNumber: number;
-  messages: unknown[];
-  model: LanguageModelV4;
-}) =>
-  | {
-      temperature?: number;
-      system?: string;
-      stopWhen?: () => boolean;
-    }
-  | undefined {
+): (args: GuardrailPrepareStepArgs) => GuardrailPrepareStepResult | undefined {
   const {
     lookback = 2,
     temperatureReduction = 0.3,
@@ -103,6 +118,7 @@ export function createGuardrailPrepareStep(
       if ('step' in v) {
         return v.step >= stepNumber - lookback && v.step < stepNumber;
       }
+
       return false; // Skip chunkIndex violations for prepareStep
     });
 
@@ -115,18 +131,14 @@ export function createGuardrailPrepareStep(
       v.summary.blockedResults.some((r) => r.severity === 'critical'),
     );
 
-    const result: {
-      temperature?: number;
-      system?: string;
-      stopWhen?: () => boolean;
-    } = {
+    const result: GuardrailPrepareStepResult = {
       temperature: temperatureReduction,
       system: warningMessage,
     };
 
-    // Stop on critical if configured
+    // End the loop on critical if configured
     if (hasCritical && stopOnCritical) {
-      result.stopWhen = () => true;
+      result.activeTools = [];
     }
 
     return result;
@@ -146,13 +158,7 @@ export interface AdaptivePrepareStepOptions {
    * Custom strategy function to apply on violations
    * If not provided, uses default temperature reduction
    */
-  strategy?: (violations: GuardrailViolation[]) => {
-    temperature?: number;
-    topP?: number;
-    topK?: number;
-    system?: string;
-    stopWhen?: () => boolean;
-  };
+  strategy?: (violations: GuardrailViolation[]) => GuardrailPrepareStepResult;
 
   /**
    * Callback when violations are detected
@@ -160,7 +166,7 @@ export interface AdaptivePrepareStepOptions {
   onViolationDetected?: (violations: GuardrailViolation[]) => void;
 
   /**
-   * Number of violations before escalating to stop
+   * Number of violations before ending the tool loop
    * @default 5
    */
   escalateAfter?: number;
@@ -207,20 +213,7 @@ export interface AdaptivePrepareStepOptions {
  */
 export function createAdaptivePrepareStep(
   options: AdaptivePrepareStepOptions,
-): (args: {
-  steps: Array<{ content: unknown }>;
-  stepNumber: number;
-  messages: unknown[];
-  model: LanguageModelV4;
-}) =>
-  | {
-      temperature?: number;
-      topP?: number;
-      topK?: number;
-      system?: string;
-      stopWhen?: () => boolean;
-    }
-  | undefined {
+): (args: GuardrailPrepareStepArgs) => GuardrailPrepareStepResult | undefined {
   const {
     violations,
     strategy,
@@ -235,6 +228,7 @@ export function createAdaptivePrepareStep(
       if ('step' in v) {
         return v.step >= stepNumber - lookback && v.step < stepNumber;
       }
+
       return false; // Skip chunkIndex violations for prepareStep
     });
 
@@ -254,18 +248,14 @@ export function createAdaptivePrepareStep(
     const violationCount = recentViolations.length;
     const temperatureReduction = Math.max(0.1, 0.7 - violationCount * 0.15);
 
-    const result: {
-      temperature?: number;
-      system?: string;
-      stopWhen?: () => boolean;
-    } = {
+    const result: GuardrailPrepareStepResult = {
       temperature: temperatureReduction,
       system: `Warning: ${violationCount} guardrail violation(s) detected in recent steps. Please ensure responses comply with all safety guidelines.`,
     };
 
     // Escalate to stop if too many violations
     if (violationCount >= escalateAfter) {
-      result.stopWhen = () => true;
+      result.activeTools = [];
       result.system += ' Execution will stop due to repeated violations.';
     }
 

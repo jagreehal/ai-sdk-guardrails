@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import { createOutputGuardrail } from '../core';
 import type {
   AIResult,
@@ -12,11 +14,13 @@ import {
   scanTextEgressViolations,
 } from './tool-egress-scan';
 
+import type { GuardrailMetadata } from '../enhanced-types';
+
 /**
  * Metadata returned by the expectedToolUse guardrail.
  * Used for type-safe access in getRetryInstruction and buildRetryParams.
  */
-export interface ExpectedToolUseMetadata extends Record<string, unknown> {
+export interface ExpectedToolUseMetadata extends GuardrailMetadata {
   expectedTools: string[];
   observedTools: string[];
   observedMarkers: string[];
@@ -65,81 +69,48 @@ function defaultMarker(tool: string): string {
   return `TOOL_USED: ${tool}`;
 }
 
-// Helper functions to reduce complexity of tryHeuristicProviderExtraction
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object';
-}
+const optionalString = z.string().optional().catch(undefined);
 
-function pushIfString(value: unknown, target: string[]) {
-  if (typeof value === 'string' && value.trim().length > 0) {
+const anyValue = z.unknown().optional();
+
+/** String-valued fields that may carry a tool name on a tool-call-like item. */
+const toolNameFieldsSchema = z.object({
+  type: optionalString,
+  toolName: optionalString,
+  name: optionalString,
+  tool: optionalString,
+});
+
+/** The places on a result (or its provider metadata) that may list tool calls. */
+const toolCallSourcesSchema = z.object({
+  content: anyValue,
+  toolCalls: anyValue,
+  tools: anyValue,
+  calledTools: anyValue,
+  experimental_providerMetadata: anyValue,
+  providerMetadata: anyValue,
+});
+
+type ToolNameFields = z.infer<typeof toolNameFieldsSchema>;
+
+function pushIfNonBlank(value: string | undefined, target: string[]) {
+  if (value !== undefined && value.trim().length > 0) {
     target.push(value);
   }
 }
 
-function extractFromContentArray(content: unknown[]): string[] {
+function collectToolNames(
+  items: unknown[],
+  pick: (fields: ToolNameFields) => string | undefined,
+): string[] {
   const names: string[] = [];
-  for (const contentItem of content) {
-    if (!isRecord(contentItem)) {
-      continue;
-    }
-    if (contentItem.type !== 'tool-call') {
-      continue;
-    }
-    pushIfString(contentItem.toolName, names);
-  }
-  return names;
-}
 
-function extractFromToolCallsArray(toolCalls: unknown[]): string[] {
-  const names: string[] = [];
-  for (const toolCall of toolCalls) {
-    if (!isRecord(toolCall)) {
-      continue;
-    }
+  for (const item of items) {
+    const parsed = toolNameFieldsSchema.safeParse(item);
 
-    const potentialName =
-      typeof toolCall.toolName === 'string'
-        ? toolCall.toolName
-        : typeof toolCall.name === 'string'
-          ? toolCall.name
-          : undefined;
+    if (parsed.success) pushIfNonBlank(pick(parsed.data), names);
+  }
 
-    pushIfString(potentialName, names);
-  }
-  return names;
-}
-
-function extractToolNameFromItem(
-  item: Record<string, unknown>,
-): string | undefined {
-  if ('name' in item && typeof item.name === 'string') {
-    return item.name;
-  }
-  if ('tool' in item && typeof item.tool === 'string') {
-    return item.tool;
-  }
-  if ('type' in item && typeof item.type === 'string') {
-    return item.type;
-  }
-  if ('toolName' in item && typeof item.toolName === 'string') {
-    return item.toolName;
-  }
-  return undefined;
-}
-
-function extractFromCandidateArrays(candidates: unknown[]): string[] {
-  const names: string[] = [];
-  for (const candidate of candidates) {
-    if (!Array.isArray(candidate)) {
-      continue;
-    }
-    for (const item of candidate) {
-      if (!isRecord(item)) {
-        continue;
-      }
-      pushIfString(extractToolNameFromItem(item), names);
-    }
-  }
   return names;
 }
 
@@ -150,45 +121,55 @@ function extractFromCandidateArrays(candidates: unknown[]): string[] {
  */
 export function extractToolNamesFromResult(result: AIResult): string[] {
   const names = new Set<string>();
-  const resultWithUnknownProps = result as AIResult & Record<string, unknown>;
-  const md =
-    resultWithUnknownProps?.experimental_providerMetadata ??
-    resultWithUnknownProps?.providerMetadata ??
-    {};
+  const sources = toolCallSourcesSchema.safeParse(result).data ?? {};
 
-  // Check for AI SDK content array with tool-call objects first
-  if (Array.isArray(resultWithUnknownProps.content)) {
-    const contentNames = extractFromContentArray(
-      resultWithUnknownProps.content as unknown[],
+  const metadata =
+    toolCallSourcesSchema.safeParse(
+      sources.experimental_providerMetadata ?? sources.providerMetadata ?? {},
+    ).data ?? {};
+
+  if (Array.isArray(sources.content)) {
+    const contentNames = collectToolNames(sources.content, (item) =>
+      item.type === 'tool-call' ? item.toolName : undefined,
     );
+
     for (const name of contentNames) {
       names.add(name);
     }
   }
 
-  // Check for AI SDK toolCalls array
-  if (Array.isArray(resultWithUnknownProps.toolCalls)) {
-    const toolCallNames = extractFromToolCallsArray(
-      resultWithUnknownProps.toolCalls as unknown[],
+  if (Array.isArray(sources.toolCalls)) {
+    const toolCallNames = collectToolNames(
+      sources.toolCalls,
+      (item) => item.toolName ?? item.name,
     );
+
     for (const name of toolCallNames) {
       names.add(name);
     }
   }
 
-  // Common ad-hoc spots people might stash tool calls
-  const candidates: unknown[] = [
-    (md as Record<string, unknown>).toolCalls,
-    resultWithUnknownProps.toolCalls,
-    (md as Record<string, unknown>).tools,
-    resultWithUnknownProps.tools,
-    (md as Record<string, unknown>).calledTools,
-    resultWithUnknownProps.calledTools,
-  ].filter(Boolean);
+  // Ad-hoc spots where providers or callers stash tool calls.
+  const candidates = [
+    metadata.toolCalls,
+    sources.toolCalls,
+    metadata.tools,
+    sources.tools,
+    metadata.calledTools,
+    sources.calledTools,
+  ];
 
-  const candidateNames = extractFromCandidateArrays(candidates);
-  for (const name of candidateNames) {
-    names.add(name);
+  for (const candidate of candidates) {
+    if (!Array.isArray(candidate)) continue;
+
+    const candidateNames = collectToolNames(
+      candidate,
+      (item) => item.name ?? item.tool ?? item.type ?? item.toolName,
+    );
+
+    for (const name of candidateNames) {
+      names.add(name);
+    }
   }
 
   return [...names];
@@ -203,20 +184,26 @@ export function extractToolNamesFromResult(result: AIResult): string[] {
  * - Provider-aware: pass providerExtractor to read tool names from provider metadata
  * - Text markers only: set mode: 'marker' and optionally customize textMarkers
  */
-// Helper functions to reduce complexity of expectedToolUse execute function
+interface ProviderTools {
+  tools: string[];
+  usedProvider: boolean;
+}
+
 function extractProviderTools(
   result: AIResult,
   mode: ExpectedToolUseOptions['mode'],
   providerExtractor?: (result: AIResult) => string[],
-): { tools: string[]; usedProvider: boolean } {
+): ProviderTools {
   if (mode === 'auto' || mode === 'provider') {
     const providerTools = providerExtractor
       ? providerExtractor(result)
       : extractToolNamesFromResult(result);
+
     if (providerTools.length > 0) {
       return { tools: providerTools, usedProvider: true };
     }
   }
+
   return { tools: [], usedProvider: false };
 }
 
@@ -227,11 +214,19 @@ function getToolMarkers(
   if (Array.isArray(textMarkers)) {
     return textMarkers;
   }
-  if (typeof textMarkers === 'function') {
+
+  if (textMarkers instanceof Function) {
     const built = textMarkers(tool);
+
     return Array.isArray(built) ? built : [built];
   }
+
   return [defaultMarker(tool)];
+}
+
+interface MarkerTools {
+  markers: string[];
+  usedMarkers: boolean;
 }
 
 function extractMarkerTools(
@@ -240,7 +235,7 @@ function extractMarkerTools(
   mode: ExpectedToolUseOptions['mode'],
   textMarkers?: ExpectedToolUseOptions['textMarkers'],
   observedToolsLength = 0,
-): { markers: string[]; usedMarkers: boolean } {
+): MarkerTools {
   if ((mode === 'auto' && observedToolsLength === 0) || mode === 'marker') {
     const { text } = extractContent(result);
     const observedMarkers: string[] = [];
@@ -248,6 +243,7 @@ function extractMarkerTools(
     for (const tool of expected) {
       const markers = getToolMarkers(tool, textMarkers);
       const found = markers.find((m) => m && text.includes(m));
+
       if (found) {
         observedMarkers.push(found);
       }
@@ -258,6 +254,7 @@ function extractMarkerTools(
       usedMarkers: observedMarkers.length > 0,
     };
   }
+
   return { markers: [], usedMarkers: false };
 }
 
@@ -268,12 +265,15 @@ function determineDetectionType(
   if (usedProvider && usedMarkers) {
     return 'mixed';
   }
+
   if (usedProvider) {
     return 'provider';
   }
+
   if (usedMarkers) {
     return 'marker';
   }
+
   return 'none';
 }
 
@@ -315,9 +315,9 @@ export function expectedToolUse(
     providerExtractor,
     retry: retryConfig,
   } = options;
+
   const expected = Array.isArray(tools) ? tools : [tools];
 
-  // Return guardrail with retry support (constructed directly for proper typing)
   return {
     name: 'expected-tool-use',
     retry: retryConfig,
@@ -325,14 +325,12 @@ export function expectedToolUse(
     execute: (context: OutputGuardrailContext) => {
       const { result } = context;
 
-      // Extract provider tools
       const { tools: observedTools, usedProvider } = extractProviderTools(
         result,
         mode,
         providerExtractor,
       );
 
-      // Extract marker tools
       const { markers: observedMarkers, usedMarkers } = extractMarkerTools(
         result,
         expected,
@@ -341,11 +339,11 @@ export function expectedToolUse(
         observedTools.length,
       );
 
-      // Decide pass/fail
       const detectedTools = new Set<string>([
         ...observedTools,
         ...observedMarkers.map((m) => m.replace(/^TOOL_USED:\s*/, '')),
       ]);
+
       const missing = expected.filter((t) => !detectedTools.has(t));
       const passed = requireAll ? missing.length === 0 : detectedTools.size > 0;
 
@@ -401,6 +399,7 @@ export function expectedToolUse(
 
       if (missingTools.length === 1) {
         const urgency = attempt > 1 ? 'CRITICAL: ' : '';
+
         return {
           message: `${urgency}Your previous response did not call any tools. You MUST call the "${toolName}" tool function NOW. Do not respond with text - invoke the tool first. This is attempt ${attempt}.`,
           context: { missingTools, attempt },
@@ -464,19 +463,17 @@ export function toolEgressPolicy(
       const { result } = context;
       const { text } = extractContent(result);
 
-      // Extract tool calls from the result
       const { tools: observedTools } = extractProviderTools(result, 'auto');
 
       const violations: string[] = [];
+
       const detectedIssues: Array<{
         tool: string;
         issue: string;
         severity: 'low' | 'medium' | 'high';
       }> = [];
 
-      // Check tool allowlist/denylist
       for (const tool of observedTools) {
-        // Check denied tools
         if (deniedTools.includes(tool)) {
           violations.push(`Tool '${tool}' is explicitly denied`);
           detectedIssues.push({
@@ -487,7 +484,6 @@ export function toolEgressPolicy(
           continue;
         }
 
-        // Check allowed tools (if allowlist is specified)
         if (allowedTools.length > 0 && !allowedTools.includes(tool)) {
           violations.push(`Tool '${tool}' is not in allowlist`);
           detectedIssues.push({
@@ -498,14 +494,14 @@ export function toolEgressPolicy(
           continue;
         }
 
-        // Check parameter rules for this tool
         const rules = parameterRules[tool];
+
         if (rules && rules.maxParamLength) {
-          // Note: In a real implementation, you'd need access to actual tool parameters
-          // This is a simplified check based on text content
+          // Measures the text line that mentions the tool, not the call arguments.
           const toolMention = text.match(
             new RegExp(String.raw`${tool}.*?(?=\n|$)`, 'i'),
           );
+
           if (toolMention && toolMention[0].length > rules.maxParamLength) {
             violations.push(`Tool '${tool}' parameter length exceeds limit`);
             detectedIssues.push({
@@ -519,20 +515,18 @@ export function toolEgressPolicy(
 
       // Scan tool-call args for URLs (structured egress)
       if (scanForUrls) {
-        const blockedPatterns = blockedHosts.map((h) =>
-          typeof h === 'string' ? h : h,
-        );
         for (const payload of extractToolCallPayloads(result)) {
           const argViolations = scanTextEgressViolations(
             payload.argsText,
             {
               allowedHosts,
-              blockedHosts: blockedPatterns,
+              blockedHosts,
               allowFileUrls,
               allowLocalhost,
             },
             `tool:${payload.toolName}`,
           );
+
           for (const v of argViolations) {
             violations.push(v);
             detectedIssues.push({
@@ -544,7 +538,6 @@ export function toolEgressPolicy(
         }
       }
 
-      // Scan for URLs in text if enabled
       if (scanForUrls) {
         const urlPattern = /https?:\/\/[^\s]+|ftp:\/\/[^\s]+|file:\/\/[^\s]+/gi;
         const urls = text.match(urlPattern) || [];
@@ -553,7 +546,6 @@ export function toolEgressPolicy(
           try {
             const parsed = new URL(url);
 
-            // Check file:// URLs
             if (parsed.protocol === 'file:' && !allowFileUrls) {
               violations.push(`File URL detected and not allowed: ${url}`);
               detectedIssues.push({
@@ -564,7 +556,6 @@ export function toolEgressPolicy(
               continue;
             }
 
-            // Check localhost
             if (
               !allowLocalhost &&
               (parsed.hostname === 'localhost' ||
@@ -582,7 +573,6 @@ export function toolEgressPolicy(
               continue;
             }
 
-            // Check blocked hosts
             if (blockedHosts.includes(parsed.hostname)) {
               violations.push(`Blocked host detected: ${parsed.hostname}`);
               detectedIssues.push({
@@ -593,7 +583,6 @@ export function toolEgressPolicy(
               continue;
             }
 
-            // Check allowed hosts (if allowlist is specified)
             if (
               allowedHosts.length > 0 &&
               !allowedHosts.includes(parsed.hostname)
@@ -621,6 +610,7 @@ export function toolEgressPolicy(
         const highSeverityCount = detectedIssues.filter(
           (i) => i.severity === 'high',
         ).length;
+
         const mediumSeverityCount = detectedIssues.filter(
           (i) => i.severity === 'medium',
         ).length;

@@ -7,9 +7,14 @@ import {
   withGuardrails,
 } from './guardrails';
 import { tokenUsageLimit } from './guardrails/output';
+import { extractContent } from './guardrails/output';
 import type { LanguageModelV4, LanguageModelV4CallOptions } from './types';
 
-// V3 usage helper
+// SAFETY: with guardrails configured, withGuardrails returns
+// wrapLanguageModel's LanguageModelV4; these tests always configure some.
+const guarded = (config: Parameters<typeof withGuardrails>[0]) =>
+  withGuardrails(config) as LanguageModelV4;
+
 const createV3Usage = (inputTotal: number, outputTotal: number) => ({
   inputTokens: {
     total: inputTotal,
@@ -24,7 +29,6 @@ const createV3Usage = (inputTotal: number, outputTotal: number) => ({
   },
 });
 
-// Mock AI model for testing
 const createMockModel = (response = 'Mock AI response'): LanguageModelV4 => ({
   specificationVersion: 'v4',
   provider: 'test',
@@ -107,11 +111,11 @@ describe('AI SDK 5 Helper Functions', () => {
 
   describe('withGuardrails({ model: input })', () => {
     it('should wrap model with input guardrails', () => {
-      const wrappedModel = withGuardrails({
+      const wrappedModel = guarded({
         model: mockModel,
         inputGuardrails: [testInputGuardrail],
         throwOnBlocked: false,
-      }) as LanguageModelV4;
+      });
 
       expect(wrappedModel).toHaveProperty('doGenerate');
       expect(wrappedModel).toHaveProperty('doStream');
@@ -132,11 +136,11 @@ describe('AI SDK 5 Helper Functions', () => {
         }),
       });
 
-      const wrappedModel = withGuardrails({
+      const wrappedModel = guarded({
         model: mockModel,
         inputGuardrails: [blockingGuardrail],
         throwOnBlocked: false,
-      }) as LanguageModelV4;
+      });
 
       const result = await wrappedModel.doGenerate({
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test' }] }],
@@ -163,29 +167,30 @@ describe('AI SDK 5 Helper Functions', () => {
         }),
       });
 
-      const wrappedModel = withGuardrails({
+      const wrappedModel = guarded({
         model: mockModel,
         inputGuardrails: [blockingGuardrail],
         throwOnBlocked: false,
-      }) as LanguageModelV4;
+      });
 
       const result = await wrappedModel.doGenerate({
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test' }] }],
       });
 
-      expect((result as { text?: string }).text).toContain(
-        '[Input blocked: Blocked]',
+      expect(result).toHaveProperty(
+        'text',
+        expect.stringContaining('[Input blocked: Blocked]'),
       );
     });
   });
 
   describe('withGuardrails({ model: output })', () => {
     it('should wrap model with output guardrails', () => {
-      const wrappedModel = withGuardrails({
+      const wrappedModel = guarded({
         model: mockModel,
         outputGuardrails: [testOutputGuardrail],
         throwOnBlocked: false,
-      }) as LanguageModelV4;
+      });
 
       expect(wrappedModel).toHaveProperty('doGenerate');
       expect(wrappedModel).toHaveProperty('doStream');
@@ -196,12 +201,12 @@ describe('AI SDK 5 Helper Functions', () => {
 
   describe('withGuardrails({ model: combined })', () => {
     it('should wrap model with both input and output guardrails', () => {
-      const wrappedModel = withGuardrails({
+      const wrappedModel = guarded({
         model: mockModel,
         inputGuardrails: [testInputGuardrail],
         outputGuardrails: [testOutputGuardrail],
         throwOnBlocked: false,
-      }) as LanguageModelV4;
+      });
 
       expect(wrappedModel).toHaveProperty('doGenerate');
       expect(wrappedModel).toHaveProperty('doStream');
@@ -266,12 +271,12 @@ describe('AI SDK 5 Helper Functions', () => {
         }),
       });
 
-      const wrappedModel = withGuardrails({
+      const wrappedModel = guarded({
         model: mockModel,
         outputGuardrails: [blockingGuardrail],
         throwOnBlocked: false,
         // replaceOnBlocked defaults to true
-      }) as LanguageModelV4;
+      });
 
       const result = await wrappedModel.doGenerate({
         prompt: [
@@ -315,11 +320,11 @@ describe('AI SDK 5 Helper Functions', () => {
         },
       };
 
-      const wrappedModel = withGuardrails({
+      const wrappedModel = guarded({
         model: textModel,
         outputGuardrails: [blockingGuardrail],
         throwOnBlocked: false,
-      }) as LanguageModelV4;
+      });
 
       const result = await wrappedModel.doGenerate({
         prompt: [
@@ -327,7 +332,8 @@ describe('AI SDK 5 Helper Functions', () => {
         ],
       });
 
-      expect((result as { text?: string }).text).toBe(
+      expect(result).toHaveProperty(
+        'text',
         '[Output blocked: Output blocked for test]',
       );
     });
@@ -345,12 +351,12 @@ describe('AI SDK 5 Helper Functions', () => {
         }),
       });
 
-      const wrappedModel = withGuardrails({
+      const wrappedModel = guarded({
         model: mockModel,
         outputGuardrails: [blockingGuardrail],
         throwOnBlocked: false,
         replaceOnBlocked: false,
-      }) as LanguageModelV4;
+      });
 
       const result = await wrappedModel.doGenerate({
         prompt: [
@@ -372,8 +378,8 @@ describe('AI SDK 5 Helper Functions', () => {
         name: 'text-redaction',
         description: 'Mutates only the top-level text field',
         execute: async (params) => {
-          const result = params.result as { text?: string };
-          result.text = 'Redacted response';
+          Object.assign(params.result, { text: 'Redacted response' });
+
           return {
             tripwireTriggered: false,
             info: { guardrailName: 'text-redaction' },
@@ -381,11 +387,11 @@ describe('AI SDK 5 Helper Functions', () => {
         },
       });
 
-      const wrappedModel = withGuardrails({
+      const wrappedModel = guarded({
         model: mockModel,
         outputGuardrails: [redactionGuardrail],
         throwOnBlocked: false,
-      }) as LanguageModelV4;
+      });
 
       const result = await wrappedModel.doGenerate({
         prompt: [
@@ -397,7 +403,7 @@ describe('AI SDK 5 Helper Functions', () => {
         type: 'text',
         text: 'Redacted response',
       });
-      expect((result as { text?: string }).text).toBe('Redacted response');
+      expect(result).toHaveProperty('text', 'Redacted response');
     });
   });
 });
@@ -423,6 +429,7 @@ describe('Middleware Integration Tests', () => {
           guardrailName: 'test-guardrail',
         },
       });
+
       const inputGuardrail = defineInputGuardrail({
         name: 'test-input',
         description: 'Test input guardrail',
@@ -439,7 +446,6 @@ describe('Middleware Integration Tests', () => {
         model: mockModel,
       });
 
-      // Guardrail execute now may receive an optional options argument (e.g., AbortSignal)
       expect(executeSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           prompt: expect.any(String),
@@ -455,8 +461,8 @@ describe('Middleware Integration Tests', () => {
         description: 'Requires request context',
         execute: async (context) => ({
           tripwireTriggered: !(
-            context as { requestContext?: { userId?: string } }
-          ).requestContext?.userId,
+            'requestContext' in context && context.requestContext?.userId
+          ),
           message: 'Missing request context',
           severity: 'high' as const,
           info: {
@@ -476,10 +482,7 @@ describe('Middleware Integration Tests', () => {
         model: mockModel,
       });
 
-      expect(
-        (transformedParams as { guardrailsBlocked?: unknown })
-          .guardrailsBlocked,
-      ).toBeUndefined();
+      expect(transformedParams).not.toHaveProperty('guardrailsBlocked');
     });
 
     it('should not leak request context between calls', async () => {
@@ -488,8 +491,8 @@ describe('Middleware Integration Tests', () => {
         description: 'Requires request context',
         execute: async (context) => ({
           tripwireTriggered: !(
-            context as { requestContext?: { userId?: string } }
-          ).requestContext?.userId,
+            'requestContext' in context && context.requestContext?.userId
+          ),
           message: 'Missing request context',
           severity: 'high' as const,
           info: {
@@ -517,9 +520,7 @@ describe('Middleware Integration Tests', () => {
         model: mockModel,
       });
 
-      expect(
-        (firstResult as { guardrailsBlocked?: unknown }).guardrailsBlocked,
-      ).toBeUndefined();
+      expect(firstResult).not.toHaveProperty('guardrailsBlocked');
 
       const secondResult = await withoutContext.transformParams!({
         type: 'generate',
@@ -527,9 +528,10 @@ describe('Middleware Integration Tests', () => {
         model: mockModel,
       });
 
-      expect(
-        (secondResult as { guardrailsBlocked?: unknown }).guardrailsBlocked,
-      ).toEqual(expect.any(Array));
+      expect(secondResult).toHaveProperty(
+        'guardrailsBlocked',
+        expect.any(Array),
+      );
     });
 
     it('should block request when input guardrail is triggered', async () => {
@@ -562,6 +564,7 @@ describe('Middleware Integration Tests', () => {
 
     it('should call onInputBlocked callback when guardrail is triggered', async () => {
       const onInputBlockedSpy = vi.fn();
+
       const inputGuardrail = defineInputGuardrail({
         name: 'callback-input',
         description: 'Callback input guardrail',
@@ -627,6 +630,7 @@ describe('Middleware Integration Tests', () => {
           guardrailName: 'test-guardrail',
         },
       });
+
       const execute2Spy = vi.fn().mockResolvedValue({
         tripwireTriggered: false,
         info: {
@@ -691,15 +695,19 @@ describe('Middleware Integration Tests', () => {
     const readStreamText = async (stream: ReadableStream) => {
       const reader = stream.getReader();
       let output = '';
+
       while (true) {
         const { value, done } = await reader.read();
+
         if (done) {
           break;
         }
+
         if (value?.type === 'text-delta') {
           output += value.delta ?? value.textDelta ?? '';
         }
       }
+
       return output;
     };
 
@@ -721,8 +729,8 @@ describe('Middleware Integration Tests', () => {
 
       expect(middleware).toHaveProperty('wrapGenerate');
       expect(middleware).toHaveProperty('wrapStream');
-      expect(typeof middleware.wrapGenerate).toBe('function');
-      expect(typeof middleware.wrapStream).toBe('function');
+      expect(middleware.wrapGenerate).toBeInstanceOf(Function);
+      expect(middleware.wrapStream).toBeInstanceOf(Function);
     });
 
     it('should pass request context to output guardrails in progressive stream mode', async () => {
@@ -730,9 +738,7 @@ describe('Middleware Integration Tests', () => {
         name: 'context-output',
         description: 'Requires request context',
         execute: async (context) => ({
-          tripwireTriggered: !(
-            context.input as { requestContext?: { userId?: string } }
-          ).requestContext?.userId,
+          tripwireTriggered: !context.input.requestContext?.userId,
           message: 'Missing request context',
           severity: 'high' as const,
           info: {
@@ -748,11 +754,11 @@ describe('Middleware Integration Tests', () => {
         replaceOnBlocked: true,
       });
 
-      const mockParams = {
+      const mockParams: LanguageModelV4CallOptions = {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV4CallOptions;
+      };
 
       const streamResult = await middleware.wrapStream!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -774,6 +780,7 @@ describe('Middleware Integration Tests', () => {
           guardrailName: 'accumulated-text',
         },
       });
+
       const outputGuardrail = defineOutputGuardrail({
         name: 'accumulated-text',
         description: 'Checks accumulated text in streaming mode',
@@ -786,11 +793,11 @@ describe('Middleware Integration Tests', () => {
         streamMode: 'progressive',
       });
 
-      const mockParams = {
+      const mockParams: LanguageModelV4CallOptions = {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV4CallOptions;
+      };
 
       const streamResult = await middleware.wrapStream!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -813,6 +820,7 @@ describe('Middleware Integration Tests', () => {
           guardrailName: 'accumulated-text',
         },
       });
+
       const outputGuardrail = defineOutputGuardrail({
         name: 'accumulated-text',
         description: 'Checks accumulated text in streaming mode',
@@ -825,11 +833,11 @@ describe('Middleware Integration Tests', () => {
         streamMode: 'buffer',
       });
 
-      const mockParams = {
+      const mockParams: LanguageModelV4CallOptions = {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV4CallOptions;
+      };
 
       const streamResult = await middleware.wrapStream!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -847,7 +855,8 @@ describe('Middleware Integration Tests', () => {
 
     it('should apply token usage guardrails in buffer stream mode', async () => {
       const outputGuardrail = tokenUsageLimit(5);
-      const streamModel = {
+
+      const streamModel: LanguageModelV4 = {
         ...createMockModel(),
         async doStream(options: LanguageModelV4CallOptions) {
           const stream = new ReadableStream({
@@ -882,7 +891,7 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         },
-      } as LanguageModelV4;
+      };
 
       const middleware = outputGuardrailsMiddleware({
         outputGuardrails: [outputGuardrail],
@@ -890,11 +899,11 @@ describe('Middleware Integration Tests', () => {
         streamMode: 'buffer',
       });
 
-      const mockParams = {
+      const mockParams: LanguageModelV4CallOptions = {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV4CallOptions;
+      };
 
       const streamResult = await middleware.wrapStream!({
         doGenerate: () => streamModel.doGenerate(mockParams),
@@ -913,7 +922,8 @@ describe('Middleware Integration Tests', () => {
     it('should pass usage to onOutputBlocked in buffer stream mode', async () => {
       const onOutputBlocked = vi.fn();
       const outputGuardrail = tokenUsageLimit(5);
-      const streamModel = {
+
+      const streamModel: LanguageModelV4 = {
         ...createMockModel(),
         async doStream(options: LanguageModelV4CallOptions) {
           const stream = new ReadableStream({
@@ -948,7 +958,7 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         },
-      } as LanguageModelV4;
+      };
 
       const middleware = outputGuardrailsMiddleware({
         outputGuardrails: [outputGuardrail],
@@ -957,11 +967,11 @@ describe('Middleware Integration Tests', () => {
         streamMode: 'buffer',
       });
 
-      const mockParams = {
+      const mockParams: LanguageModelV4CallOptions = {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV4CallOptions;
+      };
 
       const streamResult = await middleware.wrapStream!({
         doGenerate: () => streamModel.doGenerate(mockParams),
@@ -973,9 +983,10 @@ describe('Middleware Integration Tests', () => {
       await readStreamText(streamResult.stream);
 
       expect(onOutputBlocked).toHaveBeenCalled();
-      const call = onOutputBlocked.mock.calls[0];
-      const result = call?.[2] as { usage?: { totalTokens?: number } };
-      expect(result?.usage?.totalTokens).toBe(20);
+      expect(onOutputBlocked.mock.calls[0]?.[2]).toHaveProperty(
+        'usage.totalTokens',
+        20,
+      );
     });
   });
 
@@ -998,7 +1009,6 @@ describe('Middleware Integration Tests', () => {
         inputGuardrails: [inputGuardrail],
       });
 
-      // Simulate input processing
       const transformedParams = await inputMiddleware.transformParams!({
         type: 'generate',
         params: mockParams,
@@ -1105,6 +1115,7 @@ describe('Middleware Integration Tests', () => {
           guardrailName: 'test-guardrail',
         },
       });
+
       const neverCalledGuardrail = defineInputGuardrail({
         name: 'never-called-input',
         description: 'Never called input guardrail',
@@ -1143,6 +1154,7 @@ describe('Middleware Integration Tests', () => {
         execute: async () => {
           // Simulate a slow guardrail that takes longer than timeout
           await new Promise((resolve) => setTimeout(resolve, 200));
+
           return {
             tripwireTriggered: false,
             info: {
@@ -1161,8 +1173,6 @@ describe('Middleware Integration Tests', () => {
         },
       });
 
-      // Note: This test assumes the middleware implements timeout functionality
-      // If not implemented, this test will need to be updated
       await expect(
         middleware.transformParams!({
           type: 'generate',
@@ -1176,10 +1186,12 @@ describe('Middleware Integration Tests', () => {
   describe('autoRetryOnBlocked integration', () => {
     it('should retry when output is blocked and succeed on second attempt', async () => {
       let callCount = 0;
-      const mockModel = {
+
+      const mockModel: LanguageModelV4 = {
         ...createMockModel(),
         doGenerate: vi.fn().mockImplementation(async (options) => {
           callCount++;
+
           // First call returns short response, second call returns long response
           const text =
             callCount === 1
@@ -1195,16 +1207,15 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         }),
-      } as LanguageModelV4;
+      };
 
       // Guardrail that blocks short responses
       const lengthGuardrail = defineOutputGuardrail({
         name: 'min-length',
         description: 'Requires minimum length',
         execute: async ({ result }) => {
-          // Handle both middleware format (content array) and direct text format
-          const text =
-            (result as any).text || (result as any).content?.[0]?.text || '';
+          const { text } = extractContent(result);
+
           if (text.length < 50) {
             return {
               tripwireTriggered: true,
@@ -1215,6 +1226,7 @@ describe('Middleware Integration Tests', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             info: {
@@ -1249,11 +1261,11 @@ describe('Middleware Integration Tests', () => {
         },
       });
 
-      const mockParams = {
+      const mockParams: LanguageModelV4CallOptions = {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV4CallOptions;
+      };
 
       const result = await middleware.wrapGenerate!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -1263,15 +1275,20 @@ describe('Middleware Integration Tests', () => {
       });
 
       expect(callCount).toBe(2);
-      expect((result as any).content[0].text).toContain('much longer response');
+      expect(result.content[0]).toHaveProperty(
+        'text',
+        expect.stringContaining('much longer response'),
+      );
     });
 
     it('should return blocked message when retries exhausted', async () => {
       let callCount = 0;
-      const mockModel = {
+
+      const mockModel: LanguageModelV4 = {
         ...createMockModel(),
         doGenerate: vi.fn().mockImplementation(async () => {
           callCount++;
+
           // Always return short response to trigger blocking
           return {
             content: [{ type: 'text', text: 'Short' }],
@@ -1282,15 +1299,14 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         }),
-      } as LanguageModelV4;
+      };
 
       const lengthGuardrail = defineOutputGuardrail({
         name: 'min-length',
         description: 'Requires minimum length',
         execute: async ({ result }) => {
-          // Handle both middleware format (content array) and direct text format
-          const text =
-            (result as any).text || (result as any).content?.[0]?.text || '';
+          const { text } = extractContent(result);
+
           if (text.length < 50) {
             return {
               tripwireTriggered: true,
@@ -1301,6 +1317,7 @@ describe('Middleware Integration Tests', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             info: {
@@ -1335,11 +1352,11 @@ describe('Middleware Integration Tests', () => {
         },
       });
 
-      const mockParams = {
+      const mockParams: LanguageModelV4CallOptions = {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV4CallOptions;
+      };
 
       const result = await middleware.wrapGenerate!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -1351,15 +1368,20 @@ describe('Middleware Integration Tests', () => {
       // Should try 3 times (original + 2 retries)
       expect(callCount).toBe(3);
       // Should return blocked message since replaceOnBlocked is true
-      expect((result as any).content[0].text).toContain('[Output blocked:');
+      expect(result.content[0]).toHaveProperty(
+        'text',
+        expect.stringContaining('[Output blocked:'),
+      );
     });
 
     it('should respect onlyWhen predicate for retries', async () => {
       let callCount = 0;
-      const mockModel = {
+
+      const mockModel: LanguageModelV4 = {
         ...createMockModel(),
         doGenerate: vi.fn().mockImplementation(async () => {
           callCount++;
+
           return {
             content: [{ type: 'text', text: 'Short' }],
             finishReason: 'stop',
@@ -1369,15 +1391,14 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         }),
-      } as LanguageModelV4;
+      };
 
       const lengthGuardrail = defineOutputGuardrail({
         name: 'min-length',
         description: 'Requires minimum length',
         execute: async ({ result }) => {
-          // Handle both middleware format (content array) and direct text format
-          const text =
-            (result as any).text || (result as any).content?.[0]?.text || '';
+          const { text } = extractContent(result);
+
           if (text.length < 50) {
             return {
               tripwireTriggered: true,
@@ -1388,6 +1409,7 @@ describe('Middleware Integration Tests', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             info: {
@@ -1410,11 +1432,11 @@ describe('Middleware Integration Tests', () => {
         },
       });
 
-      const mockParams = {
+      const mockParams: LanguageModelV4CallOptions = {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV4CallOptions;
+      };
 
       const result = await middleware.wrapGenerate!({
         doGenerate: () => mockModel.doGenerate(mockParams),
@@ -1425,15 +1447,20 @@ describe('Middleware Integration Tests', () => {
 
       // Should only call once since onlyWhen predicate returns false for critical severity
       expect(callCount).toBe(1);
-      expect((result as any).content[0].text).toContain('[Output blocked:');
+      expect(result.content[0]).toHaveProperty(
+        'text',
+        expect.stringContaining('[Output blocked:'),
+      );
     });
 
     it('should apply backoff delay between retry attempts', async () => {
       let callCount = 0;
-      const mockModel = {
+
+      const mockModel: LanguageModelV4 = {
         ...createMockModel(),
         doGenerate: vi.fn().mockImplementation(async () => {
           callCount++;
+
           if (callCount === 1) {
             return {
               content: [{ type: 'text', text: 'Short' }],
@@ -1444,6 +1471,7 @@ describe('Middleware Integration Tests', () => {
               warnings: [],
             };
           }
+
           return {
             content: [
               {
@@ -1458,15 +1486,14 @@ describe('Middleware Integration Tests', () => {
             warnings: [],
           };
         }),
-      } as LanguageModelV4;
+      };
 
       const lengthGuardrail = defineOutputGuardrail({
         name: 'min-length',
         description: 'Requires minimum length',
         execute: async ({ result }) => {
-          // Handle both middleware format (content array) and direct text format
-          const text =
-            (result as any).text || (result as any).content?.[0]?.text || '';
+          const { text } = extractContent(result);
+
           if (text.length < 50) {
             return {
               tripwireTriggered: true,
@@ -1477,6 +1504,7 @@ describe('Middleware Integration Tests', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             info: {
@@ -1496,11 +1524,11 @@ describe('Middleware Integration Tests', () => {
         },
       });
 
-      const mockParams = {
+      const mockParams: LanguageModelV4CallOptions = {
         prompt: [
           { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
         ],
-      } as LanguageModelV4CallOptions;
+      };
 
       const startTime = Date.now();
       await middleware.wrapGenerate!({

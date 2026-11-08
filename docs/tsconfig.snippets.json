@@ -1,0 +1,15 @@
+{
+  // Used by scripts/check-snippets.mjs to type-check the docs' code samples.
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["es2023"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "typeRoots": [".snippets/node_modules/@types"],
+    "types": ["node"]
+  },
+  "include": [".snippets/*.ts"]
+}

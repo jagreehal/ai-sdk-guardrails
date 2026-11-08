@@ -12,11 +12,13 @@ import type {
   LanguageModelV4FinishReason,
   LanguageModelV4Usage,
 } from '@ai-sdk/provider';
+import type { GuardrailMetadata } from '../enhanced-types';
 import { GuardrailsOutputError, GuardrailsInputError } from '../errors';
 import { extractContent } from './output';
 import {
   createDefaultBuildRetryParams,
   resolveRetryConfig,
+  retryDelayMs,
 } from './retry-helpers';
 import {
   checkStreamStopCondition,
@@ -30,6 +32,7 @@ import {
   syncGenerateResultTextAfterGuardrails,
 } from './generate-result-sync';
 import type {
+  StreamedOutputSnapshot,
   OutputGuardrail,
   GuardrailResult,
   OutputGuardrailContext,
@@ -45,7 +48,7 @@ import type {
   GuardrailExecutionSummary,
 } from '../types';
 
-// V4-compatible helpers for mock responses
+// Usage and finish reasons for responses synthesized by the middleware.
 const emptyV4Usage: LanguageModelV4Usage = {
   inputTokens: {
     total: 0,
@@ -71,15 +74,37 @@ const finishReasonOther: LanguageModelV4FinishReason = {
 };
 
 /**
- * Creates an input guardrails middleware that executes before AI calls
- * Follows AI SDK 5 middleware patterns
+ * Input results blocked in `transformParams`, keyed by the params object it
+ * returns (the AI SDK passes that same object to `wrapGenerate`/`wrapStream`).
+ */
+const blockedInputs = new WeakMap<
+  LanguageModelV4CallOptions,
+  GuardrailResult[]
+>();
+
+/**
+ * View a provider-level or streamed result as the `AIResult` that output
+ * guardrails receive.
+ */
+export function asGuardrailResult(
+  result: LanguageModelV4GenerateResult | { text: string },
+): AIResult {
+  // SAFETY: output guardrails read results structurally (extractContent and
+  // optional text/content/usage/finishReason/toolCalls fields). In middleware
+  // the value is the provider's V4 result or a streamed partial rather than
+  // the generateText result that AIResult names.
+  return result as AIResult;
+}
+
+/**
+ * Creates an input guardrails middleware that executes before AI calls.
  *
  * @internal Advanced API - Use withGuardrails() for simpler usage
  * @param config - Input guardrails configuration
  * @returns AI SDK middleware that executes input guardrails
  */
 export function inputGuardrailsMiddleware<
-  M extends Record<string, unknown> = Record<string, unknown>,
+  M extends GuardrailMetadata = GuardrailMetadata,
 >(config: InputGuardrailsMiddlewareConfig<M>): LanguageModelV4Middleware {
   const {
     inputGuardrails,
@@ -98,15 +123,14 @@ export function inputGuardrailsMiddleware<
       params: LanguageModelV4CallOptions;
       model: LanguageModelV4;
     }) => {
-      // Start from original params; only add helper property if we actually block
       const baseContext = normalizeGuardrailContext(params);
 
-      // Create new context with request context to avoid mutating cached context
       const guardrailContext = context
         ? { ...baseContext, requestContext: context }
         : baseContext;
 
       const executionStartTime = Date.now();
+
       const inputResults = await executeInputGuardrails<M>(
         inputGuardrails,
         guardrailContext,
@@ -114,12 +138,14 @@ export function inputGuardrailsMiddleware<
       );
 
       const blockedResults = inputResults.filter((r) => r.tripwireTriggered);
+
       if (blockedResults.length > 0) {
         if (onInputBlocked) {
           const executionSummary = createExecutionSummary<M>(
             inputResults,
             executionStartTime,
           );
+
           onInputBlocked(executionSummary, guardrailContext);
         }
 
@@ -133,15 +159,11 @@ export function inputGuardrailsMiddleware<
           throw new GuardrailsInputError(blockedGuardrails);
         }
 
-        // Store blocked results for later use by wrapGenerate/wrapStream
-        const enhancedParams = params as LanguageModelV4CallOptions & {
-          guardrailsBlocked?: GuardrailResult[];
-        };
-        enhancedParams.guardrailsBlocked = blockedResults;
-        return enhancedParams;
+        blockedInputs.set(params, blockedResults);
+
+        return Object.assign(params, { guardrailsBlocked: blockedResults });
       }
 
-      // No blocks: return original params unchanged for strict equality expectations
       return params;
     },
 
@@ -154,12 +176,9 @@ export function inputGuardrailsMiddleware<
       params: LanguageModelV4CallOptions;
       model: LanguageModelV4;
     }) => {
-      const paramsWithGuardrails = params as LanguageModelV4CallOptions & {
-        guardrailsBlocked?: GuardrailResult[];
-      };
+      const blockedResults = blockedInputs.get(params);
 
-      if (paramsWithGuardrails.guardrailsBlocked) {
-        const blockedResults = paramsWithGuardrails.guardrailsBlocked;
+      if (blockedResults) {
         const blockedMessage = blockedResults.map((r) => r.message).join(', ');
         const blockedText = `[Input blocked: ${blockedMessage}]`;
 
@@ -186,12 +205,9 @@ export function inputGuardrailsMiddleware<
       params: LanguageModelV4CallOptions;
       model: LanguageModelV4;
     }) => {
-      const paramsWithGuardrails = params as LanguageModelV4CallOptions & {
-        guardrailsBlocked?: GuardrailResult[];
-      };
+      const blockedResults = blockedInputs.get(params);
 
-      if (paramsWithGuardrails.guardrailsBlocked) {
-        const blockedResults = paramsWithGuardrails.guardrailsBlocked;
+      if (blockedResults) {
         const blockedMessage = blockedResults.map((r) => r.message).join(', ');
 
         const stream = new ReadableStream<LanguageModelV4StreamPart>({
@@ -219,15 +235,14 @@ export function inputGuardrailsMiddleware<
 }
 
 /**
- * Creates an output guardrails middleware that executes after AI calls
- * Follows AI SDK 5 middleware patterns
+ * Creates an output guardrails middleware that executes after AI calls.
  *
  * @internal Advanced API - Use withGuardrails() for simpler usage
  * @param config - Output guardrails configuration
  * @returns AI SDK middleware that executes output guardrails
  */
 export function outputGuardrailsMiddleware<
-  M extends Record<string, unknown> = Record<string, unknown>,
+  M extends GuardrailMetadata = GuardrailMetadata,
 >(config: OutputGuardrailsMiddlewareConfig<M>): LanguageModelV4Middleware {
   const {
     outputGuardrails,
@@ -256,25 +271,19 @@ export function outputGuardrailsMiddleware<
       const result = await doGenerate();
       const resultTextBeforeGuardrails = snapshotGenerateResultText(result);
 
-      // Use normalized context for better type safety
       const baseContext = normalizeGuardrailContext(params);
 
-      // Create new context with request context to avoid mutating cached context
       const guardrailContext = context
         ? { ...baseContext, requestContext: context }
         : baseContext;
 
-      // Create a proper AIResult that works for both generateText and generateText with Output.object()
-      const aiResult: AIResult = result as unknown as AIResult;
-      // For middleware, we work with the raw model result
-      // Note: generateText with Output.object() scenarios should use executeOutputGuardrails() post-generation
-
       const outputContext: OutputGuardrailContext = {
         input: guardrailContext,
-        result: aiResult,
+        result: asGuardrailResult(result),
       };
 
       const startTime = Date.now();
+
       const outputResults = await executeOutputGuardrails<M>(
         outputGuardrails,
         outputContext,
@@ -285,27 +294,22 @@ export function outputGuardrailsMiddleware<
         outputResults,
         startTime,
       );
+
       if (executionSummary.blockedResults.length > 0) {
-        // Get blocked guardrail objects for retry config resolution
         const blockedGuardrailObjects = executionSummary.blockedResults
           .map((r: GuardrailResult) =>
             outputGuardrails.find(
               (g) =>
-                g.name ===
-                (r.context?.guardrailName ??
-                  (r.info as Record<string, unknown> | undefined)
-                    ?.guardrailName),
+                g.name === (r.context?.guardrailName ?? r.info?.guardrailName),
             ),
           )
           .filter((g): g is OutputGuardrail<M> => g !== undefined);
 
-        // Resolve effective retry config (withGuardrails level takes precedence)
         const effectiveRetry = resolveRetryConfig(
           retry,
           blockedGuardrailObjects,
         );
 
-        // Auto-retry path - inline retry logic (middleware pattern limitation)
         if (
           effectiveRetry.maxRetries > 0 &&
           (retry?.onlyWhen ? retry.onlyWhen(executionSummary) : true)
@@ -315,15 +319,12 @@ export function outputGuardrailsMiddleware<
           let lastResult = result;
 
           for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            const wait =
-              typeof effectiveRetry.backoffMs === 'function'
-                ? effectiveRetry.backoffMs(attempt)
-                : (effectiveRetry.backoffMs ?? 0);
+            const wait = retryDelayMs(effectiveRetry.backoffMs, attempt);
+
             if (wait && wait > 0) {
               await new Promise((r) => setTimeout(r, wait));
             }
 
-            // Use provided buildRetryParams or create default
             const buildRetryParams =
               retry?.buildRetryParams ??
               createDefaultBuildRetryParams({
@@ -338,25 +339,27 @@ export function outputGuardrailsMiddleware<
               summary: executionSummary,
               originalParams: params,
               lastParams,
-              lastResult: lastResult as unknown as AIResult,
+              lastResult: asGuardrailResult(lastResult),
             });
 
-            // Call model with new params
             const retryRaw = await model.doGenerate(nextParams);
+
             const retryTextBeforeGuardrails =
               snapshotGenerateResultText(retryRaw);
-            const retryResult = retryRaw;
 
             const retryContext: OutputGuardrailContext = {
               input: normalizeGuardrailContext(nextParams),
-              result: retryResult as unknown as AIResult,
+              result: asGuardrailResult(retryRaw),
             };
+
             const retryStart = Date.now();
+
             const retryResults = await executeOutputGuardrails<M>(
               outputGuardrails,
               retryContext,
               executionOptions,
             );
+
             const retrySummary = createExecutionSummary<M>(
               retryResults,
               retryStart,
@@ -369,9 +372,8 @@ export function outputGuardrailsMiddleware<
               );
             }
 
-            // Prepare for potential next attempt
             lastParams = nextParams;
-            lastResult = retryResult;
+            lastResult = retryRaw;
           }
         }
 
@@ -387,21 +389,22 @@ export function outputGuardrailsMiddleware<
               severity: r.severity || ('medium' as const),
             }),
           );
+
           throw new GuardrailsOutputError(blockedGuardrails);
         }
 
-        // Replace output with blocked message if replaceOnBlocked is true (for generateText)
         if (replaceOnBlocked) {
           const blockedMessage = executionSummary.blockedResults
             .map((r) => r.message)
             .join(', ');
+
           const blockedText = `[Output blocked: ${blockedMessage}]`;
-          const replaced = {
-            ...(result as unknown as Record<string, unknown>),
+
+          return {
+            ...result,
             text: blockedText,
             content: [{ type: 'text' as const, text: blockedText }],
-          } as unknown as typeof result;
-          return replaced;
+          };
         }
       }
 
@@ -424,7 +427,7 @@ export function outputGuardrailsMiddleware<
       const streamResult = await doStream();
 
       if (streamMode === 'buffer') {
-        // Buffer mode: evaluate at the end
+        // Buffer mode: evaluate once the stream has finished.
         let accumulatedText = '';
         let streamUsage: LanguageModelV4Usage | undefined;
         let streamFinishReason: LanguageModelV4FinishReason | undefined;
@@ -436,43 +439,39 @@ export function outputGuardrailsMiddleware<
         >({
           transform(chunk: LanguageModelV4StreamPart) {
             if (chunk.type === 'text-delta') {
-              const anyChunk = chunk as {
-                type: string;
-                delta?: string;
-                textDelta?: string;
-              };
-              accumulatedText += anyChunk.delta ?? anyChunk.textDelta ?? '';
-            }
-            // Capture usage and finishReason from finish chunk
-            else if (chunk.type === 'finish') {
+              accumulatedText += chunk.delta;
+            } else if (chunk.type === 'finish') {
               streamUsage = chunk.usage;
               streamFinishReason = chunk.finishReason;
             }
+
             blockedChunks.push(chunk);
           },
           async flush(controller) {
             const baseContext = normalizeGuardrailContext(params);
 
-            // Create new context with request context to avoid mutating cached context
             const guardrailContext = context
               ? { ...baseContext, requestContext: context }
               : baseContext;
 
-            // Build result with usage data so guardrails like tokenUsageLimit work
-            const streamedResult = {
+            // Carries usage so guardrails like tokenUsageLimit work.
+            const streamedResult: StreamedOutputSnapshot = {
               text: accumulatedText,
               content: [{ type: 'text', text: accumulatedText }],
               usage: streamUsage,
               finishReason: streamFinishReason,
             };
+
             const streamedTextBeforeGuardrails =
               snapshotGenerateResultText(streamedResult);
 
             const outputContext: OutputGuardrailContext = {
               input: guardrailContext,
-              result: streamedResult as unknown as AIResult,
+              result: asGuardrailResult(streamedResult),
             };
+
             const startTime = Date.now();
+
             const outputResults = await executeOutputGuardrails<M>(
               outputGuardrails,
               outputContext,
@@ -481,52 +480,45 @@ export function outputGuardrailsMiddleware<
                 accumulatedText,
               },
             );
+
             const executionSummary = createExecutionSummary<M>(
               outputResults,
               startTime,
             );
 
             if (executionSummary.blockedResults.length > 0) {
-              // Get blocked guardrail objects for retry config resolution
               const blockedGuardrailObjects = executionSummary.blockedResults
                 .map((r: GuardrailResult) =>
                   outputGuardrails.find(
                     (g) =>
                       g.name ===
-                      (r.context?.guardrailName ??
-                        (r.info as Record<string, unknown> | undefined)
-                          ?.guardrailName),
+                      (r.context?.guardrailName ?? r.info?.guardrailName),
                   ),
                 )
                 .filter((g): g is OutputGuardrail<M> => g !== undefined);
 
-              // Resolve effective retry config (withGuardrails level takes precedence)
               const effectiveRetry = resolveRetryConfig(
                 retry,
                 blockedGuardrailObjects,
               );
 
-              // Auto-retry (buffer mode only) - inline retry logic
+              // Auto-retry (buffer mode only)
               if (
                 effectiveRetry.maxRetries > 0 &&
                 (retry?.onlyWhen ? retry.onlyWhen(executionSummary) : true)
               ) {
                 const maxRetries = effectiveRetry.maxRetries;
                 let lastParams = params;
-                let lastResult: AIResult | { text: string } = {
-                  text: accumulatedText,
-                };
+
+                let lastResult = asGuardrailResult({ text: accumulatedText });
 
                 for (let attempt = 1; attempt <= maxRetries; attempt++) {
-                  const wait =
-                    typeof effectiveRetry.backoffMs === 'function'
-                      ? effectiveRetry.backoffMs(attempt)
-                      : (effectiveRetry.backoffMs ?? 0);
+                  const wait = retryDelayMs(effectiveRetry.backoffMs, attempt);
+
                   if (wait && wait > 0) {
                     await new Promise((r) => setTimeout(r, wait));
                   }
 
-                  // Use provided buildRetryParams or create default
                   const buildRetryParams =
                     retry?.buildRetryParams ??
                     createDefaultBuildRetryParams({
@@ -541,24 +533,26 @@ export function outputGuardrailsMiddleware<
                     summary: executionSummary,
                     originalParams: params,
                     lastParams,
-                    lastResult: lastResult as AIResult,
+                    lastResult,
                   });
 
-                  const retryResult = (await model.doGenerate(
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    nextParams as any,
-                  )) as unknown as AIResult;
+                  const retryResult = asGuardrailResult(
+                    await model.doGenerate(nextParams),
+                  );
 
                   const retryContext: OutputGuardrailContext = {
                     input: normalizeGuardrailContext(nextParams),
                     result: retryResult,
                   };
+
                   const retryStart = Date.now();
+
                   const retryResults = await executeOutputGuardrails<M>(
                     outputGuardrails,
                     retryContext,
                     executionOptions,
                   );
+
                   const retrySummary = createExecutionSummary<M>(
                     retryResults,
                     retryStart,
@@ -566,9 +560,8 @@ export function outputGuardrailsMiddleware<
 
                   if (retrySummary.blockedResults.length === 0) {
                     // Emit the repaired text as a single delta and finish
-                    const { text: repairedText } = extractContent(
-                      retryResult as AIResult,
-                    );
+                    const { text: repairedText } = extractContent(retryResult);
+
                     controller.enqueue({
                       type: 'text-delta',
                       id: '1',
@@ -579,8 +572,10 @@ export function outputGuardrailsMiddleware<
                       finishReason: finishReasonStop,
                       usage: emptyV4Usage,
                     });
+
                     return;
                   }
+
                   lastParams = nextParams;
                   lastResult = retryResult;
                 }
@@ -593,18 +588,22 @@ export function outputGuardrailsMiddleware<
                   streamedResult,
                 );
               }
+
               if (throwOnBlocked) {
                 controller.error(
                   new Error(
                     `Output guardrails blocked response: ${executionSummary.blockedResults.map((r) => r.message).join(', ')}`,
                   ),
                 );
+
                 return;
               }
+
               if (replaceOnBlocked) {
                 const blockedMessage = executionSummary.blockedResults
                   .map((r) => r.message)
                   .join(', ');
+
                 controller.enqueue({
                   type: 'text-delta',
                   id: '1',
@@ -625,10 +624,8 @@ export function outputGuardrailsMiddleware<
                 streamedResult,
                 streamedTextBeforeGuardrails,
               );
-              const finalText =
-                typeof streamedResult.text === 'string'
-                  ? streamedResult.text
-                  : accumulatedText;
+
+              const finalText = streamedResult.text;
 
               if (finalText === accumulatedText) {
                 for (const chunk of blockedChunks) {
@@ -651,17 +648,15 @@ export function outputGuardrailsMiddleware<
         });
 
         return {
-          stream: streamResult.stream.pipeThrough(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            transformStream as any,
-          ),
+          stream: streamResult.stream.pipeThrough(transformStream),
         };
       }
 
-      // Progressive mode: evaluate on the fly with early termination support
+      // Progressive mode: evaluate on every text delta, with early termination.
       let accumulatedText = '';
       let blocked = false;
       let chunkIndex = 0;
+
       const streamViolationHistory: Array<{
         chunkIndex: number;
         summary: GuardrailExecutionSummary<M>;
@@ -675,27 +670,24 @@ export function outputGuardrailsMiddleware<
           if (blocked) {
             return;
           }
+
           if (chunk.type === 'text-delta') {
-            const anyChunk = chunk as {
-              type: string;
-              delta?: string;
-              textDelta?: string;
-            };
-            accumulatedText += anyChunk.delta ?? anyChunk.textDelta ?? '';
+            accumulatedText += chunk.delta;
             chunkIndex++;
 
             const baseContext = normalizeGuardrailContext(params);
 
-            // Create new context with request context to avoid mutating cached context
             const guardrailContext = context
               ? { ...baseContext, requestContext: context }
               : baseContext;
 
             const outputContext: OutputGuardrailContext = {
               input: guardrailContext,
-              result: { text: accumulatedText } as AIResult,
+              result: asGuardrailResult({ text: accumulatedText }),
             };
+
             const startTime = Date.now();
+
             const outputResults = await executeOutputGuardrails<M>(
               outputGuardrails,
               outputContext,
@@ -704,19 +696,18 @@ export function outputGuardrailsMiddleware<
                 accumulatedText,
               },
             );
+
             const executionSummary = createExecutionSummary<M>(
               outputResults,
               startTime,
             );
 
             if (executionSummary.blockedResults.length > 0) {
-              // Track violation for early termination logic
               streamViolationHistory.push({
                 chunkIndex,
                 summary: executionSummary,
               });
 
-              // Check if we should stop early based on violation pattern
               const shouldStopEarly =
                 stopOnGuardrailViolation &&
                 checkStreamStopCondition(
@@ -728,25 +719,29 @@ export function outputGuardrailsMiddleware<
                 blocked = true;
               }
 
-              // Only block if we hit the stop condition or it's the first violation
+              // Block only once the stop condition is met.
               if (blocked) {
                 if (onOutputBlocked) {
                   onOutputBlocked(executionSummary, guardrailContext, {
                     text: accumulatedText,
                   });
                 }
+
                 if (throwOnBlocked) {
                   controller.error(
                     new Error(
                       `Output guardrails blocked response: ${executionSummary.blockedResults.map((r) => r.message).join(', ')}`,
                     ),
                   );
+
                   return;
                 }
+
                 if (replaceOnBlocked) {
                   const blockedMessage = executionSummary.blockedResults
                     .map((r) => r.message)
                     .join(', ');
+
                   controller.enqueue({
                     type: 'text-delta',
                     id: '1',
@@ -757,11 +752,13 @@ export function outputGuardrailsMiddleware<
                     finishReason: finishReasonOther,
                     usage: emptyV4Usage,
                   });
+
                   return;
                 }
                 // fall through: not replacing, still emit current chunk
               }
             }
+
             controller.enqueue(chunk);
           } else {
             controller.enqueue(chunk);
@@ -770,10 +767,7 @@ export function outputGuardrailsMiddleware<
       });
 
       return {
-        stream: streamResult.stream.pipeThrough(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          transformStream as any,
-        ),
+        stream: streamResult.stream.pipeThrough(transformStream),
       };
     },
   };

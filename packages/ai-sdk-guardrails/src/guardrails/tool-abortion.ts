@@ -2,8 +2,32 @@ import type {
   OutputGuardrail,
   OutputGuardrailContext,
   AIResult,
+  GenerateTextResult,
 } from '../types';
 import { executeOutputGuardrails } from '../guardrails';
+
+/** Wraps `text` as a result for output guardrails that check tool input. */
+function toolInputContext(text: string): OutputGuardrailContext {
+  const content: GenerateTextResult['content'] = [];
+
+  // SAFETY: output guardrails read only text, content, finishReason and usage
+  // from the result; the other AIResult members are absent here.
+  const result = {
+    text,
+    content,
+    finishReason: 'stop',
+    usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+  } as AIResult;
+
+  return {
+    input: {
+      prompt: '',
+      messages: [],
+      system: '',
+    },
+    result,
+  };
+}
 
 /**
  * Options for tool abortion controller
@@ -60,11 +84,13 @@ export class ToolAbortionController {
     const shouldAbort = results.some((result) => {
       if (!result.tripwireTriggered) return false;
       const resultSeverity = result.severity ?? 'medium';
+
       return severityOrder[resultSeverity] >= minLevel;
     });
 
     if (shouldAbort) {
       this.controller.abort('Guardrail violation detected');
+
       return true;
     }
 
@@ -209,33 +235,17 @@ export interface WrapToolWithAbortionOptions {
  * );
  * ```
  */
-export function wrapToolWithAbortion<T extends Record<string, unknown>>(
-  tool: T & {
-    execute: (
-      input: unknown,
-      options?: { abortSignal?: AbortSignal },
-    ) => Promise<unknown>;
-    onInputDelta?: (options: {
-      inputTextDelta: string;
-      toolCallId: string;
-      messages: unknown[];
-      abortSignal?: AbortSignal;
-    }) => Promise<void> | void;
+export function wrapToolWithAbortion<
+  // `never[]` params accept any tool's typed `execute` / `onInputDelta`.
+  T extends {
+    execute?: (...args: never[]) => void;
+    onInputDelta?: (...args: never[]) => void;
   },
+>(
+  tool: T,
   guardrails: OutputGuardrail[],
   options: WrapToolWithAbortionOptions = {},
-): T & {
-  execute: (
-    input: unknown,
-    options?: { abortSignal?: AbortSignal },
-  ) => Promise<unknown>;
-  onInputDelta?: (options: {
-    inputTextDelta: string;
-    toolCallId: string;
-    messages: unknown[];
-    abortSignal?: AbortSignal;
-  }) => Promise<void> | void;
-} {
+): T {
   const {
     checkBefore = false,
     monitorDuring = false,
@@ -248,27 +258,28 @@ export function wrapToolWithAbortion<T extends Record<string, unknown>>(
   const severityOrder = { low: 1, medium: 2, high: 3, critical: 4 };
   const minLevel = severityOrder[abortOnSeverity];
 
-  const originalExecute = tool.execute;
-  const originalOnInputDelta = tool.onInputDelta;
+  type ToolInput = Parameters<NonNullable<T['execute']>>[0];
 
-  async function checkGuardrails(input: unknown): Promise<void> {
-    // Create a minimal result object for guardrail checking
-    // The actual result type is complex, so we use type assertion
-    const mockResult = {
-      text: JSON.stringify(input),
-      content: [],
-      finishReason: 'stop',
-      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-    } as unknown as AIResult;
+  type ToolOutput = ReturnType<NonNullable<T['execute']>>;
 
-    const context: OutputGuardrailContext = {
-      input: {
-        prompt: '',
-        messages: [],
-        system: '',
-      },
-      result: mockResult,
-    };
+  // SAFETY: the AI SDK calls a tool's execute as `execute(input, options)`,
+  // with `abortSignal` among the options.
+  const originalExecute = tool.execute as
+    | ((
+        input: ToolInput,
+        options?: { abortSignal?: AbortSignal },
+      ) => ToolOutput)
+    | undefined;
+
+  // SAFETY: the AI SDK calls onInputDelta with a single InputDeltaOptions object.
+  const originalOnInputDelta = tool.onInputDelta as
+    | ((
+        options: InputDeltaOptions,
+      ) => ReturnType<NonNullable<T['onInputDelta']>>)
+    | undefined;
+
+  async function checkGuardrails(input: ToolInput): Promise<void> {
+    const context = toolInputContext(JSON.stringify(input));
 
     const results = await executeOutputGuardrails(guardrails, context, {
       parallel: true,
@@ -280,6 +291,7 @@ export function wrapToolWithAbortion<T extends Record<string, unknown>>(
     const shouldAbort = results.some((result) => {
       if (!result.tripwireTriggered) return false;
       const resultSeverity = result.severity ?? 'medium';
+
       return severityOrder[resultSeverity] >= minLevel;
     });
 
@@ -288,31 +300,30 @@ export function wrapToolWithAbortion<T extends Record<string, unknown>>(
         .filter((r) => r.tripwireTriggered)
         .map((r) => r.message)
         .join(', ');
+
       throw new Error(`Tool execution aborted: ${messages}`);
     }
   }
 
   const wrappedExecute = async (
-    input: unknown,
+    input: ToolInput,
     executeOptions?: { abortSignal?: AbortSignal },
-  ): Promise<unknown> => {
-    // Check before execution if configured
+  ): Promise<Awaited<ToolOutput> | undefined> => {
     if (checkBefore) {
       await checkGuardrails(input);
     }
 
-    // Create internal abort controller for monitoring
     const internalController = new AbortController();
 
-    // Monitor during execution if configured
     let monitorInterval_: NodeJS.Timeout | undefined;
-    let monitorError: Error | undefined;
+    let monitorError: unknown;
+
     if (monitorDuring) {
       monitorInterval_ = setInterval(async () => {
         try {
           await checkGuardrails(input);
         } catch (error) {
-          monitorError = error as Error;
+          monitorError = error;
           internalController.abort();
           clearInterval(monitorInterval_);
         }
@@ -330,18 +341,16 @@ export function wrapToolWithAbortion<T extends Record<string, unknown>>(
           : (executeOptions?.abortSignal ??
             (monitorDuring ? internalController.signal : undefined));
 
-      // Check if we need to pass abortSignal at all
       const callOptions = combinedSignal
         ? { ...executeOptions, abortSignal: combinedSignal }
         : executeOptions;
 
-      const result = await originalExecute.call(tool, input, callOptions);
+      const result = await originalExecute?.call(tool, input, callOptions);
 
       if (monitorInterval_) {
         clearInterval(monitorInterval_);
       }
 
-      // Check if monitoring detected an error
       if (monitorError) {
         throw monitorError;
       }
@@ -351,35 +360,15 @@ export function wrapToolWithAbortion<T extends Record<string, unknown>>(
       if (monitorInterval_) {
         clearInterval(monitorInterval_);
       }
-      // Throw monitor error if it exists, otherwise original error
+
       throw monitorError ?? error;
     }
   };
 
   const wrappedOnInputDelta =
     checkInputDelta && originalOnInputDelta
-      ? async (deltaOptions: {
-          inputTextDelta: string;
-          toolCallId: string;
-          messages: unknown[];
-          abortSignal?: AbortSignal;
-        }): Promise<void> => {
-          // Create a minimal result object for guardrail checking
-          const mockResult = {
-            text: deltaOptions.inputTextDelta,
-            content: [],
-            finishReason: 'stop',
-            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-          } as unknown as AIResult;
-
-          const context: OutputGuardrailContext = {
-            input: {
-              prompt: '',
-              messages: [],
-              system: '',
-            },
-            result: mockResult,
-          };
+      ? async (deltaOptions: InputDeltaOptions): Promise<void> => {
+          const context = toolInputContext(deltaOptions.inputTextDelta);
 
           const results = await executeOutputGuardrails(guardrails, context, {
             parallel: true,
@@ -391,6 +380,7 @@ export function wrapToolWithAbortion<T extends Record<string, unknown>>(
           const shouldAbort = results.some((result) => {
             if (!result.tripwireTriggered) return false;
             const resultSeverity = result.severity ?? 'medium';
+
             return severityOrder[resultSeverity] >= minLevel;
           });
 
@@ -401,14 +391,20 @@ export function wrapToolWithAbortion<T extends Record<string, unknown>>(
             );
           }
 
-          // Call original if safe
           await originalOnInputDelta?.call(tool, deltaOptions);
         }
       : originalOnInputDelta;
 
   return {
     ...tool,
-    execute: wrappedExecute,
+    ...(originalExecute && { execute: wrappedExecute }),
     ...(wrappedOnInputDelta && { onInputDelta: wrappedOnInputDelta }),
   };
+}
+
+interface InputDeltaOptions {
+  inputTextDelta: string;
+  toolCallId: string;
+  messages: unknown[];
+  abortSignal?: AbortSignal;
 }

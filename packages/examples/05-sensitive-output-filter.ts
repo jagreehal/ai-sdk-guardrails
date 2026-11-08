@@ -8,16 +8,17 @@
 import {
   defineOutputGuardrail,
   executeOutputGuardrails,
+  type GuardrailMetadata,
 } from 'ai-sdk-guardrails';
 import type { OutputGuardrailContext, AIResult } from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
-interface DetectedSensitiveType {
+type DetectedSensitiveType = {
   type: string;
   severity: string;
-}
+};
 
-interface SensitiveDataMetadata extends Record<string, unknown> {
+interface SensitiveDataMetadata extends GuardrailMetadata {
   detectedTypes: DetectedSensitiveType[];
   count: number;
 }

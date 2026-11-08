@@ -127,10 +127,26 @@ From [`03-pii-detection.ts`](https://github.com/jagreehal/ai-sdk-guardrails/blob
 
 ```ts
 const patterns = [
-  { name: 'SSN', regex: /\b\d{3}-\d{2}-\d{4}\b/, description: 'Social Security Number' },
-  { name: 'Email', regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/, description: 'Email address' },
-  { name: 'Phone', regex: /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/, description: 'Phone number' },
-  { name: 'Credit Card', regex: /\b(?:\d{4}[-\s]?){3}\d{4}\b/, description: 'Credit card number' },
+  {
+    name: 'SSN',
+    regex: /\b\d{3}-\d{2}-\d{4}\b/,
+    description: 'Social Security Number',
+  },
+  {
+    name: 'Email',
+    regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/,
+    description: 'Email address',
+  },
+  {
+    name: 'Phone',
+    regex: /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/,
+    description: 'Phone number',
+  },
+  {
+    name: 'Credit Card',
+    regex: /\b(?:\d{4}[-\s]?){3}\d{4}\b/,
+    description: 'Credit card number',
+  },
 ];
 
 const piiDetectionGuardrail = defineInputGuardrail({
@@ -145,7 +161,10 @@ const piiDetectionGuardrail = defineInputGuardrail({
         tripwireTriggered: true,
         message: `PII detected: ${detected.map((p) => p.name).join(', ')}`,
         severity: 'high',
-        metadata: { detectedTypes: detected, count: detected.length },
+        metadata: {
+          detectedTypes: detected.map((p) => p.name),
+          count: detected.length,
+        },
       };
     }
     return { tripwireTriggered: false };

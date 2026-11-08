@@ -27,10 +27,26 @@ const sensitiveOutputGuardrail = defineOutputGuardrail({
 
     const sensitivePatterns = [
       { name: 'SSN', regex: /\b\d{3}-\d{2}-\d{4}\b/, severity: 'high' },
-      { name: 'API Key', regex: /(?:api[_-]?key|apikey)[\s:=]*['"]*([a-zA-Z0-9]{32,})/i, severity: 'high' },
-      { name: 'Credit Card', regex: /\b(?:\d{4}[-\s]?){3}\d{4}\b/, severity: 'high' },
-      { name: 'Email', regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/, severity: 'medium' },
-      { name: 'IP Address', regex: /\b(?:\d{1,3}\.){3}\d{1,3}\b/, severity: 'low' },
+      {
+        name: 'API Key',
+        regex: /(?:api[_-]?key|apikey)[\s:=]*['"]*([a-zA-Z0-9]{32,})/i,
+        severity: 'high',
+      },
+      {
+        name: 'Credit Card',
+        regex: /\b(?:\d{4}[-\s]?){3}\d{4}\b/,
+        severity: 'high',
+      },
+      {
+        name: 'Email',
+        regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/,
+        severity: 'medium',
+      },
+      {
+        name: 'IP Address',
+        regex: /\b(?:\d{1,3}\.){3}\d{1,3}\b/,
+        severity: 'low',
+      },
     ];
 
     const detected = sensitivePatterns.filter((p) => p.regex.test(text));
@@ -38,8 +54,16 @@ const sensitiveOutputGuardrail = defineOutputGuardrail({
       return {
         tripwireTriggered: true,
         message: `Sensitive information detected: ${detected.map((p) => p.name).join(', ')}`,
-        severity: detected.some((p) => p.severity === 'high') ? 'high' : 'medium',
-        metadata: { detectedTypes: detected, count: detected.length },
+        severity: detected.some((p) => p.severity === 'high')
+          ? 'high'
+          : 'medium',
+        metadata: {
+          detectedTypes: detected.map((p) => ({
+            name: p.name,
+            severity: p.severity,
+          })),
+          count: detected.length,
+        },
       };
     }
     return { tripwireTriggered: false };
@@ -75,8 +99,15 @@ From [`18-secret-leakage-scan.ts`](https://github.com/jagreehal/ai-sdk-guardrail
 
 ```ts
 const SECRET_PATTERNS = {
-  apiKeys: [/sk-[a-zA-Z0-9]{32,}/g, /ghp_[a-zA-Z0-9]{36}/g, /AIza[a-zA-Z0-9_-]{35}/g],
-  databaseCredentials: [/mongodb:\/\/[^:]+:[^@]+@[^/]+/g, /postgresql:\/\/[^:]+:[^@]+@[^/]+/g],
+  apiKeys: [
+    /sk-[a-zA-Z0-9]{32,}/g,
+    /ghp_[a-zA-Z0-9]{36}/g,
+    /AIza[a-zA-Z0-9_-]{35}/g,
+  ],
+  databaseCredentials: [
+    /mongodb:\/\/[^:]+:[^@]+@[^/]+/g,
+    /postgresql:\/\/[^:]+:[^@]+@[^/]+/g,
+  ],
   jwtTokens: [/eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/g],
   // plus AWS credentials and a high-entropy fallback
 };
@@ -92,7 +123,10 @@ const secretLeakageGuardrail = defineOutputGuardrail({
         tripwireTriggered: true,
         message: `Secret leakage detected: ${secrets.length} secrets found across ${countCategories(secrets)} categories`,
         severity: 'high',
-        metadata: { totalSecrets: secrets.length, secretTypes: categoriesOf(secrets) },
+        metadata: {
+          totalSecrets: secrets.length,
+          secretTypes: categoriesOf(secrets),
+        },
       };
     }
     return { tripwireTriggered: false };

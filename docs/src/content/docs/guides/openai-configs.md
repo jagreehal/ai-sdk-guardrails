@@ -3,7 +3,7 @@ title: OpenAI Guardrails Configs
 description: Use guardrails_config.json exports from guardrails.openai.com directly with AI SDK Guardrails.
 ---
 
-AI SDK Guardrails now uses the same configuration schema as [OpenAI Guardrails](https://guardrails.openai.com). That means the `@guardrails_config (1).json` file that the wizard generates can run unchanged inside your AI SDK apps – no manual translation or YAML editing required.
+AI SDK Guardrails now uses the same configuration schema as [OpenAI Guardrails](https://guardrails.openai.com). That means the `guardrails_config.json` file you download from the OpenAI Guardrails wizard can run unchanged inside your AI SDK apps – no manual translation or YAML editing required.
 
 This guide shows how to:
 
@@ -45,50 +45,76 @@ Create or adjust a pipeline at https://guardrails.openai.com, then click **Downl
 }
 ```
 
-All guardrail names (Contains PII, Prompt Injection Detection, URL Filter, etc.) are registered inside `ai-sdk-guardrails`, so you can reference them verbatim.
+All guardrail names are registered inside `ai-sdk-guardrails`, so you can reference them verbatim. What each one needs:
+
+| Guardrail                                                                                | Engine                | Needs                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contains PII, URL Filter                                                                 | Regex                 | nothing                                                                                                                                                                                                 |
+| Moderation                                                                               | OpenAI Moderation API | `openaiApiKey` in the context or `OPENAI_API_KEY` env var                                                                                                                                               |
+| Prompt Injection Detection, Jailbreak, Off Topic Prompts, Custom Prompt Check, NSFW Text | LLM classifier        | `llm` in the context                                                                                                                                                                                    |
+
+A guardrail that can't reach a verdict blocks and reports `executionFailed: true`: a missing `llm` or API key, an LLM reply without a boolean `flagged` and a `confidence` in [0, 1], a moderation response without results, or a moderation call that takes longer than 10 seconds. Pass `raiseGuardrailErrors: true` to `runGuardrails()` to make those throw instead.
+
+`Hallucination Detection` is not registered: OpenAI's version checks a vector store. A config that names it fails `validatePipelineConfig()`; write a custom output guardrail with your own source check instead.
 
 ## 2. Load and run stages directly
 
 Use the runtime helpers to load and execute guardrails exactly the way OpenAI clients do:
 
 ```ts
+import { openai } from '@ai-sdk/openai';
+import { generateText } from 'ai';
 import {
   loadPipelineConfig,
   runStageGuardrails,
-  runGuardrails,
 } from 'ai-sdk-guardrails/config';
-import { openai } from '@ai-sdk/openai';
 
 // Load from file path, JSON string, or object literal
 const pipeline = await loadPipelineConfig('./guardrails_config.json');
 
-// Run pre-flight/input guardrails before calling the model
-const preflight = await runStageGuardrails(userPrompt, pipeline, 'input', {
-  llm: openai('gpt-4o-mini'), // Required for LLM-powered guardrails
-  requestId: 'req_123',
-  userId: session.user.id,
-});
-
-if (preflight?.blocked) {
-  // Inspect individual results or surface a friendly error
-  return Response.json({
-    error: 'Message blocked',
-    details: preflight.results,
+export async function handleChat(userPrompt: string, userId: string) {
+  // Run pre-flight/input guardrails before calling the model
+  const preflight = await runStageGuardrails(userPrompt, pipeline, 'input', {
+    llm: openai('gpt-4o-mini'), // Required for LLM-powered guardrails
+    requestId: 'req_123',
+    userId,
   });
-}
 
-// After you get a completion, run the output stage:
-const output = await runStageGuardrails(completionText, pipeline, 'output', {
-  llm: openai('gpt-4o-mini'),
-});
+  if (preflight?.blocked) {
+    // Inspect individual results or surface a friendly error
+    return Response.json({
+      error: 'Message blocked',
+      details: preflight.results,
+    });
+  }
+
+  const { text } = await generateText({
+    model: openai('gpt-4o'),
+    prompt: userPrompt,
+  });
+
+  // After you get a completion, run the output stage:
+  const output = await runStageGuardrails(text, pipeline, 'output', {
+    llm: openai('gpt-4o-mini'),
+  });
+
+  return Response.json({ text, blocked: output?.blocked ?? false });
+}
 ```
 
 Need a lower-level primitive? `runGuardrails()` accepts any `GuardrailBundle`, so you can execute just the `pipeline.output` block or even the `guardrails` array itself.
 
 ```ts
-await runGuardrails(responseText, pipeline.output!, {
-  llm: openai('gpt-4o-mini'),
-});
+import { openai } from '@ai-sdk/openai';
+import { loadPipelineConfig, runGuardrails } from 'ai-sdk-guardrails/config';
+
+const pipeline = await loadPipelineConfig('./guardrails_config.json');
+
+if (pipeline.output) {
+  await runGuardrails('model response text', pipeline.output, {
+    llm: openai('gpt-4o-mini'),
+  });
+}
 ```
 
 ## 3. Wrap AI SDK models with wizard configs

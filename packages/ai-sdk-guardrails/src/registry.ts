@@ -1,8 +1,6 @@
 /**
- * Guardrail specification registry compatible with OpenAI's config/runtime.
- *
- * This closely mirrors the implementation from openai-guardrails-js so
- * guardrail names and metadata align with configs authored in the wizard.
+ * Guardrail specification registry. Guardrail names and metadata align with
+ * configs authored at guardrails.openai.com.
  */
 
 import { z } from 'zod';
@@ -10,8 +8,14 @@ import { GuardrailSpec } from './spec';
 import type { GuardrailSpecMetadata } from './spec';
 import type { CheckFn, GuardrailContext } from './enhanced-types';
 
-const NO_CONFIG = z.object({});
-const NO_CONTEXT = z.object({});
+// Loose: a strict z.object({}) strips every key, which silently dropped ctx.llm
+// and unschema'd config fields before they reached the check.
+const NO_CONFIG = z.looseObject({});
+
+const NO_CONTEXT = z.looseObject({});
+
+/** The config type `GuardrailSpec` defaults to. */
+type SpecConfig = z.output<GuardrailSpec['configSchema']>;
 
 export interface RegistryMetadataSnapshot {
   name: string;
@@ -23,21 +27,16 @@ export interface RegistryMetadataSnapshot {
 }
 
 export class GuardrailRegistry {
-  private specs = new Map<
-    string,
-    GuardrailSpec<GuardrailContext, unknown, Record<string, unknown>>
-  >();
+  private specs = new Map<string, GuardrailSpec>();
 
-  registerSpec(
-    spec: GuardrailSpec<GuardrailContext, unknown, Record<string, unknown>>,
-  ): void {
+  registerSpec(spec: GuardrailSpec): void {
     this.specs.set(spec.name, spec);
   }
 
   register<
     TContext extends GuardrailContext = GuardrailContext,
     TInput = unknown,
-    TConfig = Record<string, unknown>,
+    TConfig = SpecConfig,
   >(
     name: string,
     checkFn: CheckFn<TContext, TInput, TConfig>,
@@ -47,23 +46,24 @@ export class GuardrailRegistry {
     ctxRequirements?: z.ZodType<TContext>,
     metadata?: GuardrailSpecMetadata,
   ): void {
-    const spec = new GuardrailSpec(
-      name,
-      description,
-      mediaType,
-      (configSchema ||
-        (NO_CONFIG as unknown as z.ZodType<TConfig>)) as z.ZodType<TConfig>,
-      checkFn,
-      (ctxRequirements ||
-        (NO_CONTEXT as unknown as z.ZodType<TContext>)) as z.ZodType<TContext>,
-      metadata,
-    );
+    // The registry stores specs type-erased. Each spec's checkFn only receives
+    // a context and config parsed by that spec's own schemas
+    // (ConfiguredGuardrail.run and GuardrailSpec.instantiate).
     this.registerSpec(
-      spec as unknown as GuardrailSpec<
-        GuardrailContext,
-        unknown,
-        Record<string, unknown>
-      >,
+      new GuardrailSpec<GuardrailContext, unknown, SpecConfig>(
+        name,
+        description,
+        mediaType,
+        // SAFETY: erased to the registry's config type; values reaching
+        // checkFn are parsed by this same schema. NO_CONFIG passes any object
+        // config through unchanged.
+        (configSchema ?? NO_CONFIG) as z.ZodType<SpecConfig>,
+        // SAFETY: checkFn is only invoked with values parsed by the schemas
+        // above, which produce TContext and TConfig.
+        checkFn as CheckFn<GuardrailContext, unknown, SpecConfig>,
+        ctxRequirements ?? NO_CONTEXT,
+        metadata,
+      ),
     );
   }
 

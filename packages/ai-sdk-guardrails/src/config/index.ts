@@ -18,6 +18,7 @@ export type {
   PipelineConfig,
   GuardrailBundleResult,
   GuardrailContext,
+  CheckFn,
   // The same shared per-guardrail result shape as the package root; re-exported
   // here so config-runtime callers can import it from this subpath.
   GuardrailResult,
@@ -40,6 +41,7 @@ export {
   GuardrailRegistry,
   createRegistry,
 } from '../registry';
+
 export { GuardrailSpec, ConfiguredGuardrail } from '../spec';
 
 export {

@@ -46,9 +46,8 @@ This is a pnpm monorepo containing:
 ai-sdk-guardrails/
 ├── packages/
 │   ├── ai-sdk-guardrails/    # Main library package (published to npm)
-│   └── examples/              # 60+ usage examples
+│   └── examples/              # 58 runnable examples
 ├── docs/                      # Documentation site (GitHub Pages)
-└── wizard-prototype/          # Interactive guardrail configuration wizard
 ```
 
 ### Packages
@@ -66,7 +65,7 @@ ai-sdk-guardrails/
 ### Prerequisites
 
 - Node.js 22+
-- pnpm 9+
+- pnpm 10+ (pinned via `packageManager`)
 
 ### Getting Started
 

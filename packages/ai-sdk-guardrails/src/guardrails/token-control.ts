@@ -1,25 +1,24 @@
+import type { StreamTextTransform, TextStreamPart, ToolSet } from 'ai';
 import type {
   OutputGuardrail,
   GuardrailExecutionSummary,
   OutputGuardrailContext,
   AIResult,
+  GenerateTextResult,
 } from '../types';
 import { executeOutputGuardrails } from '../guardrails';
+import { guardrailStopParts } from './stream-transform';
 
 /**
- * Simple token estimation function
- * Uses a rough heuristic: ~4 characters per token for English text
- *
- * For production use, consider using a proper tokenizer like:
- * - @anthropic-ai/tokenizer for Claude models
- * - gpt-tokenizer for OpenAI models
- * - Or pass a custom tokenizer function
+ * Estimate a token count at roughly 4 characters per token (English text).
+ * Pass a model-specific `tokenizer` to the transforms for exact counts.
  */
 export function estimateTokenCount(text: string): number {
   if (!text) return 0;
   // Rough estimate: ~4 chars per token + word boundaries
   const charCount = text.length;
   const wordCount = text.split(/\s+/).filter((w) => w.length > 0).length;
+
   return Math.ceil(charCount / 4 + wordCount / 2);
 }
 
@@ -70,17 +69,9 @@ export interface TokenBudgetOptions {
  * });
  * ```
  */
-export function createTokenBudgetTransform<
-  TOOLS extends Record<string, unknown>,
->(
+export function createTokenBudgetTransform<TOOLS extends ToolSet = ToolSet>(
   options: TokenBudgetOptions,
-): (transformOptions: {
-  tools: TOOLS;
-  stopStream: () => void;
-}) => TransformStream<
-  { type: string; id?: string; text?: string; delta?: string },
-  { type: string; id?: string; text?: string; delta?: string; error?: unknown }
-> {
+): StreamTextTransform<TOOLS> {
   const {
     maxTokens,
     tokenizer = estimateTokenCount,
@@ -92,19 +83,17 @@ export function createTokenBudgetTransform<
     let tokenCount = 0;
     let stopped = false;
 
-    return new TransformStream({
+    return new TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>>({
       transform(chunk, controller) {
         if (stopped) {
           return;
         }
 
-        // Extract text from chunk
         if (chunk.type === 'text-delta') {
-          const text = chunk.text || chunk.delta || '';
+          const text = chunk.text;
           accumulatedText += text;
           tokenCount = tokenizer(accumulatedText);
 
-          // Check budget
           if (tokenCount > maxTokens) {
             stopped = true;
             onBudgetExceeded?.({ consumed: tokenCount, budget: maxTokens });
@@ -115,6 +104,11 @@ export function createTokenBudgetTransform<
             });
 
             stopStream();
+
+            for (const part of guardrailStopParts<TOOLS>(chunk.id)) {
+              controller.enqueue(part);
+            }
+
             return;
           }
         }
@@ -216,17 +210,11 @@ export interface TokenAwareGuardrailOptions {
  * ```
  */
 export function createTokenAwareGuardrailTransform<
-  TOOLS extends Record<string, unknown>,
+  TOOLS extends ToolSet = ToolSet,
 >(
   guardrails: OutputGuardrail[],
   options: TokenAwareGuardrailOptions = {},
-): (transformOptions: {
-  tools: TOOLS;
-  stopStream: () => void;
-}) => TransformStream<
-  { type: string; id?: string; text?: string; delta?: string },
-  { type: string; id?: string; text?: string; delta?: string; error?: unknown }
-> {
+): StreamTextTransform<TOOLS> {
   const {
     checkEveryTokens = 10,
     maxTokens,
@@ -247,51 +235,58 @@ export function createTokenAwareGuardrailTransform<
     let lastCheckTokens = 0;
     let stopped = false;
 
-    return new TransformStream({
+    return new TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>>({
       async transform(chunk, controller) {
         if (stopped) {
           return;
         }
 
-        // Pass through non-text chunks
         if (chunk.type !== 'text-delta') {
           controller.enqueue(chunk);
+
           return;
         }
 
-        // Extract text and update token count
-        const text = chunk.text || chunk.delta || '';
+        const text = chunk.text;
         accumulatedText += text;
         tokenCount = tokenizer(accumulatedText);
 
-        // Check max tokens if configured
-        if (typeof maxTokens === 'number' && tokenCount > maxTokens) {
+        if (maxTokens !== undefined && tokenCount > maxTokens) {
           stopped = true;
           controller.enqueue({
             type: 'error',
             error: `Token limit exceeded: ${tokenCount} > ${maxTokens}`,
           });
           stopStream();
+
+          for (const part of guardrailStopParts<TOOLS>(chunk.id)) {
+            controller.enqueue(part);
+          }
+
           return;
         }
 
-        // Check guardrails at intervals
         const tokensSinceLastCheck = tokenCount - lastCheckTokens;
+
         if (tokensSinceLastCheck < checkEveryTokens) {
           controller.enqueue(chunk);
+
           return;
         }
 
         lastCheckTokens = tokenCount;
 
         try {
-          // Execute guardrails
-          const mockResult = {
+          const content: GenerateTextResult['content'] = [];
+
+          // SAFETY: output guardrails read only text, content, finishReason and
+          // usage from a streamed result; the other AIResult members are absent.
+          const partialResult = {
             text: accumulatedText,
-            content: [],
+            content,
             finishReason: 'stop',
             usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-          } as unknown as AIResult;
+          } as AIResult;
 
           const context: OutputGuardrailContext = {
             input: {
@@ -299,7 +294,7 @@ export function createTokenAwareGuardrailTransform<
               messages: [],
               system: '',
             },
-            result: mockResult,
+            result: partialResult,
           };
 
           const results = await executeOutputGuardrails(guardrails, context, {
@@ -322,11 +317,11 @@ export function createTokenAwareGuardrailTransform<
             },
           };
 
-          // Determine if we should stop
           const shouldStop = stopCondition
             ? stopCondition(summary)
             : summary.blockedResults.some((result) => {
                 const resultSeverity = result.severity ?? 'medium';
+
                 return severityOrder[resultSeverity] >= minLevel;
               });
 
@@ -340,13 +335,17 @@ export function createTokenAwareGuardrailTransform<
             });
 
             stopStream();
+
+            for (const part of guardrailStopParts<TOOLS>(chunk.id)) {
+              controller.enqueue(part);
+            }
+
             return;
           }
 
-          // No violation, pass through
           controller.enqueue(chunk);
         } catch (error) {
-          // On error, pass through but log
+          // Guardrail errors do not stop the stream.
           console.error('Token-aware guardrail error:', error);
           controller.enqueue(chunk);
         }

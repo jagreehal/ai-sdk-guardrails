@@ -10,6 +10,8 @@
 
 import type { GuardrailResult } from '../types';
 
+import type { GuardrailMetadata } from '../enhanced-types';
+
 type Attrs = Record<string, string | number | boolean>;
 
 /** The slice of `@opentelemetry/api` this module calls, declared locally so the `.d.ts` has no hard dependency on it. */
@@ -25,7 +27,7 @@ interface OtelApi {
 interface Span {
   setAttributes(attrs: Attrs): void;
   addEvent(name: string, attrs?: Attrs): void;
-  recordException(error: unknown): void;
+  recordException(cause: unknown): void;
   setStatus(status: { code: number }): void;
   end(): void;
 }
@@ -36,10 +38,13 @@ function loadApi(): Promise<OtelApi | null> {
   if (!api) {
     // Non-literal specifier keeps the optional peer out of static resolution.
     const specifier = '@opentelemetry/api';
+    // SAFETY: the module is `@opentelemetry/api`, whose namespace exports
+    // `trace` and `SpanStatusCode` with the signatures OtelApi declares.
     api = import(/* @vite-ignore */ specifier)
       .then((m) => m as OtelApi)
       .catch(() => null);
   }
+
   return api;
 }
 
@@ -48,12 +53,13 @@ export function __setOtelApi(mod: OtelApi | null): void {
   api = Promise.resolve(mod);
 }
 
-export async function traceGuardrails<M extends Record<string, unknown>>(
+export async function traceGuardrails<M extends GuardrailMetadata>(
   stage: 'input' | 'output',
   count: number,
   run: () => Promise<GuardrailResult<M>[]>,
 ): Promise<GuardrailResult<M>[]> {
   const otel = await loadApi();
+
   if (!otel) return run();
 
   return otel.trace
@@ -63,9 +69,11 @@ export async function traceGuardrails<M extends Record<string, unknown>>(
         'guardrails.stage': stage,
         'guardrails.count': count,
       });
+
       try {
         const results = await run();
         const blocked = results.filter((r) => r.tripwireTriggered);
+
         for (const r of blocked) {
           span.addEvent('gen_ai.guard.stop', {
             'gen_ai.guard.rule':
@@ -75,10 +83,12 @@ export async function traceGuardrails<M extends Record<string, unknown>>(
             ...(r.severity && { 'gen_ai.guard.severity': r.severity }),
           });
         }
+
         span.setAttributes({
           'guardrails.blocked': blocked.length,
           'guardrails.passed': results.length - blocked.length,
         });
+
         return results;
       } catch (error) {
         span.recordException(error);

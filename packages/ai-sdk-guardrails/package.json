@@ -69,21 +69,24 @@
   "type": "module",
   "scripts": {
     "build": "tsup",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
-    "check-exports": "attw --pack . --ignore-rules false-esm no-resolution"
+    "check-exports": "pnpm pack --out attw.tgz >/dev/null && attw attw.tgz --ignore-rules false-esm no-resolution; s=$?; rm -f attw.tgz; exit $s",
+    "test:coverage": "vitest run --coverage",
+    "bench": "vitest run bench",
+    "bench:update": "BENCH_UPDATE=1 vitest run bench"
   },
   "dependencies": {
-    "@ai-sdk/provider": "^4.0.17",
-    "zod": "^4.6.4"
+    "@ai-sdk/provider": "^4.0.36",
+    "zod": "^4.6.7"
   },
   "peerDependencies": {
-    "@opentelemetry/api": "^1.9.0",
-    "ai": "^7.0.58",
+    "@opentelemetry/api": "^1.10.0",
+    "ai": "^7.0.163",
     "autotel-genai": ">=0.4.2"
   },
   "peerDependenciesMeta": {
@@ -95,28 +98,22 @@
     }
   },
   "devDependencies": {
-    "@ai-sdk/groq": "4.0.46",
-    "@ai-sdk/mistral": "4.0.48",
-    "@ai-sdk/openai": "4.0.71",
-    "ai": "7.0.107",
+    "@ai-sdk/groq": "4.0.77",
+    "@ai-sdk/mistral": "4.0.80",
+    "@ai-sdk/openai": "4.0.109",
     "@arethetypeswrong/cli": "0.18.5",
-    "@eslint/js": "10.0.1",
+    "@oxlint/plugins": "1.90.0",
     "@total-typescript/ts-reset": "0.6.1",
     "@total-typescript/tsconfig": "1.0.4",
-    "@types/eslint-config-prettier": "6.11.3",
-    "@types/node": "26.5.1",
-    "@typescript-eslint/eslint-plugin": "8.70.0",
-    "@typescript-eslint/parser": "8.70.0",
-    "eslint": "10.10.0",
-    "eslint-config-prettier": "10.1.8",
-    "eslint-plugin-unicorn": "74.0.0",
-    "globals": "17.12.0",
-    "prettier": "3.9.6",
-    "tsup": "8.5.1",
-    "tsx": "4.23.13",
+    "@types/node": "26.6.6",
     "@typescript/native": "npm:typescript@7.0.2",
+    "@vitest/coverage-v8": "5.0.5",
+    "ai": "7.0.163",
+    "oxlint": "1.90.0",
+    "prettier": "3.9.10",
+    "tsup": "9.0.0",
+    "tsx": "4.23.15",
     "typescript": "npm:@typescript/typescript6@6.0.2",
-    "typescript-eslint": "8.70.0",
-    "vitest": "5.0.0"
+    "vitest": "5.0.5"
   }
 }

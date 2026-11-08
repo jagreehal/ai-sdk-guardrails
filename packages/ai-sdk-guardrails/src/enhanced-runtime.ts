@@ -1,10 +1,9 @@
 /**
- * Runtime execution module for guardrails with parallel processing support.
- *
- * This module provides the runtime infrastructure for executing guardrails,
- * including parallel execution, timeout handling, and configuration loading.
+ * Guardrail bundle runtime: parallel or sequential execution, per-guardrail
+ * and global timeouts, cancellation, and pipeline configuration loading.
  */
 
+import { z } from 'zod';
 import { ConfiguredGuardrail } from './spec';
 import { defaultRegistry } from './registry';
 import type {
@@ -35,8 +34,8 @@ export interface RunGuardrailsOptions {
 /**
  * Run multiple guardrails and return aggregated results
  */
-export async function runGuardrails(
-  input: unknown,
+export async function runGuardrails<TInput>(
+  input: TInput,
   bundle: GuardrailBundle,
   context: GuardrailContext = {},
   options: RunGuardrailsOptions = {},
@@ -52,7 +51,6 @@ export async function runGuardrails(
   const startTime = Date.now();
   const guardrails = await instantiateGuardrails(bundle);
 
-  // Check for cancellation
   if (signal?.aborted) {
     throw new Error('Guardrails execution aborted');
   }
@@ -60,12 +58,10 @@ export async function runGuardrails(
   let results: GuardrailResult[];
 
   if (parallelExecution) {
-    // Run all guardrails in parallel
     const promises = guardrails.map((guardrail) =>
       runSingleGuardrail(guardrail, context, input, timeoutMs, signal),
     );
 
-    // Apply global timeout if specified
     results = globalTimeoutMs
       ? await Promise.race([
           Promise.all(promises),
@@ -76,19 +72,18 @@ export async function runGuardrails(
         ])
       : await Promise.all(promises);
   } else {
-    // Run guardrails sequentially
     results = [];
+
     for (const guardrail of guardrails) {
-      // Check remaining time if global timeout is set
       if (globalTimeoutMs) {
         const elapsed = Date.now() - startTime;
         const remaining = globalTimeoutMs - elapsed;
+
         if (remaining <= 0) {
           throw new Error(`Global timeout of ${globalTimeoutMs}ms exceeded`);
         }
       }
 
-      // Check for cancellation
       if (signal?.aborted) {
         throw new Error('Guardrails execution aborted');
       }
@@ -100,29 +95,30 @@ export async function runGuardrails(
         timeoutMs,
         signal,
       );
+
       results.push(result);
 
-      // Early exit if a critical violation is detected
+      // A critical violation stops the remaining sequential checks.
       if (result.tripwireTriggered && result.severity === 'critical') {
         break;
       }
     }
   }
 
-  // Check for execution failures
   if (raiseGuardrailErrors) {
     const executionFailures = results.filter((r) => r.executionFailed);
+
     if (executionFailures.length > 0) {
-      // Re-raise the first execution failure
       const firstFailure = executionFailures[0]!;
+
       if (firstFailure.originalException) {
         throw firstFailure.originalException;
       }
+
       throw new Error(firstFailure.message || 'Guardrail execution failed');
     }
   }
 
-  // Calculate metadata
   const totalExecutionTimeMs = Date.now() - startTime;
   const triggeredCount = results.filter((r) => r.tripwireTriggered).length;
   const failedCount = results.filter((r) => r.executionFailed).length;
@@ -143,20 +139,18 @@ export async function runGuardrails(
 /**
  * Run a single guardrail with timeout and error handling
  */
-async function runSingleGuardrail(
+async function runSingleGuardrail<TInput>(
   guardrail: ConfiguredGuardrail,
   context: GuardrailContext,
-  input: unknown,
+  input: TInput,
   timeoutMs?: number,
   signal?: AbortSignal,
 ): Promise<GuardrailResult> {
   try {
-    // Check for cancellation
     if (signal?.aborted) {
       throw new Error('Execution aborted');
     }
 
-    // Apply timeout if specified
     if (timeoutMs) {
       return await Promise.race([
         guardrail.run(context, input),
@@ -166,7 +160,6 @@ async function runSingleGuardrail(
 
     return await guardrail.run(context, input);
   } catch (error) {
-    // Return execution failure result
     return {
       tripwireTriggered: false,
       executionFailed: true,
@@ -197,14 +190,14 @@ export async function instantiateGuardrails(
 
   for (const config of bundle.guardrails) {
     const spec = defaultRegistry.get(config.name);
+
     if (!spec) {
       throw new Error(`Guardrail '${config.name}' not found in registry`);
     }
 
     try {
-      const guardrail = spec.instantiate(
-        (config.config || {}) as Record<string, unknown>,
-      );
+      const guardrail = spec.instantiate(config.config || {});
+
       guardrails.push(guardrail);
     } catch (error) {
       throw new Error(
@@ -220,69 +213,87 @@ export async function instantiateGuardrails(
 }
 
 /**
- * Load pipeline configuration from various sources
+ * Load a pipeline configuration from an object, a JSON string, or a path to a
+ * `.json` file. YAML paths throw.
  */
 export async function loadPipelineConfig(
   config: string | PipelineConfig,
 ): Promise<PipelineConfig> {
-  if (typeof config === 'string') {
-    // Check if it's a file path
-    if (
-      config.includes('.json') ||
-      config.includes('.yaml') ||
-      config.includes('/')
-    ) {
-      // Dynamic import to avoid bundling issues
-      const fs = await import('node:fs/promises');
-      const content = await fs.readFile(config, 'utf8');
+  const source = z.string().safeParse(config);
 
-      // Parse based on extension
-      if (config.endsWith('.yaml') || config.endsWith('.yml')) {
-        // Would need to import a YAML parser here
-        throw new Error('YAML support not yet implemented');
-      }
-
-      return JSON.parse(content) as PipelineConfig;
-    }
-    // It's a JSON string
-    return JSON.parse(config) as PipelineConfig;
+  if (!source.success) {
+    // SAFETY: config is typed `string | PipelineConfig` and is not a string.
+    return config as PipelineConfig;
   }
-  return config;
+
+  const text = source.data;
+  let json = text;
+
+  if (text.includes('.json') || text.includes('.yaml') || text.includes('/')) {
+    // Dynamic import keeps node:fs out of browser bundles.
+    const fs = await import('node:fs/promises');
+    json = await fs.readFile(text, 'utf8');
+
+    if (text.endsWith('.yaml') || text.endsWith('.yml')) {
+      throw new Error('YAML support not yet implemented');
+    }
+  }
+
+  // SAFETY: the JSON is trusted caller configuration; its structure is checked
+  // where it is used (validatePipelineConfig, instantiateGuardrails).
+  return JSON.parse(json) as PipelineConfig;
 }
 
-/**
- * Load a guardrail bundle from configuration
- */
-export function loadGuardrailBundle(config: unknown): GuardrailBundle {
-  // Validate and normalize the bundle configuration
-  const guardrails: GuardrailConfig[] = [];
-  const bundle =
-    typeof config === 'object' && config !== null && !Array.isArray(config)
-      ? (config as Partial<GuardrailBundle>)
-      : undefined;
+const bundleSchema = z.looseObject({
+  version: z.number().optional().catch(undefined),
+  stageName: z.string().optional().catch(undefined),
+  guardrails: z.array(z.unknown()),
+});
 
-  if (Array.isArray(config)) {
-    // Direct array of guardrail configs
-    guardrails.push(...(config as GuardrailConfig[]));
-  } else if (bundle && Array.isArray(bundle.guardrails)) {
-    // Bundle format
-    guardrails.push(...bundle.guardrails);
-  } else {
+const nameSchema = z.string().min(1);
+
+const guardrailEntrySchema = z.looseObject({
+  name: nameSchema,
+  // Anything `typeof` reports as 'object': objects, arrays and null.
+  config: z
+    .union([z.looseObject({}), z.array(z.unknown()), z.null()])
+    .optional(),
+});
+
+/**
+ * Load a guardrail bundle from a bundle object or a bare array of guardrail
+ * configs. Throws when the shape or any entry is invalid.
+ */
+export function loadGuardrailBundle<TConfig>(config: TConfig): GuardrailBundle {
+  const bundle = Array.isArray(config)
+    ? undefined
+    : bundleSchema.safeParse(config).data;
+
+  const entries: unknown[] | undefined = Array.isArray(config)
+    ? config
+    : bundle?.guardrails;
+
+  if (!entries) {
     throw new Error('Invalid guardrail bundle format');
   }
 
-  // Validate each guardrail config
-  for (const guardrail of guardrails) {
-    if (!guardrail.name || typeof guardrail.name !== 'string') {
-      throw new Error('Invalid guardrail config: missing or invalid name');
+  const guardrails = entries.map((entry) => {
+    const parsed = guardrailEntrySchema.safeParse(entry);
+
+    if (parsed.success) {
+      // SAFETY: name is a non-empty string and config is absent or
+      // object-typed; instantiateGuardrails defaults a missing config to {}.
+      return parsed.data as GuardrailConfig;
     }
-    if (
-      guardrail.config !== undefined &&
-      typeof guardrail.config !== 'object'
-    ) {
-      throw new Error(`Invalid config for guardrail '${guardrail.name}'`);
-    }
-  }
+
+    const named = z.looseObject({ name: nameSchema }).safeParse(entry);
+
+    throw new Error(
+      named.success
+        ? `Invalid config for guardrail '${named.data.name}'`
+        : 'Invalid guardrail config: missing or invalid name',
+    );
+  });
 
   return {
     version: bundle?.version || 1,
@@ -311,6 +322,7 @@ export async function checkPlainText(
     const error = new Error(
       `Content validation failed: ${result.metadata?.triggeredCount} violation(s) detected: ${triggeredGuardrails}`,
     );
+
     throw Object.assign(error, {
       guardrailResults: result.results.filter((r) => r.tripwireTriggered),
     });
@@ -329,14 +341,15 @@ function rejectAfter(ms: number, message: string): Promise<never> {
 /**
  * Run guardrails for a specific stage in the pipeline
  */
-export async function runStageGuardrails(
-  input: unknown,
+export async function runStageGuardrails<TInput>(
+  input: TInput,
   pipeline: PipelineConfig,
   stage: 'pre_flight' | 'input' | 'output',
   context: GuardrailContext = {},
   options?: RunGuardrailsOptions,
 ): Promise<GuardrailBundleResult | null> {
   const bundle = pipeline[stage];
+
   if (!bundle) {
     return null;
   }
@@ -350,18 +363,24 @@ export async function runStageGuardrails(
 export function validatePipelineConfig(config: PipelineConfig): string[] {
   const errors: string[] = [];
 
-  // Check version
-  if (config.version && typeof config.version !== 'number') {
+  if (config.version && !z.number().safeParse(config.version).success) {
     errors.push('Pipeline version must be a number');
   }
 
-  // Validate each stage bundle if present
   const stages: Array<keyof PipelineConfig> = ['pre_flight', 'input', 'output'];
+
   for (const stage of stages) {
     const bundle = config[stage];
+
     if (bundle) {
       try {
-        loadGuardrailBundle(bundle);
+        const loaded = loadGuardrailBundle(bundle);
+
+        for (const { name } of loaded.guardrails) {
+          if (!defaultRegistry.get(name)) {
+            errors.push(`Unknown guardrail '${name}' in ${stage} stage`);
+          }
+        }
       } catch (error) {
         errors.push(
           `Invalid ${stage} bundle: ${error instanceof Error ? error.message : String(error)}`,
@@ -373,18 +392,14 @@ export function validatePipelineConfig(config: PipelineConfig): string[] {
   return errors;
 }
 
-/**
- * Export configuration utilities
- */
+/** Configuration helpers as one object. */
 export const configUtils = {
   loadPipelineConfig,
   loadGuardrailBundle,
   validatePipelineConfig,
 };
 
-/**
- * Export runtime utilities
- */
+/** Runtime helpers as one object. */
 export const runtimeUtils = {
   runGuardrails,
   runStageGuardrails,

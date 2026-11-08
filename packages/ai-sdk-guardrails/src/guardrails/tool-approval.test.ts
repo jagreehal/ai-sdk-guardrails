@@ -7,11 +7,8 @@ import {
   type ToolParameterGuardrail,
 } from './tool-parameters';
 import { ToolLoopAgent, generateText, tool, stepCountIs } from 'ai';
-import type {
-  LanguageModel,
-  ToolApprovalStatus,
-  ToolApprovalConfiguration,
-} from 'ai';
+import type { LanguageModel, ToolApprovalConfiguration } from 'ai';
+import { MockLanguageModelV3 } from 'ai/test';
 import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
@@ -19,10 +16,11 @@ import { z } from 'zod';
 // must drop straight into the `toolApproval` slot with the tool set inferred,
 // for BOTH `generateText` and `ToolLoopAgent` (the recommended agent API). The
 // SDK types `toolApproval` with `NoInfer<TOOLS>`, so this only holds when the
-// adapter returns a broad, contravariantly-assignable function — not a
+// adapter returns a broad, contravariantly-assignable function, not a
 // `ToolSet`-defaulted union. No annotations or casts at the call site.
 // ---------------------------------------------------------------------------
-const _dxModel = null as unknown as LanguageModel;
+const _dxModel: LanguageModel = new MockLanguageModelV3();
+
 const _dxTools = {
   executeSQL: tool({
     description: 'run sql',
@@ -30,9 +28,11 @@ const _dxTools = {
     execute: async () => '',
   }),
 };
+
 const _dxApproval = guardrailApproval([
   sqlInjectionGuardrail({ toolName: 'executeSQL' }),
 ]);
+
 async function _dxGenerateText() {
   await generateText({
     model: _dxModel,
@@ -42,6 +42,7 @@ async function _dxGenerateText() {
     stopWhen: stepCountIs(2),
   });
 }
+
 const _dxAgent = new ToolLoopAgent({
   model: _dxModel,
   instructions: 'x',
@@ -49,12 +50,14 @@ const _dxAgent = new ToolLoopAgent({
   toolApproval: _dxApproval,
   stopWhen: stepCountIs(2),
 });
+
 void _dxGenerateText;
+
 void _dxAgent;
 
 // ---------------------------------------------------------------------------
 // Compile-time interop assertion: the adapter's return value is a native
-// `ToolApprovalConfiguration` — the exact type `@ai-sdk/policy-opa`'s
+// `ToolApprovalConfiguration`, the exact type `@ai-sdk/policy-opa`'s
 // `shadow(approval, { enforce })` and `wrapMcpTools(tools, approval)` consume
 // and return. Proving assignability here guarantees the composition typechecks
 // WITHOUT taking a dependency on policy-opa: a guardrail gate can be shadow-
@@ -62,25 +65,23 @@ void _dxAgent;
 // ---------------------------------------------------------------------------
 const _interopApproval: ToolApprovalConfiguration<typeof _dxTools, unknown> =
   _dxApproval;
-void _interopApproval;
 
-// The public return type is the SDK's `ToolApprovalConfiguration` union
-// (function | per-tool object). Every case here uses the generic-function form,
-// so narrow to a callable for invocation in tests.
-type ApprovalFn = (args: {
-  toolCall: { toolName: string; toolCallId: string; input: unknown };
-}) => Promise<ToolApprovalStatus>;
+void _interopApproval;
 
 function build(
   guardrails: ToolParameterGuardrail<any, any>[],
   options?: GuardrailApprovalOptions,
 ) {
-  const fn = guardrailApproval(guardrails, options) as unknown as ApprovalFn;
-  return (toolName: string, input: unknown, toolCallId = 'tc-1') =>
-    fn({ toolCall: { toolName, toolCallId, input } });
+  const fn = guardrailApproval(guardrails, options);
+
+  return (
+    toolName: string,
+    input: Record<string, string | number>,
+    toolCallId = 'tc-1',
+  ) => fn({ toolCall: { toolName, toolCallId, input } });
 }
 
-// A simple medium-severity gate used across several cases.
+// Medium-severity gate shared by several cases.
 const reviewLargeTransfer: ToolParameterGuardrail<{ amount?: number }> = {
   name: 'large-transfer-review',
   toolName: 'transfer',
@@ -104,9 +105,11 @@ describe('guardrailApproval', () => {
 
   it('denies a high/critical violation with the message as reason', async () => {
     const approve = build([sqlInjectionGuardrail({ toolName: 'executeSQL' })]);
+
     const status = await approve('executeSQL', {
       query: "'; DROP TABLE users; --",
     });
+
     expect(status).toEqual({
       type: 'denied',
       reason: 'Potential SQL injection detected',
@@ -139,9 +142,11 @@ describe('guardrailApproval', () => {
           onBlock: 'user-approval',
         },
       );
+
       const status = await approve('executeSQL', {
         query: '1=1; DROP TABLE t',
       });
+
       expect(status).toEqual({ type: 'user-approval' });
     });
 
@@ -155,6 +160,7 @@ describe('guardrailApproval', () => {
           message: 'nope',
         }),
       };
+
       const approve = build([lowGate], { onBlock: 'deny' });
       const status = await approve('note', {});
       expect(status).toMatchObject({ type: 'denied', reason: 'nope' });
@@ -171,6 +177,7 @@ describe('guardrailApproval', () => {
         severity: 'critical',
       }),
     };
+
     const approve = build([softCritical]);
     expect(await approve('deploy', {})).toEqual({ type: 'user-approval' });
   });
@@ -185,11 +192,14 @@ describe('guardrailApproval', () => {
         message: 'first',
       }),
     };
+
     const second = vi.fn(() => ({ valid: false, severity: 'low' as const }));
+
     const approve = build([
       denyFirst,
       { name: 'second', toolName: 'x', validateInput: second },
     ]);
+
     const status = await approve('x', {});
     expect(status).toMatchObject({ type: 'denied', reason: 'first' });
     expect(second).not.toHaveBeenCalled();
@@ -201,9 +211,11 @@ describe('guardrailApproval', () => {
       toolName: 'q',
       validateInput: async () => {
         await Promise.resolve();
+
         return { valid: false, severity: 'high', message: 'blocked' };
       },
     };
+
     expect(await build([asyncGate])('q', {})).toMatchObject({ type: 'denied' });
   });
 
@@ -216,6 +228,7 @@ describe('guardrailApproval', () => {
     const asAdmin = build([rbac], {
       requestContext: { permissions: ['admin'] },
     });
+
     expect(await asAdmin('deleteRecord', { id: 1 })).toEqual({
       type: 'approved',
     });
@@ -228,9 +241,11 @@ describe('guardrailApproval', () => {
 
   it('invokes onDecision with the tool name, status and guardrail', async () => {
     const onDecision = vi.fn();
+
     const approve = build([sqlInjectionGuardrail({ toolName: 'executeSQL' })], {
       onDecision,
     });
+
     await approve('executeSQL', { query: 'DROP TABLE x' });
     expect(onDecision).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -19,7 +19,7 @@ describe('createGuardrailAbortController', () => {
 
   it('should create abortOnViolation callback', () => {
     expect(controller.abortOnViolation).toBeDefined();
-    expect(typeof controller.abortOnViolation).toBe('function');
+    expect(controller.abortOnViolation).toBeInstanceOf(Function);
   });
 
   describe('abortOnViolation', () => {
@@ -214,6 +214,7 @@ describe('createGuardrailAbortController', () => {
       const callback = controller.abortOnCondition(
         (s) => s.blockedResults.length > 0,
       );
+
       callback(summary);
 
       expect(controller.signal.aborted).toBe(true);
@@ -239,6 +240,7 @@ describe('createGuardrailAbortController', () => {
       const callback = controller.abortOnCondition(
         (s) => s.blockedResults.length > 5,
       );
+
       callback(summary);
 
       expect(controller.signal.aborted).toBe(false);

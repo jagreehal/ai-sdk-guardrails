@@ -44,6 +44,7 @@ describe('evaluatePromptDefense', () => {
     const report = evaluatePromptDefense(STRONG, {
       vectors: ['data-leakage', 'indirect-injection'],
     });
+
     expect(report.total).toBe(2);
   });
 

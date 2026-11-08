@@ -29,6 +29,7 @@ describe('hardenSystemPrompt', () => {
     const out = hardenSystemPrompt('BASE', {
       customRules: ['Never mention competitors by name.'],
     });
+
     expect(out).toContain('- Never mention competitors by name.');
   });
 

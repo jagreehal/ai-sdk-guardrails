@@ -1,9 +1,18 @@
 import { createOutputGuardrail } from '../core';
-import type { OutputGuardrail, OutputGuardrailContext } from '../types';
+import { defineInputGuardrail } from '../guardrails';
+import type {
+  GuardrailResult,
+  InputGuardrail,
+  OutputGuardrail,
+  OutputGuardrailContext,
+} from '../types';
+import { toNormalizedGuardrailContext } from './internal';
+import { matchInjectionSignals } from './injection-signals';
 import { extractContent } from './output';
 
-// Type definitions for MCP security metadata
-export interface McpSecurityMetadata extends Record<string, unknown> {
+import type { GuardrailMetadata } from '../enhanced-types';
+
+export interface McpSecurityMetadata extends GuardrailMetadata {
   injectionPatternsDetected?: number;
   exfiltrationAttempts?: number;
   suspiciousUrls?: number;
@@ -205,7 +214,6 @@ const DEFAULT_SUSPICIOUS_DOMAINS = [
   String.raw`serveo\.net`,
 ];
 
-// Create exfiltration URL patterns from domain list
 function createExfiltrationPatterns(customDomains: string[] = []): RegExp[] {
   const allDomains = [...DEFAULT_SUSPICIOUS_DOMAINS, ...customDomains];
   const domainPattern = allDomains.join('|');
@@ -231,10 +239,12 @@ function detectEncodedContent(text: string, minLength = 20): boolean {
   const base64Matches = textWithoutUrls.match(
     new RegExp(`[A-Za-z0-9+/]{${minLength},}={1,2}`, 'g'),
   );
+
   if (base64Matches) {
     for (const match of base64Matches) {
       try {
         const decoded = Buffer.from(match, 'base64').toString('utf8');
+
         // Check if decoded content contains suspicious instructions
         if (
           /(?:ignore|system|prompt|instruction|hacked|override|forget|disregard)/i.test(
@@ -251,13 +261,16 @@ function detectEncodedContent(text: string, minLength = 20): boolean {
 
   // Hex encoding detection
   const hexMatches = text.match(/(?:0x)?[0-9a-fA-F]{8,}/g);
+
   if (hexMatches) {
     for (const match of hexMatches) {
       try {
         const cleanHex = match.replace(/^0x/, '');
+
         if (cleanHex.length % 2 === 0) {
           // Must be even length for valid hex
           const decoded = Buffer.from(cleanHex, 'hex').toString('utf8');
+
           if (
             /(?:ignore|system|prompt|instruction|hacked|override|forget|disregard)/i.test(
               decoded,
@@ -274,9 +287,11 @@ function detectEncodedContent(text: string, minLength = 20): boolean {
 
   // URL encoding detection
   const urlEncodedMatches = text.match(/%[0-9a-fA-F]{2}/g);
+
   if (urlEncodedMatches && urlEncodedMatches.length > 5) {
     try {
       const decoded = decodeURIComponent(text);
+
       if (
         /(?:ignore|system|prompt|instruction|hacked|override|forget|disregard)/i.test(
           decoded,
@@ -292,20 +307,20 @@ function detectEncodedContent(text: string, minLength = 20): boolean {
   return false;
 }
 
-// Analyze URL for data exfiltration attempts
+interface UrlAnalysis {
+  suspiciousUrls: number;
+  detectedPatterns: string[];
+}
+
 function analyzeUrls(
   text: string,
   allowedDomains: string[] = [],
   customSuspiciousDomains: string[] = [],
-): {
-  suspiciousUrls: number;
-  detectedPatterns: string[];
-} {
+): UrlAnalysis {
   const urls = text.match(/https?:\/\/[^\s<>"]+/gi) || [];
   let suspiciousUrls = 0;
   const detectedPatterns: string[] = [];
 
-  // Create patterns with custom domains
   const exfiltrationPatterns = createExfiltrationPatterns(
     customSuspiciousDomains,
   );
@@ -314,13 +329,13 @@ function analyzeUrls(
     try {
       const parsedUrl = new URL(url);
 
-      // Check against allowed domains
       if (allowedDomains.length > 0) {
         const isAllowed = allowedDomains.some(
           (domain) =>
             parsedUrl.hostname === domain ||
             parsedUrl.hostname.endsWith('.' + domain),
         );
+
         if (!isAllowed) {
           suspiciousUrls++;
           detectedPatterns.push('unauthorized_domain');
@@ -328,7 +343,6 @@ function analyzeUrls(
         }
       }
 
-      // Check against exfiltration patterns
       for (const pattern of exfiltrationPatterns) {
         if (pattern.test(url)) {
           suspiciousUrls++;
@@ -346,7 +360,6 @@ function analyzeUrls(
   return { suspiciousUrls, detectedPatterns };
 }
 
-// Calculate cascade risk level based on detected patterns
 function calculateCascadeRisk(
   injectionScore: number,
   toolManipulationCount: number,
@@ -362,8 +375,11 @@ function calculateCascadeRisk(
     protocolOverrides * 0.8;
 
   if (riskFactors >= 1.2) return 'critical';
+
   if (riskFactors >= 0.8) return 'high';
+
   if (riskFactors >= 0.5) return 'medium';
+
   return 'low';
 }
 
@@ -376,9 +392,10 @@ function calculateCascadeRisk(
  * 3. Blocking cascading tool call attempts
  * 4. Scanning for encoded malicious instructions
  */
-export const mcpSecurityGuardrail = (
-  options: McpSecurityOptions = {},
-): OutputGuardrail => {
+function scanMcpContent(
+  content: string,
+  options: McpSecurityOptions,
+): GuardrailResult {
   const {
     injectionThreshold = 0.7,
     maxSuspiciousUrls = 0,
@@ -394,230 +411,281 @@ export const mcpSecurityGuardrail = (
     authorityThreshold = 0.7,
   } = options;
 
-  return createOutputGuardrail(
-    'mcp-security',
-    (context: OutputGuardrailContext) => {
-      const { text, object } = extractContent(context.result);
-      const content = text || (object ? JSON.stringify(object) : '');
+  if (!content) {
+    return {
+      tripwireTriggered: false,
+      metadata: {
+        injectionPatternsDetected: 0,
+        exfiltrationAttempts: 0,
+        suspiciousUrls: 0,
+        encodedContentDetected: false,
+        cascadeRiskLevel: 'low',
+        blockedPatterns: [],
+        detectedAttacks: [],
+      },
+      info: {
+        guardrailName: 'mcp-security',
+      },
+    };
+  }
 
-      if (!content) {
-        return {
-          tripwireTriggered: false,
-          metadata: {
-            injectionPatternsDetected: 0,
-            exfiltrationAttempts: 0,
-            suspiciousUrls: 0,
-            encodedContentDetected: false,
-            cascadeRiskLevel: 'low',
-            blockedPatterns: [],
-            detectedAttacks: [],
-          },
-          info: {
-            guardrailName: 'mcp-security',
-          },
-        };
-      }
+  if (content.length > maxContentSize) {
+    return {
+      tripwireTriggered: true,
+      message: `Content size exceeds limit (${content.length} > ${maxContentSize} bytes)`,
+      severity: 'medium',
+      metadata: {
+        contentSize: content.length,
+        maxContentSize,
+        injectionPatternsDetected: 0,
+        exfiltrationAttempts: 0,
+        suspiciousUrls: 0,
+        encodedContentDetected: false,
+        cascadeRiskLevel: 'low',
+        blockedPatterns: [],
+        detectedAttacks: [],
+      },
+      info: {
+        guardrailName: 'mcp-security',
+        contentSize: content.length,
+        maxContentSize: maxContentSize,
+      },
+    };
+  }
 
-      // Content size limit check
-      if (content.length > maxContentSize) {
-        return {
-          tripwireTriggered: true,
-          message: `Content size exceeds limit (${content.length} > ${maxContentSize} bytes)`,
-          severity: 'medium',
-          metadata: {
-            contentSize: content.length,
-            maxContentSize,
-            injectionPatternsDetected: 0,
-            exfiltrationAttempts: 0,
-            suspiciousUrls: 0,
-            encodedContentDetected: false,
-            cascadeRiskLevel: 'low',
-            blockedPatterns: [],
-            detectedAttacks: [],
-          },
-          info: {
-            guardrailName: 'mcp-security',
-            contentSize: content.length,
-            maxContentSize: maxContentSize,
-          },
-        };
-      }
+  const detectedAttacks: Array<{
+    type: string;
+    pattern: string;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    position?: number;
+  }> = [];
 
-      const detectedAttacks: Array<{
-        type: string;
-        pattern: string;
-        severity: 'low' | 'medium' | 'high' | 'critical';
-        position?: number;
-      }> = [];
+  let injectionScore = 0;
+  let toolManipulationCount = 0;
+  let cascadeAttempts = 0;
+  let authorityManipulation = 0;
+  let protocolOverrides = 0;
 
-      let injectionScore = 0;
-      let toolManipulationCount = 0;
-      let cascadeAttempts = 0;
-      let authorityManipulation = 0;
-      let protocolOverrides = 0;
+  // Check for injection patterns with configurable thresholds
+  for (const { pattern, weight, type, severity } of MCP_INJECTION_PATTERNS) {
+    // Apply configurable threshold for authority manipulation
+    const adjustedWeight =
+      type === 'authority_manipulation' ? authorityThreshold : weight;
 
-      // Check for injection patterns with configurable thresholds
-      for (const {
-        pattern,
-        weight,
+    const matches = content.matchAll(
+      new RegExp(pattern.source, pattern.flags + 'g'),
+    );
+
+    for (const match of matches) {
+      injectionScore += adjustedWeight;
+      detectedAttacks.push({
         type,
+        pattern: pattern.source,
         severity,
-      } of MCP_INJECTION_PATTERNS) {
-        // Apply configurable threshold for authority manipulation
-        const adjustedWeight =
-          type === 'authority_manipulation' ? authorityThreshold : weight;
+        position: match.index,
+      });
 
-        const matches = content.matchAll(
-          new RegExp(pattern.source, pattern.flags + 'g'),
-        );
-        for (const match of matches) {
-          injectionScore += adjustedWeight;
-          detectedAttacks.push({
-            type,
-            pattern: pattern.source,
-            severity,
-            position: match.index,
-          });
-
-          // Track specific attack types for risk calculation
-          switch (type) {
-            case 'tool_manipulation': {
-              toolManipulationCount++;
-              break;
-            }
-            case 'cascade_attempt': {
-              cascadeAttempts++;
-              break;
-            }
-            case 'authority_manipulation': {
-              authorityManipulation++;
-              break;
-            }
-            case 'protocol_override': {
-              protocolOverrides++;
-              break;
-            }
-            // No default
-          }
+      // Track specific attack types for risk calculation
+      switch (type) {
+        case 'tool_manipulation': {
+          toolManipulationCount++;
+          break;
         }
-      }
 
-      const injectionDetected = injectionScore >= injectionThreshold;
-
-      // Analyze URLs for exfiltration attempts
-      let urlAnalysis = { suspiciousUrls: 0, detectedPatterns: [] as string[] };
-      if (detectExfiltration) {
-        urlAnalysis = analyzeUrls(
-          content,
-          allowedDomains,
-          customSuspiciousDomains,
-        );
-        if (urlAnalysis.suspiciousUrls > 0) {
-          detectedAttacks.push({
-            type: 'url_exfiltration',
-            pattern: urlAnalysis.detectedPatterns.join(', '),
-            severity: 'high',
-          });
+        case 'cascade_attempt': {
+          cascadeAttempts++;
+          break;
         }
-      }
 
-      // Check for encoded content
-      let encodedContentDetected = false;
-      if (scanEncodedContent) {
-        encodedContentDetected = detectEncodedContent(
-          content,
-          minEncodedLength,
-        );
-        if (encodedContentDetected) {
-          detectedAttacks.push({
-            type: 'encoded_instruction',
-            pattern: 'Base64/Hex encoded content',
-            severity: 'medium',
-          });
+        case 'authority_manipulation': {
+          authorityManipulation++;
+          break;
         }
-      }
 
-      // Calculate cascade risk
-      const cascadeRiskLevel = calculateCascadeRisk(
-        injectionScore,
-        toolManipulationCount,
-        cascadeAttempts,
-        authorityManipulation,
-        protocolOverrides,
+        case 'protocol_override': {
+          protocolOverrides++;
+          break;
+        }
+        // No default
+      }
+    }
+  }
+
+  const injectionDetected = injectionScore >= injectionThreshold;
+
+  let urlAnalysis: UrlAnalysis = { suspiciousUrls: 0, detectedPatterns: [] };
+
+  if (detectExfiltration) {
+    urlAnalysis = analyzeUrls(content, allowedDomains, customSuspiciousDomains);
+
+    if (urlAnalysis.suspiciousUrls > 0) {
+      detectedAttacks.push({
+        type: 'url_exfiltration',
+        pattern: urlAnalysis.detectedPatterns.join(', '),
+        severity: 'high',
+      });
+    }
+  }
+
+  let encodedContentDetected = false;
+
+  if (scanEncodedContent) {
+    encodedContentDetected = detectEncodedContent(content, minEncodedLength);
+
+    if (encodedContentDetected) {
+      detectedAttacks.push({
+        type: 'encoded_instruction',
+        pattern: 'Base64/Hex encoded content',
+        severity: 'medium',
+      });
+    }
+  }
+
+  const cascadeRiskLevel = calculateCascadeRisk(
+    injectionScore,
+    toolManipulationCount,
+    cascadeAttempts,
+    authorityManipulation,
+    protocolOverrides,
+  );
+
+  // Determine if response should be blocked using configurable thresholds
+  const shouldBlock =
+    injectionDetected ||
+    urlAnalysis.suspiciousUrls > maxSuspiciousUrls ||
+    (encodedContentDetected && injectionScore > encodedInjectionThreshold) ||
+    (blockCascadingCalls && cascadeAttempts > 0) ||
+    cascadeRiskLevel === 'critical' ||
+    (cascadeRiskLevel === 'high' && injectionScore > highRiskThreshold) ||
+    protocolOverrides > 0;
+
+  const recommendations: string[] = [];
+
+  if (injectionDetected) {
+    recommendations.push('Review response for embedded instructions');
+  }
+
+  if (urlAnalysis.suspiciousUrls > 0) {
+    recommendations.push('Validate all URLs before use');
+  }
+
+  if (encodedContentDetected) {
+    recommendations.push('Decode and inspect encoded content');
+  }
+
+  if (cascadeAttempts > 0) {
+    recommendations.push('Prevent cascading tool calls');
+  }
+
+  const metadata: McpSecurityMetadata = {
+    injectionPatternsDetected: detectedAttacks.length,
+    exfiltrationAttempts: urlAnalysis.suspiciousUrls,
+    suspiciousUrls: urlAnalysis.suspiciousUrls,
+    encodedContentDetected,
+    cascadeRiskLevel,
+    blockedPatterns: urlAnalysis.detectedPatterns,
+    detectedAttacks,
+  };
+
+  if (shouldBlock) {
+    const attackTypes = [...new Set(detectedAttacks.map((a) => a.type))];
+
+    return {
+      tripwireTriggered: true,
+      message: `MCP security violation detected: ${attackTypes.join(', ')} (risk: ${cascadeRiskLevel})`,
+      severity:
+        cascadeRiskLevel === 'critical'
+          ? 'critical'
+          : cascadeRiskLevel === 'high'
+            ? 'high'
+            : 'medium',
+      metadata,
+      suggestion: `Security recommendations: ${recommendations.join(', ')}`,
+      info: {
+        guardrailName: 'mcp-security',
+        attackTypes: attackTypes,
+        cascadeRiskLevel: cascadeRiskLevel,
+        injectionPatternsDetected: detectedAttacks.length,
+        suspiciousUrls: urlAnalysis.suspiciousUrls,
+      },
+    };
+  }
+
+  return {
+    tripwireTriggered: false,
+    metadata,
+    info: {
+      guardrailName: 'mcp-security',
+      injectionPatternsDetected: detectedAttacks.length,
+      suspiciousUrls: urlAnalysis.suspiciousUrls,
+      cascadeRiskLevel: cascadeRiskLevel,
+    },
+  };
+}
+
+/**
+ * Scans the model's own output for signs it is acting on an MCP injection
+ * (exfiltration URLs, encoded payloads, cascading tool instructions). To scan
+ * what MCP tools returned before the model reads it, use
+ * {@link mcpToolResultGuardrail}.
+ */
+export const mcpSecurityGuardrail = (
+  options: McpSecurityOptions = {},
+): OutputGuardrail =>
+  createOutputGuardrail('mcp-security', (context: OutputGuardrailContext) => {
+    const { text, object } = extractContent(context.result);
+
+    return scanMcpContent(
+      text || (object ? JSON.stringify(object) : ''),
+      options,
+    );
+  });
+
+/**
+ * Input guardrail that scans the tool results the model is about to read: the
+ * `tool` messages since the last assistant turn. This is where indirect prompt
+ * injection from an MCP server arrives. Same detection and options as
+ * {@link mcpSecurityGuardrail}; passes on steps with no new tool results.
+ */
+export const mcpToolResultGuardrail = (
+  options: McpSecurityOptions = {},
+): InputGuardrail =>
+  defineInputGuardrail({
+    name: 'mcp-tool-result',
+    description:
+      'Scans incoming MCP tool results for injection and exfiltration',
+    execute: async (context) => {
+      const { messages } = toNormalizedGuardrailContext(context);
+
+      const lastAssistant = messages.findLastIndex(
+        (m) => m.role === 'assistant',
       );
 
-      // Determine if response should be blocked using configurable thresholds
-      const shouldBlock =
-        injectionDetected ||
-        urlAnalysis.suspiciousUrls > maxSuspiciousUrls ||
-        (encodedContentDetected &&
-          injectionScore > encodedInjectionThreshold) ||
-        (blockCascadingCalls && cascadeAttempts > 0) ||
-        cascadeRiskLevel === 'critical' ||
-        (cascadeRiskLevel === 'high' && injectionScore > highRiskThreshold) ||
-        protocolOverrides > 0;
+      const toolText = messages
+        .slice(lastAssistant + 1)
+        .filter((m) => m.role === 'tool')
+        .map((m) => m.content)
+        .join('\n');
 
-      // Generate security recommendations
-      const recommendations: string[] = [];
-      if (injectionDetected) {
-        recommendations.push('Review response for embedded instructions');
-      }
-      if (urlAnalysis.suspiciousUrls > 0) {
-        recommendations.push('Validate all URLs before use');
-      }
-      if (encodedContentDetected) {
-        recommendations.push('Decode and inspect encoded content');
-      }
-      if (cascadeAttempts > 0) {
-        recommendations.push('Prevent cascading tool calls');
-      }
+      const result = scanMcpContent(toolText, options);
+      const signal = toolText ? matchInjectionSignals(toolText)[0] : undefined;
 
-      const metadata: McpSecurityMetadata = {
-        injectionPatternsDetected: detectedAttacks.length,
-        exfiltrationAttempts: urlAnalysis.suspiciousUrls,
-        suspiciousUrls: urlAnalysis.suspiciousUrls,
-        encodedContentDetected,
-        cascadeRiskLevel,
-        blockedPatterns: urlAnalysis.detectedPatterns,
-        detectedAttacks,
-      };
-
-      if (shouldBlock) {
-        const attackTypes = [...new Set(detectedAttacks.map((a) => a.type))];
+      if (!result.tripwireTriggered && signal && signal.weight >= 0.75) {
         return {
           tripwireTriggered: true,
-          message: `MCP security violation detected: ${attackTypes.join(', ')} (risk: ${cascadeRiskLevel})`,
-          severity:
-            cascadeRiskLevel === 'critical'
-              ? 'critical'
-              : cascadeRiskLevel === 'high'
-                ? 'high'
-                : 'medium',
-          metadata,
-          suggestion: `Security recommendations: ${recommendations.join(', ')}`,
-          info: {
-            guardrailName: 'mcp-security',
-            attackTypes: attackTypes,
-            cascadeRiskLevel: cascadeRiskLevel,
-            injectionPatternsDetected: detectedAttacks.length,
-            suspiciousUrls: urlAnalysis.suspiciousUrls,
-          },
+          message: `Tool result contains an instruction aimed at the model (${signal.category})`,
+          severity: 'high',
+          metadata: { ...result.metadata, signal },
+          info: { guardrailName: 'mcp-tool-result', signal },
         };
       }
 
       return {
-        tripwireTriggered: false,
-        metadata,
-        info: {
-          guardrailName: 'mcp-security',
-          injectionPatternsDetected: detectedAttacks.length,
-          suspiciousUrls: urlAnalysis.suspiciousUrls,
-          cascadeRiskLevel: cascadeRiskLevel,
-        },
+        ...result,
+        info: { ...result.info, guardrailName: 'mcp-tool-result' },
       };
     },
-  );
-};
+  });
 
 /**
  * Response Sanitizer - Cleans MCP tool responses of potentially malicious content
@@ -644,15 +712,18 @@ export const mcpResponseSanitizer = (): OutputGuardrail => {
       // Remove HTML comments that might contain hidden instructions
       const beforeComments = sanitizedText;
       sanitizedText = sanitizedText.replaceAll(/<!--.*?-->/gs, '');
+
       if (sanitizedText !== beforeComments) modificationsCount++;
 
       // Remove suspicious base64 content (configurable minimum length)
       const suspiciousBase64 = /[A-Za-z0-9+/]{20,}={0,2}/g;
       const base64Matches = sanitizedText.match(suspiciousBase64);
+
       if (base64Matches) {
         for (const match of base64Matches) {
           try {
             const decoded = Buffer.from(match, 'base64').toString('utf8');
+
             if (/(?:ignore|system|prompt|instruction)/i.test(decoded)) {
               sanitizedText = sanitizedText.replace(
                 match,
@@ -668,10 +739,12 @@ export const mcpResponseSanitizer = (): OutputGuardrail => {
 
       // Sanitize suspicious URLs using default domains
       const beforeUrls = sanitizedText;
+
       const domainPattern = DEFAULT_SUSPICIOUS_DOMAINS.join('|').replaceAll(
         String.raw`\.`,
         String.raw`\.`,
       );
+
       sanitizedText = sanitizedText.replaceAll(
         new RegExp(
           String.raw`https?:\/\/(?:[^/\s]*\.)?(?:${domainPattern}|evil\.com)[^\s]*`,
@@ -679,6 +752,7 @@ export const mcpResponseSanitizer = (): OutputGuardrail => {
         ),
         '[REDACTED_SUSPICIOUS_URL]',
       );
+
       if (sanitizedText !== beforeUrls) modificationsCount++;
 
       // Remove authority manipulation phrases
@@ -687,6 +761,7 @@ export const mcpResponseSanitizer = (): OutputGuardrail => {
         /(?:security team|administrator|system admin)\s+(?:has|have)\s+(?:authorized|requested|contacted)/gi,
         '[REDACTED_AUTHORITY_CLAIM]',
       );
+
       if (sanitizedText !== beforeAuthority) modificationsCount++;
 
       // Remove override instructions
@@ -695,6 +770,7 @@ export const mcpResponseSanitizer = (): OutputGuardrail => {
         /(?:this overrides|overrides normal|bypasses|circumvents)\s+(?:security|protocols|guidelines|procedures)/gi,
         '[REDACTED_OVERRIDE_ATTEMPT]',
       );
+
       if (sanitizedText !== beforeOverride) modificationsCount++;
 
       // Remove disregard instructions
@@ -703,11 +779,13 @@ export const mcpResponseSanitizer = (): OutputGuardrail => {
         /(?:disregard|ignore|forget|bypass|skip|override)\s+(?:the|all|any|previous|earlier|above|prior|existing)/gi,
         '[REDACTED_DISREGARD_INSTRUCTION]',
       );
+
       if (sanitizedText !== beforeDisregard) modificationsCount++;
 
       if (modificationsCount > 0) {
-        // Modify the result object to contain sanitized content
         if ('text' in context.result) {
+          // SAFETY: `text` was just confirmed on the result; the cast only drops
+          // `readonly` so the sanitized text replaces it in place.
           (context.result as { text: string }).text = sanitizedText;
         }
 

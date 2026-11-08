@@ -11,17 +11,18 @@ import { model } from './model';
 import {
   defineOutputGuardrail,
   executeOutputGuardrails,
+  type GuardrailMetadata,
 } from 'ai-sdk-guardrails';
 import { z } from 'zod';
 
 // Define types for tool call validation metadata
-interface ToolCallValidationMetadata extends Record<string, unknown> {
+interface ToolCallValidationMetadata extends GuardrailMetadata {
   validationResults: Array<{
     functionName: string;
     isValid: boolean;
     errors: string[];
     warnings: string[];
-    metadata: Record<string, unknown>;
+    metadata: GuardrailMetadata;
   }>;
   totalToolCalls: number;
   invalidCalls: number;
@@ -467,7 +468,7 @@ const toolCallValidationGuardrail =
           isValid: validation.isValid,
           errors: validation.errors,
           warnings: validation.warnings,
-          metadata: validation.metadata as Record<string, unknown>,
+          metadata: validation.metadata as GuardrailMetadata,
         });
 
         allErrors.push(...validation.errors);

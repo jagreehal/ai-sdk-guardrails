@@ -52,9 +52,11 @@ export function hardenSystemPrompt(
   if (!options.skipPersonaAnchor) {
     rules.unshift(PERSONA_ANCHOR);
   }
+
   if (!options.skipAntiExtraction) {
     rules.push(...ANTI_EXTRACTION_RULES);
   }
+
   if (options.customRules) {
     rules.push(...options.customRules);
   }

@@ -145,7 +145,9 @@ const model = withGuardrails({
 Create a reusable guardrail configuration:
 
 ```ts
+import { anthropic } from '@ai-sdk/anthropic';
 import { createGuardrails } from 'ai-sdk-guardrails';
+import { ollama } from 'ai-sdk-ollama';
 
 // Define once
 const basicProtection = createGuardrails({
@@ -156,7 +158,7 @@ const basicProtection = createGuardrails({
 
 // Apply to multiple models
 const gpt4 = basicProtection(openai('gpt-4o'));
-const claude = basicProtection(anthropic('claude-3-sonnet'));
+const claude = basicProtection(anthropic('claude-sonnet-4-5'));
 const llama = basicProtection(ollama('llama3.2'));
 ```
 

@@ -103,6 +103,7 @@ const result = await retry({
 Wrap a toolset so inputs are validated (and optionally sanitized) **before** your tool runs.
 
 ```ts
+import { readFile } from 'node:fs/promises';
 import { tool } from 'ai';
 import { z } from 'zod';
 import {
@@ -123,7 +124,7 @@ const tools = withToolParameterGuardrails(
     readFile: tool({
       description: 'Read a file',
       inputSchema: z.object({ path: z.string() }),
-      execute: async ({ path }) => fs.readFile(path, 'utf-8'),
+      execute: async ({ path }) => readFile(path, 'utf-8'),
     }),
   },
   [
@@ -321,11 +322,13 @@ import {
   createFinishReasonEnhancement,
 } from 'ai-sdk-guardrails/advanced';
 
-const finishReason = getGuardrailFinishReason(summary); // e.g. 'content_filter'
+// `summary` is a GuardrailExecutionSummary, e.g. from onOutputBlocked
+const finishReason = getGuardrailFinishReason(summary); // e.g. 'content-filter'
 const providerMetadata = createGuardrailProviderMetadata(summary, {
   includeMetadata: true,
 });
 
+const result = await generateText({ model, prompt: '...' });
 const enhancedResult = createFinishReasonEnhancement(summary, result);
 ```
 
@@ -427,11 +430,12 @@ const middleware = inputGuardrailsMiddleware({
   executionOptions: { timeout: 10_000 },
 });
 
-// Guardrails can access this via params.requestContext
+// Guardrails see it as params.requestContext (on the normalized context)
 const userAwareGuardrail = defineInputGuardrail({
   name: 'user-aware',
   execute: async (params) => {
-    const userId = params.requestContext?.userId;
+    const userId =
+      'requestContext' in params ? params.requestContext?.userId : undefined;
     // Use userId for validation...
     return { tripwireTriggered: false };
   },
@@ -453,7 +457,7 @@ const model = withGuardrails({
   model: openai('gpt-4o'),
   outputGuardrails: [
     expectedToolUse({ tools: 'search' }),
-    toolEgressPolicy({ allowedDomains: ['api.company.com'] }),
+    toolEgressPolicy({ allowedHosts: ['api.company.com'] }),
   ],
 });
 ```
@@ -480,7 +484,10 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 new NodeSDK().start(); // or `init()` from autotel
 
 // guardrail spans now land in the same trace as the model calls
-const model = withGuardrails({ model: baseModel, inputGuardrails: [piiDetector()] });
+const model = withGuardrails({
+  model: baseModel,
+  inputGuardrails: [piiDetector()],
+});
 ```
 
 ### Governance signals
@@ -525,11 +532,11 @@ const agent = new ToolLoopAgent({
 
 Guardrail block decisions are now opt-in too: attach
 `guardrailGovernance(...).onInputBlocked` / `.onOutputBlocked` yourself where you
-want them. See the governance guide for the full SAIF bridge.
+want them. See the [Governance guide](/guides/governance/) for the full SAIF bridge.
 
 ## Registry & specs (advanced)
 
-The package also exports the lower-level registry/spec layer (`defaultRegistry`, `createRegistry`, `GuardrailSpec`, `ConfiguredGuardrail`) used by the OpenAI-config compatibility runtime.
+`ai-sdk-guardrails/config` exports the lower-level registry/spec layer (`defaultRegistry`, `createRegistry`, `GuardrailSpec`, `ConfiguredGuardrail`) used by the OpenAI-config compatibility runtime.
 
 ## Guardrail composition
 

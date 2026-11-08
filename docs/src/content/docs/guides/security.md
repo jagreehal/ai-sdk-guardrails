@@ -24,7 +24,7 @@ await generateText({ model, system, prompt: userInput });
 ```ts
 import { evaluatePromptDefense } from 'ai-sdk-guardrails';
 
-const report = evaluatePromptDefense(system);
+const report = evaluatePromptDefense(mySystemPrompt);
 if (report.isBlocking('B')) {
   throw new Error(
     `Prompt scored ${report.grade}; missing: ${report.missing.join(', ')}`,
@@ -61,7 +61,10 @@ A compromised MCP server can hide instructions inside a tool description or ship
 ```ts
 import { scanMcpTools } from 'ai-sdk-guardrails';
 
-const results = scanMcpTools(await mcpClient.listTools());
+const { tools: definitions } = await mcpClient.listTools();
+const results = scanMcpTools(
+  definitions.map((t) => ({ name: t.name, description: t.description ?? '' })),
+);
 const risky = results.filter((r) => !r.safe);
 if (risky.length > 0) {
   throw new Error(
@@ -70,7 +73,7 @@ if (risky.length > 0) {
 }
 ```
 
-This guards the supply chain. For runtime defense against malicious tool _responses_, add `mcpSecurityGuardrail` to your output guardrails.
+This guards the supply chain. For runtime defense against malicious tool _responses_, add `mcpSecurityGuardrail` to your output guardrails. The [MCP Security guide](/guides/mcp/) covers the whole flow and its limits.
 
 ## Layer 4: Guard the output
 

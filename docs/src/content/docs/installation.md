@@ -112,7 +112,7 @@ AI SDK Guardrails works seamlessly with Next.js:
 // app/api/chat/route.ts
 import { withGuardrails, piiDetector } from 'ai-sdk-guardrails';
 import { openai } from '@ai-sdk/openai';
-import { streamText } from 'ai';
+import { convertToModelMessages, streamText, type UIMessage } from 'ai';
 
 const model = withGuardrails({
   model: openai('gpt-4o'),
@@ -120,14 +120,14 @@ const model = withGuardrails({
 });
 
 export async function POST(req: Request) {
-  const { messages } = await req.json();
+  const { messages } = (await req.json()) as { messages: UIMessage[] };
 
-  const result = await streamText({
+  const result = streamText({
     model,
-    messages,
+    messages: await convertToModelMessages(messages),
   });
 
-  return result.toDataStreamResponse();
+  return result.toUIMessageStreamResponse();
 }
 ```
 

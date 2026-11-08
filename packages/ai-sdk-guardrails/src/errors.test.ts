@@ -53,6 +53,7 @@ describe('Error System', () => {
         'test-guardrail',
         validationErrors,
       );
+
       const json = error.toJSON();
 
       expect(json.name).toBe('GuardrailValidationError');
@@ -65,6 +66,7 @@ describe('Error System', () => {
   describe('GuardrailExecutionError', () => {
     it('should create execution error with original error', () => {
       const originalError = new Error('Network timeout');
+
       const error = new GuardrailExecutionError('api-checker', originalError, {
         endpoint: '/api/check',
       });
@@ -108,6 +110,7 @@ describe('Error System', () => {
         'Missing required field: name',
         'Invalid timeout value',
       ];
+
       const error = new GuardrailConfigurationError(
         configErrors,
         'guardrails.config.js',
@@ -193,6 +196,7 @@ describe('Error System', () => {
   describe('MiddlewareError', () => {
     it('should create middleware error with original error', () => {
       const originalError = new TypeError('Invalid parameter');
+
       const error = new MiddlewareError('input', 'transform', originalError, {
         step: 'validation',
       });
@@ -229,6 +233,7 @@ describe('Error System', () => {
       const error = new GuardrailTimeoutError('slow-check', 1000, {
         retry: true,
       });
+
       const info = extractErrorInfo(error);
 
       expect(info.name).toBe('GuardrailTimeoutError');
@@ -288,7 +293,6 @@ describe('Error System', () => {
     it('should support GuardrailsInputError', () => {
       const error = new GuardrailsInputError([]);
 
-      // Should be instance of the new class
       expect(error).toBeInstanceOf(GuardrailsInputError);
       expect(error.name).toBe('GuardrailsInputError');
     });
@@ -296,7 +300,6 @@ describe('Error System', () => {
     it('should support GuardrailsOutputError', () => {
       const error = new GuardrailsOutputError([]);
 
-      // Should be instance of the new class
       expect(error).toBeInstanceOf(GuardrailsOutputError);
       expect(error.name).toBe('GuardrailsOutputError');
     });
@@ -329,9 +332,11 @@ describe('Error System', () => {
   describe('Error Serialization', () => {
     it('should serialize all error properties to JSON', () => {
       const originalError = new Error('Original');
+
       const error = new GuardrailExecutionError('test', originalError, {
         extra: 'data',
       });
+
       const json = error.toJSON();
 
       expect(json.name).toBe('GuardrailExecutionError');
@@ -347,8 +352,7 @@ describe('Error System', () => {
       const complexMetadata = {
         array: [1, 2, 3],
         object: { nested: true },
-        date: new Date(),
-        func: () => 'test', // functions should be handled gracefully
+        date: '2026-11-08T12:00:00.000Z',
       };
 
       const error = new GuardrailsInputError([], complexMetadata);
@@ -356,7 +360,7 @@ describe('Error System', () => {
 
       expect(json.metadata.array).toEqual([1, 2, 3]);
       expect(json.metadata.object).toEqual({ nested: true });
-      expect(typeof json.metadata.date).toBe('object'); // Date should remain
+      expect(json.metadata.date).toBe('2026-11-08T12:00:00.000Z');
     });
   });
 });

@@ -25,7 +25,7 @@
     "type-check": "turbo type-check",
     "check-exports": "turbo check-exports",
     "clean": "turbo clean",
-    "ci": "pnpm build && pnpm format:check && pnpm check-exports && pnpm lint && pnpm type-check && pnpm test",
+    "ci": "pnpm build && pnpm format:check && pnpm lint && pnpm type-check && pnpm test && pnpm --filter ai-sdk-guardrails test:coverage && pnpm check-exports",
     "quality": "pnpm lint && pnpm type-check && pnpm test && pnpm format && pnpm check-exports",
     "local-release": "pnpm build && pnpm format:check && pnpm check-exports && pnpm lint && pnpm test && changeset version && changeset publish",
     "release": "changeset publish",
@@ -33,14 +33,14 @@
     "version-packages": "changeset version"
   },
   "devDependencies": {
-    "@changesets/cli": "3.0.2",
-    "prettier": "3.9.6",
-    "turbo": "2.10.12",
-    "tsx": "4.23.13"
+    "@changesets/cli": "3.0.3",
+    "prettier": "3.9.10",
+    "turbo": "2.11.10",
+    "tsx": "4.23.15"
   },
   "engines": {
     "node": ">=22",
-    "pnpm": ">=8"
+    "pnpm": ">=10"
   },
   "packageManager": "pnpm@10.24.0"
 }

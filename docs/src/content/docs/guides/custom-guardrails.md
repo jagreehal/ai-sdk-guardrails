@@ -71,7 +71,9 @@ const allowlistGuardrail = defineInputGuardrail({
   description: 'Only allow approved users',
   execute: async (params) => {
     const { prompt } = extractTextContent(params);
-    const userId = params.requestContext?.userId; // From request context
+    // Request context set through the middleware's `context` option
+    const userId =
+      'requestContext' in params ? params.requestContext?.userId : undefined;
 
     // Check database
     const isAllowed = await db.users.isAllowed(userId);
@@ -164,7 +166,7 @@ const streamingGuardrail = defineOutputGuardrail({
   execute: async ({ result }, accumulatedText) => {
     // In progressive mode, accumulatedText contains all text seen so far
     // In buffer mode or non-streaming, accumulatedText is undefined
-    const text = accumulatedText ?? result.text ?? '';
+    const text = accumulatedText ?? extractContent(result).text;
 
     // Check the accumulated text
     if (text.length > 1000) {
@@ -329,6 +331,8 @@ const goodGuardrail = defineInputGuardrail({
 - **`low`**: Minor issues, informational
 
 ### 3. Include Metadata
+
+<!-- snippet:skip: fragment of an execute() body -->
 
 ```ts
 return {

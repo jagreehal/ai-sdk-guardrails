@@ -594,10 +594,7 @@ const sqlCodeSafetyGuardrail = defineOutputGuardrail<{
         tripwireTriggered: true,
         message: `SQL safety violation detected: ${validation.violations.length} violation(s), ${validation.warnings.length} warning(s).`,
         severity: validation.riskLevel as
-          | 'low'
-          | 'medium'
-          | 'high'
-          | 'critical',
+          'low' | 'medium' | 'high' | 'critical',
         suggestion:
           'Review and modify SQL code to comply with safety requirements and remove dangerous operations.',
         metadata: {

@@ -12,11 +12,15 @@
 import { describe, it, expect } from 'vitest';
 import { generateText } from 'ai';
 import { model } from './model';
-import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
+import {
+  defineOutputGuardrail,
+  withGuardrails,
+  type GuardrailMetadata,
+} from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
 // Define types for LLM judge metadata
-interface LLMJudgmentMetadata extends Record<string, unknown> {
+interface LLMJudgmentMetadata extends GuardrailMetadata {
   llmJudgment?: {
     score: number;
     quality: string;
@@ -30,7 +34,7 @@ interface LLMJudgmentMetadata extends Record<string, unknown> {
   fallbackApproved?: boolean;
 }
 
-interface FactCheckMetadata extends Record<string, unknown> {
+interface FactCheckMetadata extends GuardrailMetadata {
   factCheck?: {
     confidenceLevel: number;
     recommendation: string;
@@ -43,7 +47,7 @@ interface FactCheckMetadata extends Record<string, unknown> {
   skippedVerification?: boolean;
 }
 
-interface BiasCheckMetadata extends Record<string, unknown> {
+interface BiasCheckMetadata extends GuardrailMetadata {
   biasCheck?: {
     hasBias: boolean;
     biasTypes: string[];

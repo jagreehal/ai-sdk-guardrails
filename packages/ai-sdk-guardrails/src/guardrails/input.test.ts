@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { MockLanguageModelV4 } from 'ai/test';
 import {
   lengthLimit,
   inputLengthLimit,
@@ -9,9 +10,17 @@ import {
   profanityFilter,
   customValidation,
 } from './input';
-import type { InputGuardrailContext } from '../types';
+import type {
+  InputGuardrailContext,
+  NormalizedGuardrailContext,
+} from '../types';
 
-// Mock helper to create valid InputGuardrailContext objects for testing
+// The normalized context plus the model-call fields some guardrails report.
+type MockContext = NormalizedGuardrailContext & {
+  model: MockLanguageModelV4;
+  output: string;
+};
+
 function createMockContext(overrides: {
   prompt?: string;
   messages?: Array<{ content: string; role?: string }>;
@@ -20,16 +29,7 @@ function createMockContext(overrides: {
   temperature?: number;
   maxOutputTokens?: number;
 }): InputGuardrailContext {
-  const mockModel = {
-    modelId: overrides.model || 'test-model',
-    provider: 'test',
-    doGenerate: vi.fn(),
-    doStream: vi.fn(),
-    defaultObjectGenerationMode: undefined,
-    specificationVersion: 'v1' as const,
-  };
-
-  return {
+  const context: MockContext = {
     prompt: overrides.prompt || '',
     messages:
       overrides.messages?.map((msg) => ({
@@ -37,11 +37,15 @@ function createMockContext(overrides: {
         content: msg.content,
       })) || [],
     system: overrides.system || '',
-    model: mockModel,
+    model: new MockLanguageModelV4({
+      modelId: overrides.model || 'test-model',
+    }),
     temperature: overrides.temperature,
     maxOutputTokens: overrides.maxOutputTokens,
     output: 'no-schema',
-  } as unknown as InputGuardrailContext;
+  };
+
+  return context;
 }
 
 describe('Input Guardrails', () => {
@@ -52,6 +56,7 @@ describe('Input Guardrails', () => {
   describe('lengthLimit', () => {
     it('should pass when content is within limit', async () => {
       const guardrail = lengthLimit(100);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'Short prompt',
@@ -64,6 +69,7 @@ describe('Input Guardrails', () => {
 
     it('should block when content exceeds limit', async () => {
       const guardrail = lengthLimit(10);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'This is a very long prompt that exceeds the limit',
@@ -79,6 +85,7 @@ describe('Input Guardrails', () => {
 
     it('should handle messages content', async () => {
       const guardrail = lengthLimit(20);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'Hi',
@@ -95,6 +102,7 @@ describe('Input Guardrails', () => {
 
     it('should include model metadata when provided', async () => {
       const guardrail = lengthLimit(100);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'Test',
@@ -113,6 +121,7 @@ describe('Input Guardrails', () => {
   describe('inputLengthLimit', () => {
     it('accepts a number as a character limit', async () => {
       const guardrail = inputLengthLimit(10);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'This is a very long prompt that exceeds the limit',
@@ -130,6 +139,7 @@ describe('Input Guardrails', () => {
         maxLength: 3,
         countMethod: 'words',
       });
+
       const result = await guardrail.execute(
         createMockContext({ prompt: 'one two three four five' }),
       );
@@ -142,6 +152,7 @@ describe('Input Guardrails', () => {
 
     it('passes when within the configured limit', async () => {
       const guardrail = inputLengthLimit({ maxLength: 100 });
+
       const result = await guardrail.execute(
         createMockContext({ prompt: 'Short prompt' }),
       );
@@ -153,6 +164,7 @@ describe('Input Guardrails', () => {
   describe('blockedWords', () => {
     it('should pass when no blocked words are found', async () => {
       const guardrail = blockedWords(['spam', 'hack']);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'Hello world',
@@ -164,6 +176,7 @@ describe('Input Guardrails', () => {
 
     it('should block when blocked word is found in prompt', async () => {
       const guardrail = blockedWords(['spam', 'hack']);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'This is spam content',
@@ -178,6 +191,7 @@ describe('Input Guardrails', () => {
 
     it('should block when blocked word is found in messages', async () => {
       const guardrail = blockedWords(['spam', 'hack']);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'Hello',
@@ -192,6 +206,7 @@ describe('Input Guardrails', () => {
 
     it('should block when blocked word is found in system prompt', async () => {
       const guardrail = blockedWords(['spam', 'hack']);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'Hello',
@@ -205,6 +220,7 @@ describe('Input Guardrails', () => {
 
     it('should be case insensitive', async () => {
       const guardrail = blockedWords(['SPAM', 'Hack']);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'spam and hack',
@@ -217,6 +233,7 @@ describe('Input Guardrails', () => {
 
     it('should handle empty inputs gracefully', async () => {
       const guardrail = blockedWords(['spam']);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: '',
@@ -230,6 +247,7 @@ describe('Input Guardrails', () => {
   describe('contentLengthLimit', () => {
     it('should pass when content is within limit', async () => {
       const guardrail = contentLengthLimit(50);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'Short content',
@@ -241,6 +259,7 @@ describe('Input Guardrails', () => {
 
     it('should block when content exceeds limit', async () => {
       const guardrail = contentLengthLimit(10);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'This is a very long content that exceeds the limit',
@@ -258,6 +277,7 @@ describe('Input Guardrails', () => {
   describe('blockedKeywords', () => {
     it('should pass when no blocked keywords are found', async () => {
       const guardrail = blockedKeywords(['malware', 'virus']);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'Clean content',
@@ -269,6 +289,7 @@ describe('Input Guardrails', () => {
 
     it('should block when blocked keyword is found', async () => {
       const guardrail = blockedKeywords(['malware', 'virus']);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'How to create malware',
@@ -284,6 +305,7 @@ describe('Input Guardrails', () => {
 
     it('should include text length in metadata', async () => {
       const guardrail = blockedKeywords(['test']);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'This is a test',
@@ -297,6 +319,7 @@ describe('Input Guardrails', () => {
   describe('rateLimiting', () => {
     it('should pass when within rate limit', async () => {
       const guardrail = rateLimiting(5);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'Test',
@@ -309,15 +332,14 @@ describe('Input Guardrails', () => {
     it('should block when rate limit is exceeded', async () => {
       const guardrail = rateLimiting(2);
 
-      // First request should pass
       let result = await guardrail.execute(
         createMockContext({
           prompt: 'Test 1',
         }),
       );
+
       expect(result.tripwireTriggered).toBe(false);
 
-      // Second request should pass
       result = await guardrail.execute(
         createMockContext({
           prompt: 'Test 2',
@@ -325,7 +347,6 @@ describe('Input Guardrails', () => {
       );
       expect(result.tripwireTriggered).toBe(false);
 
-      // Third request should be blocked
       result = await guardrail.execute(
         createMockContext({
           prompt: 'Test 3',
@@ -339,15 +360,14 @@ describe('Input Guardrails', () => {
     it('should reset after time window', async () => {
       const guardrail = rateLimiting(1);
 
-      // First request should pass
       let result = await guardrail.execute(
         createMockContext({
           prompt: 'Test 1',
         }),
       );
+
       expect(result.tripwireTriggered).toBe(false);
 
-      // Second request should be blocked
       result = await guardrail.execute(
         createMockContext({
           prompt: 'Test 2',
@@ -355,10 +375,9 @@ describe('Input Guardrails', () => {
       );
       expect(result.tripwireTriggered).toBe(true);
 
-      // Mock time passing (more than 1 minute)
       vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 61_000);
 
-      // Third request should pass (after reset)
+      // The window has reset.
       result = await guardrail.execute(
         createMockContext({
           prompt: 'Test 3',
@@ -369,6 +388,7 @@ describe('Input Guardrails', () => {
 
     it('should include metadata with current count and limits', async () => {
       const guardrail = rateLimiting(10);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'Test',
@@ -391,6 +411,7 @@ describe('Input Guardrails', () => {
   describe('profanityFilter', () => {
     it('should pass when no profanity is found', async () => {
       const guardrail = profanityFilter();
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'Clean content',
@@ -402,6 +423,7 @@ describe('Input Guardrails', () => {
 
     it('should block when profanity is found', async () => {
       const guardrail = profanityFilter(['badword']);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'This contains badword',
@@ -415,6 +437,7 @@ describe('Input Guardrails', () => {
 
     it('should combine default and custom words', async () => {
       const guardrail = profanityFilter(['customword']);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'This has profanity1 and customword',
@@ -430,6 +453,7 @@ describe('Input Guardrails', () => {
 
     it('should include text length in metadata', async () => {
       const guardrail = profanityFilter();
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: 'Test content',
@@ -479,6 +503,7 @@ describe('Input Guardrails', () => {
 
     it('should pass input data to validator', async () => {
       const mockValidator = vi.fn(() => true);
+
       const guardrail = customValidation({
         name: 'test-validator',
         description: 'Test validator',
@@ -539,19 +564,15 @@ describe('Input Guardrails', () => {
   describe('Edge Cases', () => {
     it('should handle undefined/null inputs gracefully', async () => {
       const guardrail = lengthLimit(100);
-      // Create a context with minimal required properties
-      const result = await guardrail.execute({
-        prompt: undefined,
-        messages: undefined,
-        system: undefined,
-        model: {
-          modelId: 'test-model',
-          provider: 'test',
-          doGenerate: vi.fn(),
-          specificationVersion: 'v1' as const,
-        },
-        output: 'no-schema',
-      } as unknown as InputGuardrailContext);
+
+      // Plain-JS callers can pass fields outside the declared types.
+      const result = await guardrail.execute(
+        Object.assign(createMockContext({}), {
+          prompt: undefined,
+          messages: undefined,
+          system: undefined,
+        }),
+      );
 
       expect(result.tripwireTriggered).toBe(false);
       expect(result.metadata?.totalLength).toBe(0);
@@ -559,22 +580,16 @@ describe('Input Guardrails', () => {
 
     it('should handle messages with non-string content', async () => {
       const guardrail = blockedWords(['object']);
-      const result = await guardrail.execute({
-        prompt: 'Hello',
-        messages: [
-          { role: 'user', content: null },
-          { role: 'user', content: 42 },
-          { role: 'user', content: { text: 'test' } },
-        ],
-        system: '',
-        model: {
-          modelId: 'test-model',
-          provider: 'test',
-          doGenerate: vi.fn(),
-          specificationVersion: 'v1' as const,
-        },
-        output: 'no-schema',
-      } as unknown as InputGuardrailContext);
+
+      const result = await guardrail.execute(
+        Object.assign(createMockContext({ prompt: 'Hello' }), {
+          messages: [
+            { role: 'user', content: null },
+            { role: 'user', content: 42 },
+            { role: 'user', content: { text: 'test' } },
+          ],
+        }),
+      );
 
       // The content gets stringified using String(), so { text: 'test' } becomes '[object Object]'
       expect(result.tripwireTriggered).toBe(true);
@@ -583,6 +598,7 @@ describe('Input Guardrails', () => {
 
     it('should handle empty arrays and strings', async () => {
       const guardrail = blockedKeywords([]);
+
       const result = await guardrail.execute(
         createMockContext({
           prompt: '',

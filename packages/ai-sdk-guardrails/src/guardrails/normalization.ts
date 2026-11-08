@@ -28,16 +28,20 @@ export type ResolvedDetectNormalizationOptions =
   Required<DetectNormalizationOptions>;
 
 const RE_WHITESPACE = /\s+/g;
+
 const RE_WHITESPACE_SPLIT = /\s+/;
+
 const RE_WORD_CHAR = /\w/;
+
 // Zero-width and other invisible/format characters. Includes the soft hyphen
 // (U+00AD) and Mongolian vowel separator (U+180E) so the same set powers both
 // stripping (here) and detection (the MCP scanner via `isInvisibleChar`).
 // `\u{…}` escapes would need the `u` flag, which the `new RegExp(…, 'g')`
 // re-wrap below drops — silently breaking the class.
-// eslint-disable-next-line unicorn/prefer-unicode-code-point-escapes
 const INVISIBLE_CHARS = /[\u00AD\u180E\u200B-\u200F\u2028-\u202F\u2060\uFEFF]/;
+
 const RE_INVISIBLE = new RegExp(INVISIBLE_CHARS, 'g');
+
 const RE_REGEX_META = /[.*+?^${}()|[\]\\]/g;
 
 /** True if the character is a zero-width / invisible format character. */
@@ -45,7 +49,7 @@ export function isInvisibleChar(ch: string): boolean {
   return INVISIBLE_CHARS.test(ch);
 }
 
-const TYPO_MAP: Record<string, string> = {
+const TYPO_MAP = {
   ingnore: 'ignore',
   ignor: 'ignore',
   ign0re: 'ignore',
@@ -57,7 +61,7 @@ const TYPO_MAP: Record<string, string> = {
   overrride: 'override',
   disreguard: 'disregard',
   disrega: 'disregard',
-};
+} satisfies Record<string, string>;
 
 // Full-width Latin (U+FF21–FF5A) and common Cyrillic look-alikes → ASCII.
 const HOMOGLYPH_MAP: ReadonlyArray<readonly [string, string]> = [
@@ -155,7 +159,7 @@ const LEET_SEQUENCE_MAP: ReadonlyArray<readonly [RegExp, string]> = [
   [/></g, 'x'],
 ];
 
-const LEET_MAP: Record<string, string> = {
+const LEET_MAP = {
   '0': 'o',
   '1': 'i',
   '3': 'e',
@@ -168,7 +172,7 @@ const LEET_MAP: Record<string, string> = {
   '@': 'a',
   $: 's',
   '!': 'i',
-};
+} satisfies Record<string, string>;
 
 const PHONETIC_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\bignorre?\b/gi, 'ignore'],
@@ -196,9 +200,11 @@ export const DEFAULT_DETECT_NORMALIZATION: ResolvedDetectNormalizationOptions =
 
 function applyHomoglyphs(input: string): string {
   let result = input;
+
   for (const [from, to] of HOMOGLYPH_MAP) {
     result = result.split(from).join(to);
   }
+
   return result;
 }
 
@@ -209,29 +215,35 @@ function collapseWhitespace(input: string): string {
 function joinSeparatedLetters(input: string): string {
   return input.replaceAll(/(?<!\w)(\w)(\s+\w)+(?!\w)/g, (match) => {
     const tokens = match.split(RE_WHITESPACE_SPLIT);
+
     const allSingleChars = tokens.every(
       (token) => token.length === 1 && RE_WORD_CHAR.test(token),
     );
+
     return allSingleChars ? tokens.join('') : match;
   });
 }
 
 function decodeLeetspeak(input: string): string {
   let result = input;
+
   for (const [pattern, replacement] of LEET_SEQUENCE_MAP) {
     result = result.replace(pattern, () => replacement);
   }
+
   for (const [from, to] of Object.entries(LEET_MAP)) {
     result = result.replaceAll(
       new RegExp(from.replaceAll(RE_REGEX_META, String.raw`\$&`), 'gi'),
       () => to,
     );
   }
+
   return result;
 }
 
 function repairTypos(input: string): string {
   let result = input;
+
   for (const [typo, correct] of Object.entries(TYPO_MAP)) {
     const escaped = typo.replaceAll(RE_REGEX_META, String.raw`\$&`);
     result = result.replaceAll(
@@ -239,14 +251,17 @@ function repairTypos(input: string): string {
       () => correct,
     );
   }
+
   return result;
 }
 
 function repairPhonetics(input: string): string {
   let result = input;
+
   for (const [pattern, replacement] of PHONETIC_PATTERNS) {
     result = result.replace(pattern, () => replacement);
   }
+
   return result;
 }
 
@@ -257,9 +272,11 @@ export function resolveDetectNormalization(
   if (options === false) {
     return { ...DEFAULT_DETECT_NORMALIZATION, enabled: false };
   }
+
   if (options === true || options === undefined) {
     return DEFAULT_DETECT_NORMALIZATION;
   }
+
   return { ...DEFAULT_DETECT_NORMALIZATION, ...options };
 }
 
@@ -277,6 +294,7 @@ export function normalizeForDetection(
   options?: boolean | DetectNormalizationOptions,
 ): string {
   const config = resolveDetectNormalization(options);
+
   if (!config.enabled) {
     return input.trim();
   }
@@ -284,16 +302,24 @@ export function normalizeForDetection(
   let normalized = input.normalize('NFKC');
 
   if (config.foldHomoglyphs) normalized = applyHomoglyphs(normalized);
+
   if (config.stripInvisible)
     normalized = normalized.replaceAll(RE_INVISIBLE, '');
+
   if (config.collapseWhitespace) normalized = collapseWhitespace(normalized);
+
   if (config.joinSeparatedLetters) {
     normalized = joinSeparatedLetters(normalized);
   }
+
   if (config.normalizeCase) normalized = normalized.toLowerCase();
+
   if (config.decodeLeetspeak) normalized = decodeLeetspeak(normalized);
+
   if (config.repairTypos) normalized = repairTypos(normalized);
+
   if (config.repairPhonetics) normalized = repairPhonetics(normalized);
+
   if (config.collapseWhitespace) normalized = collapseWhitespace(normalized);
 
   return normalized.trim();

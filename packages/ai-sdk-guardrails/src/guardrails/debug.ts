@@ -12,12 +12,18 @@
 /* eslint-disable unicorn/switch-case-braces */
 /* eslint-disable unicorn/no-useless-switch-case */
 
+import { z } from 'zod';
 import type {
   InputGuardrail,
   OutputGuardrail,
   GuardrailResult,
   NormalizedGuardrailContext,
 } from '../types';
+
+import type { GuardrailMetadata } from '../enhanced-types';
+
+/** Metadata attached to a guardrail result. */
+type ResultMetadata = NonNullable<GuardrailResult['metadata']>;
 
 // ============================================================================
 // Types
@@ -51,8 +57,8 @@ export interface GuardrailTraceEntry {
   confidence?: number;
   /** Full decision details */
   decision: GuardrailResult;
-  /** Additional debug info */
-  debugInfo?: Record<string, unknown>;
+  /** The result's metadata */
+  debugInfo?: ResultMetadata;
 }
 
 /**
@@ -86,7 +92,7 @@ export interface ExecutionTrace {
     responsePreview?: string;
   };
   /** Metadata */
-  metadata?: Record<string, unknown>;
+  metadata?: ResultMetadata;
 }
 
 /**
@@ -125,6 +131,7 @@ function defaultGenerateTraceId(): string {
   traceCounter++;
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).slice(2, 8);
+
   return `trace-${timestamp}-${random}-${traceCounter}`;
 }
 
@@ -178,8 +185,7 @@ export function createDebugWrapper(options: DebugOptions) {
     logger = console,
   } = options;
 
-  // Storage for current trace being built
-  let currentTrace: Partial<ExecutionTrace> | null = null;
+  let currentTrace: ExecutionTrace | null = null;
   let traceStartTime: number = 0;
 
   /**
@@ -233,15 +239,14 @@ export function createDebugWrapper(options: DebugOptions) {
     const endTime = Date.now();
     currentTrace.totalMs = endTime - traceStartTime;
 
-    // Determine final decision
     const blockedEntries =
       currentTrace.guardrails?.filter((e) => e.triggered) || [];
+
     if (blockedEntries.length > 0) {
       currentTrace.finalDecision = 'blocked';
       currentTrace.blockedBy = blockedEntries.map((e) => e.guardrailName);
     }
 
-    // Add input context if requested
     if (includeInputContext && inputContext) {
       currentTrace.inputContext = {
         promptLength: inputContext.prompt?.length || 0,
@@ -257,7 +262,6 @@ export function createDebugWrapper(options: DebugOptions) {
       }
     }
 
-    // Add output context if requested
     if (includeOutputContext && outputContext?.text) {
       currentTrace.outputContext = {
         responseLength: outputContext.text.length,
@@ -271,9 +275,8 @@ export function createDebugWrapper(options: DebugOptions) {
       }
     }
 
-    const finalTrace = currentTrace as ExecutionTrace;
+    const finalTrace = currentTrace;
 
-    // Emit trace
     if (onTrace) {
       try {
         await onTrace(finalTrace);
@@ -282,17 +285,16 @@ export function createDebugWrapper(options: DebugOptions) {
       }
     }
 
-    // Log summary
     if (verbose) {
       const status =
         finalTrace.finalDecision === 'blocked' ? 'BLOCKED' : 'ALLOWED';
+
       logger.info(
         `[${finalTrace.traceId}] Trace complete: ${status} | ` +
           `${finalTrace.guardrails.length} guardrails | ${finalTrace.totalMs}ms`,
       );
     }
 
-    // Reset state
     currentTrace = null;
 
     return finalTrace;
@@ -301,19 +303,22 @@ export function createDebugWrapper(options: DebugOptions) {
   /**
    * Wraps a guardrail with debug tracing
    */
-  function wrap<M extends Record<string, unknown>>(
+  function wrap<M extends GuardrailMetadata>(
     guardrail: InputGuardrail<M>,
   ): InputGuardrail<M>;
-  function wrap<M extends Record<string, unknown>>(
+  function wrap<M extends GuardrailMetadata>(
     guardrail: OutputGuardrail<M>,
   ): OutputGuardrail<M>;
-  function wrap<M extends Record<string, unknown>>(
+  function wrap<M extends GuardrailMetadata>(
     guardrail: InputGuardrail<M> | OutputGuardrail<M>,
   ): InputGuardrail<M> | OutputGuardrail<M> {
     if (!enabled) {
       return guardrail;
     }
 
+    // SAFETY: the wrapper keeps every field of `guardrail` and its `execute`
+    // forwards the caller's arguments unchanged, so it has the same signature
+    // as the input or output guardrail it wraps.
     return {
       ...guardrail,
       execute: async (context: any, ...rest: any[]) => {
@@ -324,24 +329,30 @@ export function createDebugWrapper(options: DebugOptions) {
         let error: Error | null = null;
 
         try {
+          // SAFETY: these are the arguments the runtime passed to this wrapper,
+          // which match the wrapped guardrail's own `execute` signature.
           result = await (guardrail as any).execute(context, ...rest);
         } catch (e) {
           error = e instanceof Error ? e : new Error(String(e));
+
+          const errorMetadata: ResultMetadata = {
+            error: error.message,
+            stack: error.stack,
+          };
+
           result = {
             tripwireTriggered: true,
             message: `Execution error: ${error.message}`,
             severity: 'critical',
-            metadata: {
-              error: error.message,
-              stack: error.stack,
-            } as unknown as M,
+            // SAFETY: M describes success metadata; a thrown guardrail always
+            // reports `{ error, stack }`, and the error is rethrown below.
+            metadata: errorMetadata as M,
           };
         }
 
         const endTime = Date.now();
         const relativeEnd = traceStartTime ? endTime - traceStartTime : 0;
 
-        // Create trace entry
         const entry: GuardrailTraceEntry = {
           guardrailName: guardrail.name,
           guardrailVersion: guardrail.version,
@@ -355,17 +366,20 @@ export function createDebugWrapper(options: DebugOptions) {
           decision: result,
         };
 
-        // Extract additional debug info from result metadata
         if (result.metadata) {
-          const metadata = result.metadata as Record<string, unknown>;
+          const metadata = result.metadata;
+          const patterns = metadata.patterns || metadata.matchedPatterns;
 
-          if (metadata.patterns || metadata.matchedPatterns) {
-            entry.matchedPatterns = (metadata.patterns ||
-              metadata.matchedPatterns) as string[];
+          if (patterns) {
+            // SAFETY: by convention guardrails report `patterns` and
+            // `matchedPatterns` as string arrays; the trace only displays them.
+            entry.matchedPatterns = patterns as string[];
           }
 
-          if (typeof metadata.confidence === 'number') {
-            entry.confidence = metadata.confidence;
+          const confidence = z.number().safeParse(metadata.confidence);
+
+          if (confidence.success) {
+            entry.confidence = confidence.data;
           }
 
           entry.debugInfo = metadata;
@@ -385,15 +399,17 @@ export function createDebugWrapper(options: DebugOptions) {
   /**
    * Wraps multiple guardrails
    */
-  function wrapAll<M extends Record<string, unknown>>(
+  function wrapAll<M extends GuardrailMetadata>(
     guardrails: InputGuardrail<M>[],
   ): InputGuardrail<M>[];
-  function wrapAll<M extends Record<string, unknown>>(
+  function wrapAll<M extends GuardrailMetadata>(
     guardrails: OutputGuardrail<M>[],
   ): OutputGuardrail<M>[];
-  function wrapAll<M extends Record<string, unknown>>(
+  function wrapAll<M extends GuardrailMetadata>(
     guardrails: Array<InputGuardrail<M> | OutputGuardrail<M>>,
   ): Array<InputGuardrail<M> | OutputGuardrail<M>> {
+    // SAFETY: `wrap` handles input and output guardrails identically; the
+    // overloads exist only to give callers a precise return type.
     return guardrails.map((g) => wrap(g as any));
   }
 
@@ -451,6 +467,7 @@ export function formatTraceForConsole(trace: ExecutionTrace): string {
     const status = entry.triggered
       ? `BLOCK [${entry.severity || 'medium'}]`
       : 'PASS';
+
     const statusStr = status.padEnd(15);
     const name = entry.guardrailName.slice(0, 25).padEnd(25);
     const time = (entry.durationMs + 'ms').padEnd(8);
@@ -552,6 +569,7 @@ export function envDebugMode(): DebugOptions {
     onTrace: debugEnabled
       ? (trace) => {
           console.log(formatTraceSummary(trace));
+
           if (verbose && trace.finalDecision === 'blocked') {
             console.log(formatTraceForConsole(trace));
           }

@@ -16,7 +16,6 @@ import {
 import type { GuardrailViolation } from './stop-conditions';
 import type { GuardrailExecutionSummary } from '../types';
 
-// Helper to create mock violations
 function createMockViolation(
   step: number,
   severity?: 'low' | 'medium' | 'high' | 'critical',
@@ -52,6 +51,7 @@ function createMockViolation(
   if (chunkIndex !== undefined) {
     return { chunkIndex, summary };
   }
+
   return { step, summary };
 }
 
@@ -103,19 +103,23 @@ describe('Stop Condition Helpers', () => {
 
     it('should respect minCount parameter', () => {
       const condition = hasViolationSeverity('medium', 2);
+
       const violations = [
         createMockViolation(1, 'medium'),
         createMockViolation(2), // Should count as medium
       ];
+
       expect(condition(violations)).toBe(true);
     });
 
     it('should NOT trigger if count is below minCount', () => {
       const condition = hasViolationSeverity('medium', 3);
+
       const violations = [
         createMockViolation(1, 'medium'),
         createMockViolation(2),
       ];
+
       expect(condition(violations)).toBe(false);
     });
   });
@@ -129,11 +133,13 @@ describe('Stop Condition Helpers', () => {
 
     it('should trigger when count exceeds', () => {
       const condition = isViolationCount(2);
+
       const violations = [
         createMockViolation(1),
         createMockViolation(2),
         createMockViolation(3),
       ];
+
       expect(condition(violations)).toBe(true);
     });
 
@@ -153,18 +159,22 @@ describe('Stop Condition Helpers', () => {
 
     it('should NOT trigger for different guardrail', () => {
       const condition = hasGuardrailViolation('pii-detector');
+
       const violations = [
         createMockViolation(1, 'critical', 'other-guardrail'),
       ];
+
       expect(condition(violations)).toBe(false);
     });
 
     it('should respect minCount parameter', () => {
       const condition = hasGuardrailViolation('pii-detector', 2);
+
       const violations = [
         createMockViolation(1, 'high', 'pii-detector'),
         createMockViolation(2, 'high', 'pii-detector'),
       ];
+
       expect(condition(violations)).toBe(true);
     });
   });
@@ -178,20 +188,24 @@ describe('Stop Condition Helpers', () => {
 
     it('should trigger on consecutive violations (streaming chunks)', () => {
       const condition = hasConsecutiveViolations(2);
+
       const violations = [
         createMockViolation(1, undefined, 'test', 1),
         createMockViolation(2, undefined, 'test', 2),
       ];
+
       expect(condition(violations)).toBe(true);
     });
 
     it('should trigger with more than required consecutive', () => {
       const condition = hasConsecutiveViolations(2);
+
       const violations = [
         createMockViolation(1),
         createMockViolation(2),
         createMockViolation(3),
       ];
+
       expect(condition(violations)).toBe(true);
     });
 
@@ -209,10 +223,14 @@ describe('Stop Condition Helpers', () => {
 
     it('should NOT trigger when violations have no step or chunkIndex', () => {
       const condition = hasConsecutiveViolations(2);
+
+      // SAFETY: deliberately malformed, with neither `step` nor `chunkIndex`,
+      // to check the condition ignores entries it cannot order.
       const violations = [
-        { summary: createMockViolation(1).summary } as GuardrailViolation, // Invalid: no step or chunkIndex
-        { summary: createMockViolation(2).summary } as GuardrailViolation, // Invalid: no step or chunkIndex
+        { summary: createMockViolation(1).summary } as GuardrailViolation,
+        { summary: createMockViolation(2).summary } as GuardrailViolation,
       ];
+
       expect(condition(violations)).toBe(false);
     });
   });
@@ -237,10 +255,12 @@ describe('Stop Condition Helpers', () => {
         isViolationCount(2),
         hasViolationSeverity('high', 1),
       ]);
+
       const violations = [
         createMockViolation(1, 'high'),
         createMockViolation(2, 'high'),
       ];
+
       expect(condition(violations)).toBe(true);
     });
 
@@ -249,10 +269,12 @@ describe('Stop Condition Helpers', () => {
         isViolationCount(2),
         hasViolationSeverity('critical'),
       ]);
+
       const violations = [
         createMockViolation(1, 'high'),
         createMockViolation(2, 'high'),
       ];
+
       expect(condition(violations)).toBe(false);
     });
   });
@@ -262,8 +284,10 @@ describe('Stop Condition Helpers', () => {
       const condition = custom((violations) => {
         if (violations.length === 0) return false;
         const first = violations[0]!;
+
         return 'step' in first && first.step === 1;
       });
+
       const violations = [createMockViolation(1)];
       expect(condition(violations)).toBe(true);
     });
@@ -272,6 +296,7 @@ describe('Stop Condition Helpers', () => {
       const condition = custom((violations) => {
         return violations.length > 5;
       });
+
       const violations = [createMockViolation(1)];
       expect(condition(violations)).toBe(false);
     });

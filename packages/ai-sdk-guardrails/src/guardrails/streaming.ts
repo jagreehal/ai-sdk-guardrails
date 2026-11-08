@@ -1,10 +1,12 @@
+import type { StreamTextTransform, TextStreamPart, ToolSet } from 'ai';
 import type {
   OutputGuardrail,
   GuardrailExecutionSummary,
-  OutputGuardrailContext,
   AIResult,
+  GenerateTextResult,
 } from '../types';
 import { executeOutputGuardrails } from '../guardrails';
+import { guardrailStopParts } from './stream-transform';
 
 /**
  * Options for guardrail stream transform
@@ -47,6 +49,62 @@ export interface GuardrailStreamTransformOptions {
   parallel?: boolean;
 }
 
+const SEVERITY_ORDER = { low: 1, medium: 2, high: 3, critical: 4 } as const;
+
+/** Runs the guardrails over the accumulated text and decides whether to stop. */
+async function checkAccumulatedText(
+  guardrails: OutputGuardrail[],
+  text: string,
+  options: GuardrailStreamTransformOptions,
+): Promise<{ summary: GuardrailExecutionSummary; shouldStop: boolean }> {
+  const {
+    stopOnSeverity = 'critical',
+    stopCondition,
+    timeout = 5000,
+    parallel = true,
+  } = options;
+
+  const content: GenerateTextResult['content'] = [];
+
+  // SAFETY: output guardrails read only text, content, finishReason and usage
+  // from a streamed result; the other AIResult members are absent.
+  const result = {
+    text,
+    content,
+    finishReason: 'stop',
+    usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+  } as AIResult;
+
+  const results = await executeOutputGuardrails(
+    guardrails,
+    { input: { prompt: '', messages: [], system: '' }, result },
+    { parallel, timeout, continueOnFailure: true, logLevel: 'none' },
+  );
+
+  const summary: GuardrailExecutionSummary = {
+    allResults: results,
+    blockedResults: results.filter((r) => r.tripwireTriggered),
+    totalExecutionTime: 0,
+    guardrailsExecuted: results.length,
+    stats: {
+      passed: results.filter((r) => !r.tripwireTriggered).length,
+      blocked: results.filter((r) => r.tripwireTriggered).length,
+      failed: 0,
+      averageExecutionTime: 0,
+    },
+  };
+
+  const shouldStop = stopCondition
+    ? stopCondition(summary)
+    : summary.blockedResults.some(
+        (r) =>
+          SEVERITY_ORDER[r.severity ?? 'medium'] >=
+          SEVERITY_ORDER[stopOnSeverity],
+      );
+
+  return { summary, shouldStop };
+}
+
 /**
  * Creates a stream transform that checks guardrails and stops the stream on violations
  *
@@ -87,133 +145,68 @@ export interface GuardrailStreamTransformOptions {
  * ]
  * ```
  */
-export function createGuardrailStreamTransform<
-  TOOLS extends Record<string, unknown>,
->(
+export function createGuardrailStreamTransform<TOOLS extends ToolSet = ToolSet>(
   guardrails: OutputGuardrail[],
   options: GuardrailStreamTransformOptions = {},
-): (transformOptions: {
-  tools: TOOLS;
-  stopStream: () => void;
-}) => TransformStream<
-  { type: string; id?: string; text?: string; delta?: string },
-  { type: string; id?: string; text?: string; delta?: string; error?: unknown }
-> {
-  const {
-    stopOnSeverity = 'critical',
-    stopCondition,
-    onViolation,
-    checkInterval = 1,
-    timeout = 5000,
-    parallel = true,
-  } = options;
-
-  const severityOrder = { low: 1, medium: 2, high: 3, critical: 4 };
-  const minLevel = severityOrder[stopOnSeverity];
+): StreamTextTransform<TOOLS> {
+  const { onViolation, checkInterval = 1 } = options;
 
   return ({ stopStream }) => {
     let accumulatedText = '';
     let chunkCount = 0;
     let stopped = false;
 
-    return new TransformStream({
+    return new TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>>({
       async transform(chunk, controller) {
-        // If already stopped, don't process more chunks
         if (stopped) {
           return;
         }
 
-        // Pass through non-text chunks immediately
         if (chunk.type !== 'text-delta') {
           controller.enqueue(chunk);
+
           return;
         }
 
-        // Extract text from chunk
-        const text = chunk.text || chunk.delta || '';
-        accumulatedText += text;
+        accumulatedText += chunk.text;
         chunkCount++;
 
-        // Check guardrails at specified intervals
         if (chunkCount % checkInterval !== 0) {
           controller.enqueue(chunk);
+
           return;
         }
 
         try {
-          // Execute guardrails on accumulated text
-          const mockResult = {
-            text: accumulatedText,
-            content: [],
-            finishReason: 'stop',
-            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-          } as unknown as AIResult;
-
-          const context: OutputGuardrailContext = {
-            input: {
-              prompt: '',
-              messages: [],
-              system: '',
-            },
-            result: mockResult,
-          };
-
-          const results = await executeOutputGuardrails(guardrails, context, {
-            parallel,
-            timeout,
-            continueOnFailure: true,
-            logLevel: 'none',
-          });
-
-          const summary: GuardrailExecutionSummary = {
-            allResults: results,
-            blockedResults: results.filter((r) => r.tripwireTriggered),
-            totalExecutionTime: 0,
-            guardrailsExecuted: results.length,
-            stats: {
-              passed: results.filter((r) => !r.tripwireTriggered).length,
-              blocked: results.filter((r) => r.tripwireTriggered).length,
-              failed: 0,
-              averageExecutionTime: 0,
-            },
-          };
-
-          // Determine if we should stop
-          const shouldStop = stopCondition
-            ? stopCondition(summary)
-            : summary.blockedResults.some((result) => {
-                const resultSeverity = result.severity ?? 'medium';
-                return severityOrder[resultSeverity] >= minLevel;
-              });
+          const { summary, shouldStop } = await checkAccumulatedText(
+            guardrails,
+            accumulatedText,
+            options,
+          );
 
           if (shouldStop) {
             stopped = true;
             onViolation?.(summary);
 
-            // Enqueue error chunk
             controller.enqueue({
               type: 'error',
               error: `Guardrail violation: ${summary.blockedResults.map((r) => r.message).join(', ')}`,
             });
 
-            // Stop the source stream
             stopStream();
+
+            for (const part of guardrailStopParts<TOOLS>(chunk.id)) {
+              controller.enqueue(part);
+            }
+
             return;
           }
 
-          // No violation, pass through the chunk
           controller.enqueue(chunk);
         } catch (error) {
-          // On guardrail execution error, pass through but log
+          // A failing guardrail run lets the chunk through and logs.
           console.error('Guardrail stream transform error:', error);
           controller.enqueue(chunk);
-        }
-      },
-
-      flush() {
-        // Stream completed without violations
-        if (!stopped) {
-          // Optional: run final check on complete text
         }
       },
     });
@@ -221,8 +214,9 @@ export function createGuardrailStreamTransform<
 }
 
 /**
- * Creates a simple transform that accumulates text and checks on flush
- * More efficient but less responsive than chunk-by-chunk checking
+ * Creates a transform that buffers each step and checks it before releasing
+ * (at the step's `finish-step`). More efficient but less responsive than
+ * chunk-by-chunk checking; a blocked step's text is dropped.
  *
  * @param guardrails - Output guardrails to check
  * @param options - Configuration options
@@ -237,117 +231,97 @@ export function createGuardrailStreamTransform<
  * ```
  */
 export function createGuardrailStreamTransformBuffered<
-  TOOLS extends Record<string, unknown>,
+  TOOLS extends ToolSet = ToolSet,
 >(
   guardrails: OutputGuardrail[],
   options: Omit<GuardrailStreamTransformOptions, 'checkInterval'> = {},
-): (transformOptions: {
-  tools: TOOLS;
-  stopStream: () => void;
-}) => TransformStream<
-  { type: string; id?: string; text?: string; delta?: string },
-  { type: string; id?: string; text?: string; delta?: string; error?: unknown }
-> {
-  const {
-    stopOnSeverity = 'critical',
-    stopCondition,
-    onViolation,
-    timeout = 5000,
-    parallel = true,
-  } = options;
+): StreamTextTransform<TOOLS> {
+  const { onViolation } = options;
 
-  const severityOrder = { low: 1, medium: 2, high: 3, critical: 4 };
-  const minLevel = severityOrder[stopOnSeverity];
-
-  return ({ stopStream }) => {
+  return () => {
     let accumulatedText = '';
-    const chunks: Array<{
-      type: string;
-      id?: string;
-      text?: string;
-      delta?: string;
-    }> = [];
+    let chunks: Array<TextStreamPart<TOOLS>> = [];
+    let stopped = false;
 
-    return new TransformStream({
-      transform(chunk) {
-        if (chunk.type === 'text-delta') {
-          const text = chunk.text || chunk.delta || '';
-          accumulatedText += text;
+    // Returns true when the buffered text was blocked (and handled).
+    async function blocked(
+      controller: TransformStreamDefaultController<TextStreamPart<TOOLS>>,
+    ): Promise<boolean> {
+      try {
+        const { summary, shouldStop: shouldBlock } = await checkAccumulatedText(
+          guardrails,
+          accumulatedText,
+          options,
+        );
+
+        if (!shouldBlock) return false;
+
+        onViolation?.(summary);
+        controller.enqueue({
+          type: 'error',
+          error: `Guardrail violation: ${summary.blockedResults.map((r) => r.message).join(', ')}`,
+        });
+
+        // Drop the text, keep the structural parts.
+        for (const chunk of chunks) {
+          if (chunk.type !== 'text-delta') controller.enqueue(chunk);
         }
-        chunks.push(chunk);
+
+        return true;
+      } catch (error) {
+        // A failing guardrail run releases the buffered chunks.
+        console.error('Guardrail buffered transform error:', error);
+
+        return false;
+      }
+    }
+
+    function release(
+      controller: TransformStreamDefaultController<TextStreamPart<TOOLS>>,
+    ) {
+      for (const chunk of chunks) controller.enqueue(chunk);
+      chunks = [];
+    }
+
+    return new TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>>({
+      // Buffer until each step's `finish-step`: the SDK waits for that part
+      // before closing the step, so holding it until flush would deadlock.
+      // The step has already finished by then, so a block drops text instead
+      // of calling `stopStream()`.
+      async transform(chunk, controller) {
+        if (stopped) {
+          if (chunk.type === 'finish-step' || chunk.type === 'finish') {
+            controller.enqueue({ ...chunk, finishReason: 'content-filter' });
+          } else if (chunk.type !== 'text-delta') {
+            controller.enqueue(chunk);
+          }
+
+          return;
+        }
+
+        if (chunk.type !== 'finish-step') {
+          if (chunk.type === 'text-delta') accumulatedText += chunk.text;
+          chunks.push(chunk);
+
+          return;
+        }
+
+        if (await blocked(controller)) {
+          stopped = true;
+          chunks = [];
+          controller.enqueue({ ...chunk, finishReason: 'content-filter' });
+
+          return;
+        }
+
+        release(controller);
+        controller.enqueue(chunk);
       },
 
       async flush(controller) {
-        // Check guardrails on complete text
-        try {
-          const mockResult = {
-            text: accumulatedText,
-            content: [],
-            finishReason: 'stop',
-            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-          } as unknown as AIResult;
+        if (stopped || chunks.length === 0) return;
 
-          const context: OutputGuardrailContext = {
-            input: {
-              prompt: '',
-              messages: [],
-              system: '',
-            },
-            result: mockResult,
-          };
-
-          const results = await executeOutputGuardrails(guardrails, context, {
-            parallel,
-            timeout,
-            continueOnFailure: true,
-            logLevel: 'none',
-          });
-
-          const summary: GuardrailExecutionSummary = {
-            allResults: results,
-            blockedResults: results.filter((r) => r.tripwireTriggered),
-            totalExecutionTime: 0,
-            guardrailsExecuted: results.length,
-            stats: {
-              passed: results.filter((r) => !r.tripwireTriggered).length,
-              blocked: results.filter((r) => r.tripwireTriggered).length,
-              failed: 0,
-              averageExecutionTime: 0,
-            },
-          };
-
-          // Determine if we should block
-          const shouldBlock = stopCondition
-            ? stopCondition(summary)
-            : summary.blockedResults.some((result) => {
-                const resultSeverity = result.severity ?? 'medium';
-                return severityOrder[resultSeverity] >= minLevel;
-              });
-
-          if (shouldBlock) {
-            onViolation?.(summary);
-
-            // Enqueue error instead of chunks
-            controller.enqueue({
-              type: 'error',
-              error: `Guardrail violation: ${summary.blockedResults.map((r) => r.message).join(', ')}`,
-            });
-
-            stopStream();
-            return;
-          }
-
-          // No violation, enqueue all chunks
-          for (const chunk of chunks) {
-            controller.enqueue(chunk);
-          }
-        } catch (error) {
-          // On error, enqueue chunks anyway
-          console.error('Guardrail buffered transform error:', error);
-          for (const chunk of chunks) {
-            controller.enqueue(chunk);
-          }
-        }
+        if (!(await blocked(controller))) release(controller);
       },
     });
   };

@@ -27,16 +27,22 @@ const promptInjectionGuardrail = defineInputGuardrail({
   description: 'Detects prompt injection using pattern matching and scoring',
   execute: async (params) => {
     const { prompt, messages, system } = extractTextContent(params);
-    const allText = [prompt, ...messages.map((m) => String(m?.content || '')), system].join(' ');
+    const allText = [
+      prompt,
+      ...messages.map((m) => String(m?.content || '')),
+      system,
+    ].join(' ');
 
-    const { score, detectedPatterns, riskLevel } = calculateInjectionScore(allText);
+    const { score, detectedPatterns, riskLevel } =
+      calculateInjectionScore(allText);
     const injectionDetected = score >= 10;
 
     if (injectionDetected) {
       return {
         tripwireTriggered: true,
         message: `Potential prompt injection detected (score: ${score}, risk: ${riskLevel}). Detected patterns: ${detectedPatterns.join(', ')}`,
-        severity: riskLevel === 'critical' || riskLevel === 'high' ? 'high' : 'medium',
+        severity:
+          riskLevel === 'critical' || riskLevel === 'high' ? 'high' : 'medium',
         metadata: { injectionScore: score, detectedPatterns, riskLevel },
       };
     }
@@ -85,7 +91,8 @@ const jailbreakGuardrail = defineInputGuardrail({
   name: 'jailbreak-detection',
   execute: async (params) => {
     const { prompt } = extractTextContent(params);
-    const { score, detectedPatterns, riskLevel, safeResponse } = scoreJailbreak(prompt);
+    const { score, detectedPatterns, riskLevel, safeResponse } =
+      scoreJailbreak(prompt);
 
     if (score >= 10) {
       return {

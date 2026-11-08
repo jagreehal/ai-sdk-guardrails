@@ -1,8 +1,6 @@
 /**
- * Adapter for integrating enhanced parallel runtime into guardrails execution.
- *
- * This module allows guardrails to leverage the parallel execution engine
- * from the enhanced runtime for improved performance without breaking changes.
+ * Runs input and output guardrails through the enhanced parallel runtime
+ * (`runGuardrails`) and maps the results back to the middleware result shape.
  */
 
 import type {
@@ -12,233 +10,130 @@ import type {
   InputGuardrailContext,
   OutputGuardrailContext,
 } from '../types';
-import { runGuardrails } from '../enhanced-runtime';
-import type { GuardrailBundle } from '../enhanced-types';
+import { runGuardrails, type RunGuardrailsOptions } from '../enhanced-runtime';
+import type { GuardrailBundle, GuardrailContext } from '../enhanced-types';
+import type { GuardrailSpec } from '../spec';
 import { guardrailToSpec, outputGuardrailToSpec } from './spec-adapter';
 import { defaultRegistry } from '../registry';
 
-/**
- * Execute input guardrails using the enhanced parallel runtime.
- *
- * This function wraps guardrails and executes them using the optimized
- * parallel runtime for 10x performance improvement.
- */
-export async function executeInputGuardrailsWithEnhancedRuntime<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
-  guardrails: InputGuardrail<M>[],
-  context: InputGuardrailContext,
-  options: {
-    parallel?: boolean;
-    timeout?: number;
-    continueOnFailure?: boolean;
-    signal?: AbortSignal;
-  } = {},
-): Promise<GuardrailResult<M>[]> {
-  // Convert guardrails to specs
-  const specs = guardrails
-    .filter((g) => g.enabled !== false)
-    .map((g) => guardrailToSpec(g));
+import type { GuardrailMetadata } from '../enhanced-types';
 
-  // Create a guardrail bundle for the enhanced runtime
+interface EnhancedRuntimeOptions {
+  parallel?: boolean;
+  timeout?: number;
+  continueOnFailure?: boolean;
+  signal?: AbortSignal;
+}
+
+/**
+ * Runs specs under a stage bundle, resolving their names through a registry
+ * override that is removed again once the run settles.
+ */
+async function runSpecs<M extends GuardrailMetadata>(
+  guardrails: ReadonlyArray<{ name: string }>,
+  specs: GuardrailSpec[],
+  stageName: 'input' | 'output',
+  input: InputGuardrailContext | OutputGuardrailContext,
+  runtimeContext: GuardrailContext,
+  options: EnhancedRuntimeOptions,
+): Promise<GuardrailResult<M>[]> {
   const bundle: GuardrailBundle = {
     version: 1,
-    stageName: 'input',
-    guardrails: specs.map((spec) => ({
-      name: spec.name,
-      config: {},
-    })),
+    stageName,
+    guardrails: specs.map((spec) => ({ name: spec.name, config: {} })),
   };
 
-  // Register specs temporarily for execution
-  const tempRegistry = new Map<string, (typeof specs)[0]>();
-  for (const spec of specs) tempRegistry.set(spec.name, spec);
-
-  // Mock registry get for instantiation
+  const specsByName = new Map(specs.map((spec) => [spec.name, spec]));
   const originalGet = defaultRegistry.get.bind(defaultRegistry);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (defaultRegistry as any).get = (name: string) =>
-    tempRegistry.get(name) || originalGet(name);
+  defaultRegistry.get = (name: string) =>
+    specsByName.get(name) || originalGet(name);
+
+  const runOptions: RunGuardrailsOptions = {
+    parallelExecution: options.parallel ?? true,
+    timeoutMs: options.timeout,
+    raiseGuardrailErrors: !options.continueOnFailure,
+    signal: options.signal,
+  };
 
   try {
-    // Execute using enhanced runtime
     const result = await runGuardrails(
-      context,
+      input,
       bundle,
-      {},
-      {
-        parallelExecution: options.parallel ?? true,
-        timeoutMs: options.timeout,
-        raiseGuardrailErrors: !options.continueOnFailure,
-        signal: options.signal,
-      },
+      runtimeContext,
+      runOptions,
     );
 
-    // Restore registry
     defaultRegistry.get = originalGet;
 
-    // Convert results back to V1 format
-    return result.results.map((r, index) => {
-      const guardrail = guardrails[index];
-      const guardrailName = guardrail?.name || 'unknown';
-
-      return {
-        tripwireTriggered: r.tripwireTriggered,
-        message: r.message,
-        severity: r.severity,
-        suggestion: r.suggestion,
-        metadata: (r.metadata || {}) as M,
-        context: r.context?.guardrailName
-          ? {
-              guardrailName: r.context.guardrailName,
-              guardrailVersion: r.context.guardrailVersion,
-              executedAt: r.context.executedAt || new Date(),
-              executionTimeMs: r.context.executionTimeMs,
-              environment: r.context.environment,
-            }
-          : {
-              guardrailName,
-              executedAt: new Date(),
-              executionTimeMs: r.context?.executionTimeMs,
-              environment: r.context?.environment,
-            },
-      } as GuardrailResult<M>;
-    });
+    return result.results.map((r, index) => ({
+      tripwireTriggered: r.tripwireTriggered,
+      message: r.message,
+      severity: r.severity,
+      suggestion: r.suggestion,
+      // SAFETY: r.metadata is what a guardrail typed GuardrailResult<M>
+      // returned, or {} when that guardrail failed or returned none.
+      metadata: (r.metadata || {}) as M,
+      context: r.context?.guardrailName
+        ? {
+            guardrailName: r.context.guardrailName,
+            guardrailVersion: r.context.guardrailVersion,
+            executedAt: r.context.executedAt || new Date(),
+            executionTimeMs: r.context.executionTimeMs,
+            environment: r.context.environment,
+          }
+        : {
+            guardrailName: guardrails[index]?.name || 'unknown',
+            executedAt: new Date(),
+            executionTimeMs: r.context?.executionTimeMs,
+            environment: r.context?.environment,
+          },
+    }));
   } catch (error) {
-    // Restore registry on error
     defaultRegistry.get = originalGet;
     throw error;
   }
+}
+
+/** Execute input guardrails using the enhanced parallel runtime. */
+export async function executeInputGuardrailsWithEnhancedRuntime<
+  M extends GuardrailMetadata,
+>(
+  guardrails: InputGuardrail<M>[],
+  context: InputGuardrailContext,
+  options: EnhancedRuntimeOptions = {},
+): Promise<GuardrailResult<M>[]> {
+  const specs = guardrails.flatMap((g) =>
+    g.enabled === false ? [] : [guardrailToSpec(g)],
+  );
+
+  return runSpecs<M>(guardrails, specs, 'input', context, {}, options);
 }
 
 /**
  * Execute output guardrails using the enhanced parallel runtime.
+ * `accumulatedText` reaches each guardrail through the runtime context.
  */
 export async function executeOutputGuardrailsWithEnhancedRuntime<
-  M extends Record<string, unknown> = Record<string, unknown>,
+  M extends GuardrailMetadata,
 >(
   guardrails: OutputGuardrail<M>[],
   context: OutputGuardrailContext,
-  options: {
-    parallel?: boolean;
-    timeout?: number;
-    continueOnFailure?: boolean;
-    signal?: AbortSignal;
-    accumulatedText?: string;
-  } = {},
+  options: EnhancedRuntimeOptions & { accumulatedText?: string } = {},
 ): Promise<GuardrailResult<M>[]> {
-  // Convert guardrails to specs
-  const specs = guardrails
-    .filter((g) => g.enabled !== false)
-    .map((g) =>
-      outputGuardrailToSpec(g as OutputGuardrail<Record<string, unknown>>),
-    );
+  const specs = guardrails.flatMap((g) =>
+    g.enabled === false ? [] : [outputGuardrailToSpec(g)],
+  );
 
-  // Create a guardrail bundle for the enhanced runtime
-  const bundle: GuardrailBundle = {
-    version: 1,
-    stageName: 'output',
-    guardrails: specs.map((spec) => ({
-      name: spec.name,
-      config: {},
-    })),
-  };
+  const runtimeContext = options.accumulatedText
+    ? { accumulatedText: options.accumulatedText }
+    : {};
 
-  // Register specs temporarily
-  const tempRegistry = new Map<string, (typeof specs)[0]>();
-  for (const spec of specs) tempRegistry.set(spec.name, spec);
-
-  // Mock registry get for instantiation
-  const originalGet = defaultRegistry.get.bind(defaultRegistry);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (defaultRegistry as any).get = (name: string) =>
-    tempRegistry.get(name) || originalGet(name);
-
-  try {
-    // Execute using enhanced runtime
-    // Pass accumulatedText through the runtime context (3rd param) for streaming scenarios
-    const runtimeContext = options.accumulatedText
-      ? { _accumulatedText: options.accumulatedText }
-      : {};
-    const result = await runGuardrails(context, bundle, runtimeContext, {
-      parallelExecution: options.parallel ?? true,
-      timeoutMs: options.timeout,
-      raiseGuardrailErrors: !options.continueOnFailure,
-      signal: options.signal,
-    });
-
-    // Restore registry
-    defaultRegistry.get = originalGet;
-
-    // Convert results back to V1 format
-    return result.results.map((r, index) => {
-      const guardrail = guardrails[index];
-      const guardrailName = guardrail?.name || 'unknown';
-
-      return {
-        tripwireTriggered: r.tripwireTriggered,
-        message: r.message,
-        severity: r.severity,
-        suggestion: r.suggestion,
-        metadata: (r.metadata || {}) as M,
-        context: r.context?.guardrailName
-          ? {
-              guardrailName: r.context.guardrailName,
-              guardrailVersion: r.context.guardrailVersion,
-              executedAt: r.context.executedAt || new Date(),
-              executionTimeMs: r.context.executionTimeMs,
-              environment: r.context.environment,
-            }
-          : {
-              guardrailName,
-              executedAt: new Date(),
-              executionTimeMs: r.context?.executionTimeMs,
-              environment: r.context?.environment,
-            },
-      } as GuardrailResult<M>;
-    });
-  } catch (error) {
-    // Restore registry on error
-    defaultRegistry.get = originalGet;
-    throw error;
-  }
-}
-
-/**
- * Configuration flag to enable enhanced runtime for V1.
- *
- * When enabled, V1 guardrails will use the parallel execution engine
- * from the enhanced runtime for improved performance.
- */
-export const V1_ENHANCED_RUNTIME_ENABLED =
-  process.env.GUARDRAILS_ENHANCED_RUNTIME !== 'false' &&
-  process.env.NODE_ENV !== 'test'; // Disable in tests for compatibility
-
-/**
- * Optimized batch execution using enhanced runtime.
- *
- * This provides a drop-in replacement for the existing batch execution
- * with better performance characteristics.
- */
-export async function executeBatchWithEnhancedRuntime<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
-  guardrails: Array<InputGuardrail<M> | OutputGuardrail<M>>,
-  context: InputGuardrailContext | OutputGuardrailContext,
-  timeoutMs: number,
-): Promise<GuardrailResult<M>[]> {
-  // Determine if these are input or output guardrails
-  const isInput = 'prompt' in context || 'messages' in context;
-
-  return isInput
-    ? executeInputGuardrailsWithEnhancedRuntime(
-        guardrails as InputGuardrail<M>[],
-        context as InputGuardrailContext,
-        { parallel: true, timeout: timeoutMs },
-      )
-    : executeOutputGuardrailsWithEnhancedRuntime(
-        guardrails as OutputGuardrail<M>[],
-        context as OutputGuardrailContext,
-        { parallel: true, timeout: timeoutMs },
-      );
+  return runSpecs<M>(
+    guardrails,
+    specs,
+    'output',
+    context,
+    runtimeContext,
+    options,
+  );
 }

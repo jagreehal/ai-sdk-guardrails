@@ -6,13 +6,15 @@
  *
  * Distinct from `sensitiveDataFilter` / `secretRedaction` (which look for
  * secrets/PII): this looks for the *instructions themselves* leaking out.
- *
- * Detection algorithm adapted for this guardrail runtime.
  */
 
+import { z } from 'zod';
 import { createOutputGuardrail, type OutputGuardrail } from '../core';
 import type { OutputGuardrailContext } from '../types';
 import { extractContent, stringifyContent } from './output';
+
+// Callers outside TypeScript can pass anything; only non-empty strings are scanned.
+const nonEmptyText = z.string().min(1);
 
 export interface SystemPromptLeakResult {
   leaked: boolean;
@@ -50,8 +52,11 @@ export type SystemPromptLeakMetadata = {
 };
 
 const MAX_OUTPUT_LENGTH = 1024 * 1024;
+
 const RE_NON_WORD = /[^\w\s]/g;
+
 const RE_WHITESPACE = /\s+/;
+
 const RE_REGEX_META = /[.*+?^${}()|[\]\\]/g;
 
 function tokenize(text: string): string[] {
@@ -64,9 +69,11 @@ function tokenize(text: string): string[] {
 
 function generateNgrams(tokens: string[], n: number): Set<string> {
   const ngrams = new Set<string>();
+
   for (let i = 0; i <= tokens.length - n; i++) {
     ngrams.add(tokens.slice(i, i + n).join(' '));
   }
+
   return ngrams;
 }
 
@@ -77,10 +84,13 @@ function wordOverlapRatio(
   const outSet = new Set(outputTokens);
   const promptSet = new Set(promptTokens);
   let intersection = 0;
+
   for (const w of outSet) {
     if (promptSet.has(w)) intersection++;
   }
+
   const union = outSet.size + promptSet.size - intersection;
+
   return union > 0 ? intersection / union : 0;
 }
 
@@ -91,16 +101,20 @@ function findMatchingSubstrings(
 ): string[] {
   const matches: string[] = [];
   const windowSize = ngramSize + 4;
+
   for (let i = 0; i <= outputTokens.length - ngramSize; i++) {
     const ngram = outputTokens.slice(i, i + ngramSize).join(' ');
+
     if (promptNgrams.has(ngram)) {
       const end = Math.min(i + windowSize, outputTokens.length);
       const fragment = outputTokens.slice(i, end).join(' ');
+
       if (matches.every((m) => !m.includes(ngram))) {
         matches.push(fragment);
       }
     }
   }
+
   return matches;
 }
 
@@ -114,10 +128,8 @@ export function detectSystemPromptLeak(
   options: SystemPromptLeakOptions = {},
 ): SystemPromptLeakResult {
   if (
-    !output ||
-    typeof output !== 'string' ||
-    !systemPrompt ||
-    typeof systemPrompt !== 'string'
+    !nonEmptyText.safeParse(output).success ||
+    !nonEmptyText.safeParse(systemPrompt).success
   ) {
     return {
       leaked: false,
@@ -131,6 +143,7 @@ export function detectSystemPromptLeak(
     output.length > MAX_OUTPUT_LENGTH
       ? output.slice(0, MAX_OUTPUT_LENGTH)
       : output;
+
   const ngramSize = options.ngramSize ?? 4;
   const threshold = options.threshold ?? 0.7;
   const wordOverlapThreshold = options.wordOverlapThreshold ?? 0.25;
@@ -150,6 +163,7 @@ export function detectSystemPromptLeak(
 
   const effectiveNgram = Math.min(ngramSize, Math.max(2, promptTokens.length));
   const promptNgrams = generateNgrams(promptTokens, effectiveNgram);
+
   const fragments = findMatchingSubstrings(
     outputTokens,
     promptNgrams,
@@ -157,6 +171,7 @@ export function detectSystemPromptLeak(
   );
 
   const smallNgramSize = Math.min(3, Math.max(1, effectiveNgram - 1));
+
   const smallFragments =
     smallNgramSize >= 2 && promptTokens.length >= smallNgramSize
       ? findMatchingSubstrings(
@@ -168,11 +183,14 @@ export function detectSystemPromptLeak(
 
   const outputNgrams = generateNgrams(outputTokens, effectiveNgram);
   let ngramOverlap = 0;
+
   for (const ng of outputNgrams) {
     if (promptNgrams.has(ng)) ngramOverlap++;
   }
+
   const ngramOverlapRatio =
     promptNgrams.size > 0 ? ngramOverlap / promptNgrams.size : 0;
+
   const wordOverlap = wordOverlapRatio(outputTokens, promptTokens);
 
   const confidence =
@@ -200,16 +218,20 @@ export function detectSystemPromptLeak(
   const allFragments = [...new Set([...fragments, ...smallFragments])];
 
   let sanitized = boundedOutput;
+
   for (const fragment of allFragments) {
     const words = fragment.split(' ');
+
     for (let len = words.length; len >= effectiveNgram; len--) {
       const sub = words.slice(0, len).join(' ');
+
       const regex = new RegExp(
         sub
           .replaceAll(RE_REGEX_META, String.raw`\$&`)
           .replaceAll(/\s+/g, String.raw`\s+`),
         'gi',
       );
+
       sanitized = sanitized.replace(regex, () => redactionText);
     }
   }

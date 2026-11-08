@@ -7,7 +7,7 @@ describe('createGuardrailStreamTransform', () => {
     const guardrails: OutputGuardrail[] = [];
     const transform = createGuardrailStreamTransform(guardrails);
 
-    expect(typeof transform).toBe('function');
+    expect(transform).toBeTypeOf('function');
   });
 
   it('should pass through chunks when no violations', async () => {
@@ -44,6 +44,7 @@ describe('createGuardrailStreamTransform', () => {
 
     const results = [];
     let result = await reader.read();
+
     while (!result.done) {
       results.push(result.value);
       result = await reader.read();
@@ -60,10 +61,8 @@ describe('createGuardrailStreamTransform', () => {
       {
         name: 'toxic-filter',
         execute: async ({ result }) => {
-          const text =
-            typeof result === 'object' && result && 'text' in result
-              ? String((result as { text: string }).text)
-              : '';
+          const text = 'text' in result ? String(result.text) : '';
+
           if (text.includes('toxic')) {
             return {
               tripwireTriggered: true,
@@ -74,6 +73,7 @@ describe('createGuardrailStreamTransform', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             message: '',
@@ -86,9 +86,11 @@ describe('createGuardrailStreamTransform', () => {
     ];
 
     const stopStream = vi.fn();
+
     const transform = createGuardrailStreamTransform(guardrails, {
       stopOnSeverity: 'critical',
     });
+
     const transformStream = transform({ tools: {}, stopStream });
 
     const chunks = [
@@ -108,19 +110,27 @@ describe('createGuardrailStreamTransform', () => {
 
     const results = [];
     let result = await reader.read();
+
     while (!result.done) {
       results.push(result.value);
       result = await reader.read();
     }
 
-    // Should stop after detecting violation
+    // Should stop after detecting violation, then close the step
     expect(stopStream).toHaveBeenCalled();
-    expect(results.length).toBeLessThan(chunks.length);
+    expect(results.filter((r) => r.type === 'text-delta').length).toBeLessThan(
+      chunks.length,
+    );
     expect(results.some((r) => r.type === 'error')).toBe(true);
+    expect(results.at(-1)).toMatchObject({
+      type: 'finish',
+      finishReason: 'content-filter',
+    });
   });
 
   it('should call onViolation callback when violation detected', async () => {
     const onViolation = vi.fn();
+
     const guardrails: OutputGuardrail[] = [
       {
         name: 'test-guardrail',
@@ -136,10 +146,12 @@ describe('createGuardrailStreamTransform', () => {
     ];
 
     const stopStream = vi.fn();
+
     const transform = createGuardrailStreamTransform(guardrails, {
       stopOnSeverity: 'high',
       onViolation,
     });
+
     const transformStream = transform({ tools: {}, stopStream });
 
     const chunks = [{ type: 'text-delta' as const, id: '1', text: 'Test' }];
@@ -154,6 +166,7 @@ describe('createGuardrailStreamTransform', () => {
       .getReader();
 
     let result = await reader.read();
+
     while (!result.done) {
       // consume stream
       result = await reader.read();
@@ -188,9 +201,11 @@ describe('createGuardrailStreamTransform', () => {
     ];
 
     const stopStream = vi.fn();
+
     const transform = createGuardrailStreamTransform(guardrails, {
       checkInterval: 2, // Check every 2 chunks
     });
+
     const transformStream = transform({ tools: {}, stopStream });
 
     const chunks = [
@@ -210,6 +225,7 @@ describe('createGuardrailStreamTransform', () => {
       .getReader();
 
     let result = await reader.read();
+
     while (!result.done) {
       // consume stream
       result = await reader.read();
@@ -255,6 +271,7 @@ describe('createGuardrailStreamTransform', () => {
 
     const results = [];
     let result = await reader.read();
+
     while (!result.done) {
       results.push(result.value);
       result = await reader.read();
@@ -280,9 +297,11 @@ describe('createGuardrailStreamTransform', () => {
     ];
 
     const stopStream = vi.fn();
+
     const transform = createGuardrailStreamTransform(guardrails, {
       stopCondition: (summary) => summary.blockedResults.length > 0,
     });
+
     const transformStream = transform({ tools: {}, stopStream });
 
     const chunks = [{ type: 'text-delta' as const, id: '1', text: 'Test' }];
@@ -297,6 +316,7 @@ describe('createGuardrailStreamTransform', () => {
       .getReader();
 
     let result = await reader.read();
+
     while (!result.done) {
       // consume stream
       result = await reader.read();
@@ -321,9 +341,11 @@ describe('createGuardrailStreamTransform', () => {
     ];
 
     const stopStream = vi.fn();
+
     const transform = createGuardrailStreamTransform(guardrails, {
       stopOnSeverity: 'critical',
     });
+
     const transformStream = transform({ tools: {}, stopStream });
 
     const chunks = [{ type: 'text-delta' as const, id: '1', text: 'Test' }];
@@ -339,6 +361,7 @@ describe('createGuardrailStreamTransform', () => {
 
     const results = [];
     let result = await reader.read();
+
     while (!result.done) {
       results.push(result.value);
       result = await reader.read();

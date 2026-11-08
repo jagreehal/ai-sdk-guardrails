@@ -19,11 +19,9 @@ jobs:
         with:
           node-version: 22
 
+      # Uses the pnpm version pinned in package.json `packageManager`.
       - name: Enable Corepack
         run: corepack enable
-
-      - name: Install pnpm
-        run: corepack prepare pnpm@latest --activate
 
       - name: Cache pnpm dependencies
         uses: actions/cache@v4
@@ -41,6 +39,9 @@ jobs:
         env:
           NODE_ENV: production
 
+      - name: Format check
+        run: pnpm format:check
+
       - name: Lint
         run: pnpm lint
 
@@ -49,6 +50,11 @@ jobs:
 
       - name: Run unit tests
         run: pnpm test
+        env:
+          NODE_ENV: test
+
+      - name: Coverage gates
+        run: pnpm --filter ai-sdk-guardrails test:coverage
         env:
           NODE_ENV: test
 
