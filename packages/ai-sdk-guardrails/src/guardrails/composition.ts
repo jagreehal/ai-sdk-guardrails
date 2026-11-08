@@ -5,10 +5,6 @@
  * parallel execution, fallbacks, and pipeline patterns.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable unicorn/no-array-reduce */
-/* eslint-disable unicorn/numeric-separators-style */
-
 import type {
   InputGuardrail,
   OutputGuardrail,
@@ -16,6 +12,8 @@ import type {
   NormalizedGuardrailContext,
   OutputGuardrailContext,
 } from '../types';
+import type { GuardrailMetadata } from '../enhanced-types';
+import { SEVERITY_RANK, type Severity } from '../severity';
 
 // ============================================================================
 // Composition Types
@@ -37,7 +35,7 @@ export type GuardrailCondition<T extends 'input' | 'output'> = T extends 'input'
 /**
  * Pipeline execution result
  */
-export interface PipelineResult<M = Record<string, unknown>> {
+export interface PipelineResult<M = GuardrailMetadata> {
   /** Final result from the pipeline */
   result: GuardrailResult<M>;
   /** All intermediate results */
@@ -46,6 +44,45 @@ export interface PipelineResult<M = Record<string, unknown>> {
   shortCircuited: boolean;
   /** Execution time in ms */
   executionTimeMs: number;
+}
+
+/** Arguments of either guardrail kind's `execute`, forwarded unchanged. */
+type ExecuteArgs =
+  | Parameters<InputGuardrail['execute']>
+  | Parameters<OutputGuardrail['execute']>;
+
+/**
+ * The view of a guardrail the combinators work against. The public overloads
+ * only accept guardrails of one kind per call, so forwarded args always match.
+ */
+interface ForwardingGuardrail<M> {
+  name: string;
+  // Method syntax makes this parameter check bivariant, so both guardrail
+  // kinds' `execute` signatures fit the one forwarding signature.
+  execute(
+    ...args: ExecuteArgs
+  ): Promise<GuardrailResult<M>> | GuardrailResult<M>;
+}
+
+/** Bookkeeping fields the combinators add to a result's metadata. */
+interface CompositionMetadata<M> {
+  error?: string;
+  guardrailName?: string;
+  attempt?: number;
+  allTriggered?: GuardrailResult<M>[];
+  pipelineStage?: string;
+  completedStages?: number;
+  totalStages?: number;
+}
+
+/** Report combinator bookkeeping under the caller's metadata type. */
+function compositionMetadata<M extends GuardrailMetadata>(
+  fields: CompositionMetadata<M>,
+  base?: M,
+): M {
+  // SAFETY: the public signatures return GuardrailResult<M>; the combinator
+  // keys are additive, and callers read them dynamically from the metadata bag.
+  return { ...base, ...fields } as M;
 }
 
 // ============================================================================
@@ -64,33 +101,34 @@ export interface PipelineResult<M = Record<string, unknown>> {
  * );
  * ```
  */
-export function when<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function when<M extends GuardrailMetadata>(
   condition: (
     context: NormalizedGuardrailContext,
   ) => boolean | Promise<boolean>,
   guardrail: InputGuardrail<M>,
 ): InputGuardrail<M>;
 
-export function when<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function when<M extends GuardrailMetadata>(
   condition: (context: OutputGuardrailContext) => boolean | Promise<boolean>,
   guardrail: OutputGuardrail<M>,
 ): OutputGuardrail<M>;
 
-export function when<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
-  condition: (context: any) => boolean | Promise<boolean>,
-  guardrail: InputGuardrail<M> | OutputGuardrail<M>,
+export function when<M extends GuardrailMetadata>(
+  condition: GuardrailCondition<'input'> | GuardrailCondition<'output'>,
+  guardrail: ForwardingGuardrail<M>,
 ): InputGuardrail<M> | OutputGuardrail<M> {
+  // SAFETY: the overloads pair an input condition with an input guardrail and
+  // an output condition with an output guardrail, so the condition always
+  // receives the context kind it was written for.
+  const check = condition as (
+    context: ExecuteArgs[0],
+  ) => boolean | Promise<boolean>;
+
   return {
     ...guardrail,
     name: `when(${guardrail.name})`,
-    execute: async (context: any, ...rest: any[]) => {
-      const shouldExecute = await condition(context);
+    execute: async (...args: ExecuteArgs) => {
+      const shouldExecute = await check(args[0]);
 
       if (!shouldExecute) {
         return {
@@ -99,9 +137,9 @@ export function when<
         };
       }
 
-      return (guardrail as any).execute(context, ...rest);
+      return guardrail.execute(...args);
     },
-  } as any;
+  };
 }
 
 /**
@@ -113,42 +151,33 @@ export function when<
  * const chainedGuardrail = after(lengthCheck, toxicityFilter);
  * ```
  */
-export function after<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function after<M extends GuardrailMetadata>(
   prerequisite: InputGuardrail<M>,
   guardrail: InputGuardrail<M>,
 ): InputGuardrail<M>;
 
-export function after<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function after<M extends GuardrailMetadata>(
   prerequisite: OutputGuardrail<M>,
   guardrail: OutputGuardrail<M>,
 ): OutputGuardrail<M>;
 
-export function after<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
-  prerequisite: InputGuardrail<M> | OutputGuardrail<M>,
-  guardrail: InputGuardrail<M> | OutputGuardrail<M>,
+export function after<M extends GuardrailMetadata>(
+  prerequisite: ForwardingGuardrail<M>,
+  guardrail: ForwardingGuardrail<M>,
 ): InputGuardrail<M> | OutputGuardrail<M> {
   return {
     ...guardrail,
     name: `after(${prerequisite.name}, ${guardrail.name})`,
-    execute: async (context: any, ...rest: any[]) => {
-      const prereqResult = await (prerequisite as any).execute(
-        context,
-        ...rest,
-      );
+    execute: async (...args: ExecuteArgs) => {
+      const prereqResult = await prerequisite.execute(...args);
 
       if (prereqResult.tripwireTriggered) {
-        return prereqResult; // Short-circuit on prerequisite failure
+        return prereqResult;
       }
 
-      return (guardrail as any).execute(context, ...rest);
+      return guardrail.execute(...args);
     },
-  } as any;
+  };
 }
 
 /**
@@ -164,27 +193,21 @@ export function after<
  * );
  * ```
  */
-export function withFallback<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function withFallback<M extends GuardrailMetadata>(
   primary: InputGuardrail<M>,
   fallback: InputGuardrail<M>,
   options?: { timeoutMs?: number },
 ): InputGuardrail<M>;
 
-export function withFallback<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function withFallback<M extends GuardrailMetadata>(
   primary: OutputGuardrail<M>,
   fallback: OutputGuardrail<M>,
   options?: { timeoutMs?: number },
 ): OutputGuardrail<M>;
 
-export function withFallback<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
-  primary: InputGuardrail<M> | OutputGuardrail<M>,
-  fallback: InputGuardrail<M> | OutputGuardrail<M>,
+export function withFallback<M extends GuardrailMetadata>(
+  primary: ForwardingGuardrail<M>,
+  fallback: ForwardingGuardrail<M>,
   options: { timeoutMs?: number } = {},
 ): InputGuardrail<M> | OutputGuardrail<M> {
   const { timeoutMs = 30000 } = options;
@@ -192,25 +215,26 @@ export function withFallback<
   return {
     ...primary,
     name: `withFallback(${primary.name}, ${fallback.name})`,
-    execute: async (context: any, ...rest: any[]) => {
+    execute: async (...args: ExecuteArgs) => {
       try {
         const result = await Promise.race([
-          (primary as any).execute(context, ...rest),
+          primary.execute(...args),
           new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('Timeout')), timeoutMs),
           ),
         ]);
+
         return result;
       } catch (error) {
-        // Primary failed or timed out, use fallback
         console.warn(
           `Primary guardrail "${primary.name}" failed, using fallback "${fallback.name}":`,
           error,
         );
-        return (fallback as any).execute(context, ...rest);
+
+        return fallback.execute(...args);
       }
     },
-  } as any;
+  };
 }
 
 /**
@@ -225,9 +249,7 @@ export function withFallback<
  * ], { mode: 'any' });  // Block if any fails
  * ```
  */
-export function parallel<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function parallel<M extends GuardrailMetadata>(
   guardrails: InputGuardrail<M>[],
   options?: {
     /** 'any' blocks if any guardrail triggers, 'all' blocks only if all trigger */
@@ -237,9 +259,7 @@ export function parallel<
   },
 ): InputGuardrail<M>;
 
-export function parallel<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function parallel<M extends GuardrailMetadata>(
   guardrails: OutputGuardrail<M>[],
   options?: {
     mode?: 'any' | 'all';
@@ -247,10 +267,8 @@ export function parallel<
   },
 ): OutputGuardrail<M>;
 
-export function parallel<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
-  guardrails: Array<InputGuardrail<M> | OutputGuardrail<M>>,
+export function parallel<M extends GuardrailMetadata>(
+  guardrails: ForwardingGuardrail<M>[],
   options: { mode?: 'any' | 'all'; timeoutMs?: number } = {},
 ): InputGuardrail<M> | OutputGuardrail<M> {
   const { mode = 'any', timeoutMs = 30000 } = options;
@@ -259,64 +277,69 @@ export function parallel<
   return {
     name: `parallel(${names})`,
     description: `Parallel execution of: ${names}`,
-    execute: async (context: any, ...rest: any[]) => {
-      const promises = guardrails.map(async (g) => {
-        try {
-          return await Promise.race([
-            (g as any).execute(context, ...rest),
-            new Promise<GuardrailResult<M>>((_, reject) =>
-              setTimeout(
-                () => reject(new Error(`Timeout: ${g.name}`)),
-                timeoutMs,
+    execute: async (...args: ExecuteArgs) => {
+      const promises = guardrails.map(
+        async (g): Promise<GuardrailResult<M>> => {
+          try {
+            return await Promise.race([
+              g.execute(...args),
+              new Promise<GuardrailResult<M>>((_, reject) =>
+                setTimeout(
+                  () => reject(new Error(`Timeout: ${g.name}`)),
+                  timeoutMs,
+                ),
               ),
-            ),
-          ]);
-        } catch (error) {
-          return {
-            tripwireTriggered: true,
-            message: `Guardrail "${g.name}" failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            severity: 'high' as const,
-            metadata: {
-              error: String(error),
-              guardrailName: g.name,
-            } as unknown as M,
-          };
-        }
-      });
+            ]);
+          } catch (error) {
+            return {
+              tripwireTriggered: true,
+              message: `Guardrail "${g.name}" failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              severity: 'high' as const,
+              metadata: compositionMetadata<M>({
+                error: String(error),
+                guardrailName: g.name,
+              }),
+            };
+          }
+        },
+      );
 
       const results = await Promise.all(promises);
       const triggered = results.filter((r) => r.tripwireTriggered);
 
-      if (mode === 'any' && triggered.length > 0) {
-        // Return first triggered result with combined message
+      const [first] = triggered;
+
+      if (mode === 'any' && first !== undefined) {
         const messages = triggered.map((r) => r.message).join('; ');
+
         return {
-          ...triggered[0],
+          ...first,
           message: messages,
-          metadata: {
-            ...triggered[0]?.metadata,
-            allTriggered: triggered,
-          } as M,
+          metadata: compositionMetadata<M>(
+            { allTriggered: triggered },
+            first.metadata,
+          ),
         };
       }
 
       if (mode === 'all' && triggered.length === results.length) {
         const messages = triggered.map((r) => r.message).join('; ');
+
         return {
           tripwireTriggered: true,
           message: `All guardrails triggered: ${messages}`,
-          severity: triggered.reduce(
+          severity: triggered.reduce<Severity | undefined>(
             (max, r) =>
               compareSeverity(r.severity, max) > 0 ? r.severity : max,
-            'low' as const,
+            'low',
           ),
-          metadata: { allTriggered: triggered } as unknown as M,
+          metadata: compositionMetadata<M>({ allTriggered: triggered }),
         };
       }
 
       return { tripwireTriggered: false };
     },
-  } as any;
+  };
 }
 
 /**
@@ -334,9 +357,7 @@ export function parallel<
  * });
  * ```
  */
-export function createPipeline<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function createPipeline<M extends GuardrailMetadata>(
   guardrails: InputGuardrail<M>[],
   options?: {
     name?: string;
@@ -344,9 +365,7 @@ export function createPipeline<
   },
 ): InputGuardrail<M>;
 
-export function createPipeline<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function createPipeline<M extends GuardrailMetadata>(
   guardrails: OutputGuardrail<M>[],
   options?: {
     name?: string;
@@ -354,10 +373,8 @@ export function createPipeline<
   },
 ): OutputGuardrail<M>;
 
-export function createPipeline<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
-  guardrails: Array<InputGuardrail<M> | OutputGuardrail<M>>,
+export function createPipeline<M extends GuardrailMetadata>(
+  guardrails: ForwardingGuardrail<M>[],
   options: { name?: string; shortCircuitOnBlock?: boolean } = {},
 ): InputGuardrail<M> | OutputGuardrail<M> {
   const { name = 'pipeline', shortCircuitOnBlock = true } = options;
@@ -365,36 +382,37 @@ export function createPipeline<
   return {
     name,
     description: `Pipeline: ${guardrails.map((g) => g.name).join(' -> ')}`,
-    execute: async (context: any, ...rest: any[]) => {
+    execute: async (...args: ExecuteArgs) => {
       const results: GuardrailResult<M>[] = [];
 
       for (const guardrail of guardrails) {
-        const result = await (guardrail as any).execute(context, ...rest);
+        const result = await guardrail.execute(...args);
         results.push(result);
 
         if (result.tripwireTriggered && shortCircuitOnBlock) {
           return {
             ...result,
-            metadata: {
-              ...result.metadata,
-              pipelineStage: guardrail.name,
-              completedStages: results.length,
-              totalStages: guardrails.length,
-            } as M,
+            metadata: compositionMetadata<M>(
+              {
+                pipelineStage: guardrail.name,
+                completedStages: results.length,
+                totalStages: guardrails.length,
+              },
+              result.metadata,
+            ),
           };
         }
       }
 
-      // All passed
       return {
         tripwireTriggered: false,
-        metadata: {
+        metadata: compositionMetadata<M>({
           completedStages: results.length,
           totalStages: guardrails.length,
-        } as unknown as M,
+        }),
       };
     },
-  } as any;
+  };
 }
 
 /**
@@ -407,24 +425,23 @@ export function createPipeline<
  * const allowlist = not(blockedUsersGuardrail());
  * ```
  */
-export function not<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(guardrail: InputGuardrail<M>): InputGuardrail<M>;
+export function not<M extends GuardrailMetadata>(
+  guardrail: InputGuardrail<M>,
+): InputGuardrail<M>;
 
-export function not<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(guardrail: OutputGuardrail<M>): OutputGuardrail<M>;
+export function not<M extends GuardrailMetadata>(
+  guardrail: OutputGuardrail<M>,
+): OutputGuardrail<M>;
 
-export function not<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
-  guardrail: InputGuardrail<M> | OutputGuardrail<M>,
+export function not<M extends GuardrailMetadata>(
+  guardrail: ForwardingGuardrail<M>,
 ): InputGuardrail<M> | OutputGuardrail<M> {
   return {
     ...guardrail,
     name: `not(${guardrail.name})`,
-    execute: async (context: any, ...rest: any[]) => {
-      const result = await (guardrail as any).execute(context, ...rest);
+    execute: async (...args: ExecuteArgs) => {
+      const result = await guardrail.execute(...args);
+
       return {
         ...result,
         tripwireTriggered: !result.tripwireTriggered,
@@ -433,7 +450,7 @@ export function not<
           : `Blocked (negated): ${result.message || 'Condition not met'}`,
       };
     },
-  } as any;
+  };
 }
 
 /**
@@ -447,9 +464,7 @@ export function not<
  * });
  * ```
  */
-export function withRetry<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function withRetry<M extends GuardrailMetadata>(
   guardrail: InputGuardrail<M>,
   options: {
     maxRetries?: number;
@@ -458,9 +473,7 @@ export function withRetry<
   },
 ): InputGuardrail<M>;
 
-export function withRetry<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export function withRetry<M extends GuardrailMetadata>(
   guardrail: OutputGuardrail<M>,
   options: {
     maxRetries?: number;
@@ -469,10 +482,8 @@ export function withRetry<
   },
 ): OutputGuardrail<M>;
 
-export function withRetry<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
-  guardrail: InputGuardrail<M> | OutputGuardrail<M>,
+export function withRetry<M extends GuardrailMetadata>(
+  guardrail: ForwardingGuardrail<M>,
   options: {
     maxRetries?: number;
     backoffMs?: number | ((attempt: number) => number);
@@ -482,18 +493,18 @@ export function withRetry<
   const {
     maxRetries = 3,
     backoffMs = 1000,
-    retryOn = (r) => r.severity === 'critical' && r.metadata?.error,
+    retryOn = (r) => r.severity === 'critical' && Boolean(r.metadata?.error),
   } = options;
 
   return {
     ...guardrail,
     name: `withRetry(${guardrail.name})`,
-    execute: async (context: any, ...rest: any[]) => {
+    execute: async (...args: ExecuteArgs) => {
       let lastResult: GuardrailResult<M> | null = null;
 
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
-          const result = await (guardrail as any).execute(context, ...rest);
+          const result = await guardrail.execute(...args);
 
           if (!result.tripwireTriggered || !retryOn(result)) {
             return result;
@@ -505,49 +516,43 @@ export function withRetry<
             tripwireTriggered: true,
             message: `Execution failed: ${error instanceof Error ? error.message : 'Unknown'}`,
             severity: 'critical',
-            metadata: { error: String(error), attempt } as unknown as M,
+            metadata: compositionMetadata<M>({ error: String(error), attempt }),
           };
         }
 
         if (attempt < maxRetries) {
           const delay =
-            typeof backoffMs === 'function'
-              ? backoffMs(attempt + 1)
-              : backoffMs;
+            backoffMs instanceof Function ? backoffMs(attempt + 1) : backoffMs;
+
           await new Promise((r) => setTimeout(r, delay));
         }
       }
 
       return lastResult || { tripwireTriggered: false };
     },
-  } as any;
+  };
 }
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
 
-/**
- * Compares severity levels
- */
+/** Orders severities, treating a missing severity as `medium`. */
 function compareSeverity(
-  a: 'low' | 'medium' | 'high' | 'critical' | undefined,
-  b: 'low' | 'medium' | 'high' | 'critical' | undefined,
+  a: Severity | undefined,
+  b: Severity | undefined,
 ): number {
-  const order = { low: 1, medium: 2, high: 3, critical: 4 };
-  return (order[a || 'medium'] || 2) - (order[b || 'medium'] || 2);
+  return SEVERITY_RANK[a || 'medium'] - SEVERITY_RANK[b || 'medium'];
 }
 
 // ============================================================================
-// Convenience Re-exports
+// Convenience Wrappers
 // ============================================================================
 
 /**
  * Creates an input guardrail pipeline
  */
-export const inputPipeline = <
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export const inputPipeline = <M extends GuardrailMetadata>(
   guardrails: InputGuardrail<M>[],
   options?: { name?: string; shortCircuitOnBlock?: boolean },
 ): InputGuardrail<M> => createPipeline(guardrails, options);
@@ -555,9 +560,7 @@ export const inputPipeline = <
 /**
  * Creates an output guardrail pipeline
  */
-export const outputPipeline = <
-  M extends Record<string, unknown> = Record<string, unknown>,
->(
+export const outputPipeline = <M extends GuardrailMetadata>(
   guardrails: OutputGuardrail<M>[],
   options?: { name?: string; shortCircuitOnBlock?: boolean },
 ): OutputGuardrail<M> => createPipeline(guardrails, options);

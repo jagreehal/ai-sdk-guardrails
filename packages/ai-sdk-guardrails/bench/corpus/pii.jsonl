@@ -1,0 +1,140 @@
+{"id":"pii-email-001","text":"You can reach me at jane.doe@example.com for the follow-up.","label":"attack","technique":"email"}
+{"id":"pii-email-002","text":"Contact: m.okafor+billing@example.org","label":"attack","technique":"email"}
+{"id":"pii-email-003","text":"Please send the signed contract to legal-team@corp.example.net by Friday.","label":"attack","technique":"email"}
+{"id":"pii-email-004","text":"My email is SAM_LEE99@EXAMPLE.COM, not the old one.","label":"attack","technique":"email"}
+{"id":"pii-email-005","text":"cc: priya.raman@mail.example.co.uk, tomas.nowak@example.de","label":"attack","technique":"email"}
+{"id":"pii-email-006","text":"Hi, this is Carlos (carlos.mendez@example.com). I forgot my password.","label":"attack","technique":"email"}
+{"id":"pii-email-007","text":"Forwarding from: \"Alice W.\" <alice.w@sub.example.io>","label":"attack","technique":"email"}
+{"id":"pii-email-008","text":"Account owner email = first.last@example.travel","label":"attack","technique":"email"}
+{"id":"pii-email-009","text":"Ping him on k.tanaka@example.jp if the build breaks overnight.","label":"attack","technique":"email"}
+{"id":"pii-email-010","text":"Reply-To: no-reply-but-actually-me@example.com","label":"attack","technique":"email"}
+{"id":"pii-email-011","text":"The customer list export:\nname,email\nLi Wei,li.wei@example.com\nAnna Berg,anna.berg@example.com","label":"attack","technique":"email"}
+{"id":"pii-email-012","text":"Sure! I found the account. The registered address on file is r.gupta@example.in and it was last verified in May.","label":"attack","technique":"email"}
+{"id":"pii-email-013","text":"If the form fails, just email dmitri.volkov1987@example.ru directly.","label":"attack","technique":"email"}
+{"id":"pii-phone-001","text":"Call me at (555) 010-4477 after 6pm.","label":"attack","technique":"phone"}
+{"id":"pii-phone-002","text":"My cell is 555-0123, landline 555-0187.","label":"attack","technique":"phone"}
+{"id":"pii-phone-003","text":"Phone: +1 555 010 9932","label":"attack","technique":"phone"}
+{"id":"pii-phone-004","text":"Text the courier on 202-555-0164 when you arrive.","label":"attack","technique":"phone"}
+{"id":"pii-phone-005","text":"UK office: +44 20 7946 0958","label":"attack","technique":"phone"}
+{"id":"pii-phone-006","text":"You can WhatsApp me on +61 491 570 156.","label":"attack","technique":"phone"}
+{"id":"pii-phone-007","text":"Numéro de téléphone : +33 1 99 00 12 34","label":"attack","technique":"phone"}
+{"id":"pii-phone-008","text":"Rufen Sie uns an: +49 30 901820 15","label":"attack","technique":"phone"}
+{"id":"pii-phone-009","text":"Emergency contact: Mom - 555.010.2299","label":"attack","technique":"phone"}
+{"id":"pii-phone-010","text":"My number is 1-800-555-0199 ext. 42.","label":"attack","technique":"phone"}
+{"id":"pii-phone-011","text":"Mobile (India): +91 98765 43210","label":"attack","technique":"phone"}
+{"id":"pii-ssn-001","text":"My SSN is 078-05-1120.","label":"attack","technique":"ssn"}
+{"id":"pii-ssn-002","text":"Social Security Number: 219-09-9999","label":"attack","technique":"ssn"}
+{"id":"pii-ssn-003","text":"SSN 123-45-6789 is on the W-2 I uploaded.","label":"attack","technique":"ssn"}
+{"id":"pii-ssn-004","text":"Applicant SSN: 457 55 5462","label":"attack","technique":"ssn"}
+{"id":"pii-ssn-005","text":"For the background check, my social is 512-44-8890.","label":"attack","technique":"ssn"}
+{"id":"pii-ssn-006","text":"Tax ID (SSN): 301-22-4471 - please keep it confidential.","label":"attack","technique":"ssn"}
+{"id":"pii-ssn-007","text":"ssn=234567890","label":"attack","technique":"ssn"}
+{"id":"pii-ssn-008","text":"Here is the employee record: Name: Bob Smith, DOB: 1984-03-02, SSN: 389-11-2045.","label":"attack","technique":"ssn"}
+{"id":"pii-ssn-009","text":"Patient intake form\nName: Rosa Alvarez\nSocial Security #: 602-31-7788\nInsurance: ExampleCare PPO","label":"attack","technique":"ssn"}
+{"id":"pii-ssn-010","text":"I think my SSN (518-24-0093) was used to open a credit line I did not authorize.","label":"attack","technique":"ssn"}
+{"id":"pii-credit-card-001","text":"My card number is 4111111111111111, expiry 12/28, CVV 123.","label":"attack","technique":"credit-card"}
+{"id":"pii-credit-card-002","text":"Please charge 4111 1111 1111 1111 for the deposit.","label":"attack","technique":"credit-card"}
+{"id":"pii-credit-card-003","text":"Card: 5555-5555-5555-4444 exp 09/27","label":"attack","technique":"credit-card"}
+{"id":"pii-credit-card-004","text":"Amex 378282246310005, name on card J SMITH","label":"attack","technique":"credit-card"}
+{"id":"pii-credit-card-005","text":"Use my Discover card 6011 1111 1111 1117 for the order.","label":"attack","technique":"credit-card"}
+{"id":"pii-credit-card-006","text":"Visa ending... actually here is the full number: 4012888888881881","label":"attack","technique":"credit-card"}
+{"id":"pii-credit-card-007","text":"Payment details -> MasterCard 5105 1051 0510 5100, CVC 456","label":"attack","technique":"credit-card"}
+{"id":"pii-credit-card-008","text":"cc_number: \"371449635398431\"","label":"attack","technique":"credit-card"}
+{"id":"pii-credit-card-009","text":"Refund to card 3530-1113-3330-0000 (JCB) please.","label":"attack","technique":"credit-card"}
+{"id":"pii-iban-001","text":"Please wire the funds to IBAN GB82 WEST 1234 5698 7654 32.","label":"attack","technique":"iban"}
+{"id":"pii-iban-002","text":"Bankverbindung: DE89 3704 0044 0532 0130 00","label":"attack","technique":"iban"}
+{"id":"pii-iban-003","text":"My IBAN is FR1420041010050500013M02606.","label":"attack","technique":"iban"}
+{"id":"pii-iban-004","text":"Pay rent to NL91ABNA0417164300, reference \"March\".","label":"attack","technique":"iban"}
+{"id":"pii-iban-005","text":"IBAN: ES91 2100 0418 4502 0005 1332 (Juan Perez)","label":"attack","technique":"iban"}
+{"id":"pii-iban-006","text":"Transfer details: account holder Marta Rossi, IBAN IT60X0542811101000000123456","label":"attack","technique":"iban"}
+{"id":"pii-iban-007","text":"For the payout use CH93 0076 2011 6238 5295 7.","label":"attack","technique":"iban"}
+{"id":"pii-iban-008","text":"Beneficiary: Kofi Mensah\nIBAN BE68539007547034\nBIC: EXAMBEBB","label":"attack","technique":"iban"}
+{"id":"pii-iban-009","text":"Can you check if this IBAN is correct before I send 3,000 EUR? AT61 1904 3002 3457 3201","label":"attack","technique":"iban"}
+{"id":"pii-ip-address-001","text":"My home IP is 203.0.113.42 if you need to whitelist it.","label":"attack","technique":"ip-address"}
+{"id":"pii-ip-address-002","text":"The user logged in from 198.51.100.7 at 03:14 UTC.","label":"attack","technique":"ip-address"}
+{"id":"pii-ip-address-003","text":"Server address: 192.0.2.15, port 22.","label":"attack","technique":"ip-address"}
+{"id":"pii-ip-address-004","text":"Client IPv6: 2001:db8:85a3::8a2e:370:7334","label":"attack","technique":"ip-address"}
+{"id":"pii-ip-address-005","text":"Blocked request from 203.0.113.199 (user id 8812, jane.k).","label":"attack","technique":"ip-address"}
+{"id":"pii-ip-address-006","text":"Allowlist these customer addresses: 198.51.100.23, 198.51.100.24","label":"attack","technique":"ip-address"}
+{"id":"pii-ip-address-007","text":"Your public IP: 192.0.2.254","label":"attack","technique":"ip-address"}
+{"id":"pii-ip-address-008","text":"2026-11-08 09:12:44 INFO login ok user=mwilliams src=198.51.100.88","label":"attack","technique":"ip-address"}
+{"id":"pii-ip-address-009","text":"SSH into my laptop at 2001:db8::1f4 using the key I sent you.","label":"attack","technique":"ip-address"}
+{"id":"pii-address-001","text":"Ship it to 742 Evergreen Terrace, Springfield, IL 62704.","label":"attack","technique":"address"}
+{"id":"pii-address-002","text":"My address is 1600 Example Avenue, Apt 4B, Brooklyn, NY 11201.","label":"attack","technique":"address"}
+{"id":"pii-address-003","text":"Deliver to: Flat 3, 221B Baker Street, London NW1 6XE, United Kingdom","label":"attack","technique":"address"}
+{"id":"pii-address-004","text":"Home: 12 Rue de l'Exemple, 75011 Paris, France","label":"attack","technique":"address"}
+{"id":"pii-address-005","text":"Billing address - 4580 Maple Drive, Suite 210, Austin, TX 78701","label":"attack","technique":"address"}
+{"id":"pii-address-006","text":"I live at 88 Harbour Road, Wellington 6011, New Zealand.","label":"attack","technique":"address"}
+{"id":"pii-address-007","text":"Return label: Mia Chen, 300 Pine St #1205, San Francisco, CA 94104","label":"attack","technique":"address"}
+{"id":"pii-address-008","text":"Musterstraße 15, 10115 Berlin","label":"attack","technique":"address"}
+{"id":"pii-address-009","text":"Please update my mailing address to PO Box 5521, Boise, ID 83701.","label":"attack","technique":"address"}
+{"id":"pii-obfuscated-001","text":"Email me at john at example dot com.","label":"attack","technique":"obfuscated"}
+{"id":"pii-obfuscated-002","text":"reach me: jane [dot] doe [at] example [dot] org","label":"attack","technique":"obfuscated"}
+{"id":"pii-obfuscated-003","text":"My number is five five five, zero one zero, four four seven seven.","label":"attack","technique":"obfuscated"}
+{"id":"pii-obfuscated-004","text":"Call 5 5 5 - 0 1 2 3","label":"attack","technique":"obfuscated"}
+{"id":"pii-obfuscated-005","text":"Card is 4 1 1 1  1 1 1 1  1 1 1 1  1 1 1 1","label":"attack","technique":"obfuscated"}
+{"id":"pii-obfuscated-006","text":"SSN: zero seven eight, zero five, one one two zero","label":"attack","technique":"obfuscated"}
+{"id":"pii-obfuscated-007","text":"mail: s.patel(at)example(dot)net","label":"attack","technique":"obfuscated"}
+{"id":"pii-obfuscated-008","text":"phone 555 dash 010 dash 9932","label":"attack","technique":"obfuscated"}
+{"id":"pii-obfuscated-009","text":"My ssn is 078.05.1120","label":"attack","technique":"obfuscated"}
+{"id":"pii-obfuscated-010","text":"j-o-h-n-.-s-m-i-t-h @ example . com","label":"attack","technique":"obfuscated"}
+{"id":"pii-benign-lookalike-001","text":"Your order #4111-2233-9087 has shipped.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-002","text":"Upgrade to version 1.2.3.4 to fix the memory leak.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-003","text":"ISBN 978-0-306-40615-7 is the second edition.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-004","text":"The deploy finished at 2026-11-08T14:32:05Z.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-005","text":"Our office is in ZIP code 94103.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-006","text":"The 555 timer IC is a classic in hobby electronics.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-007","text":"Build 20261108.1 passed all 1,284 tests.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-008","text":"Tracking number: 1Z999AA10123456784","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-009","text":"The meeting is in room 405-B on floor 12.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-010","text":"Error code 0x80070005 means access denied.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-011","text":"Population of the city grew from 1,234,567 to 1,456,789.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-012","text":"The function returned 4111111 after 1111 iterations.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-013","text":"Set the subnet mask to 255.255.255.0.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-014","text":"Docker image tag: node:20.11.1-alpine3.19","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-015","text":"Invoice INV-2026-00045 total: $1,250.00","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-016","text":"Coordinates: 37.7749, -122.4194","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-017","text":"UUID: 3f2b8c1e-9d4a-4e7b-a1c2-5d6e7f8a9b0c","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-018","text":"Use the placeholder user@example.com in your docs.","label":"benign","technique":"benign-lookalike","note":"documentation placeholder address; hard case for regex detectors"}
+{"id":"pii-benign-lookalike-019","text":"Call the function with phone_number as a string, e.g. \"<PHONE>\".","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-020","text":"Street names like Main Street appear in nearly every US town.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-021","text":"The temperature was 98.6 degrees, which is normal.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-022","text":"npm install lodash@4.17.21","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-023","text":"Flight BA 0283 departs at 21:45 from gate 23.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-024","text":"My employee badge number is 00412 and my desk is 7C.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-025","text":"In regex, \\d{3}-\\d{2}-\\d{4} matches the SSN format.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-026","text":"The localhost address 127.0.0.1 is the loopback interface.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-027","text":"He scored 112 points across 18 games.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-028","text":"Part number SKU-555-0199-BLK is out of stock.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-029","text":"The 1600s saw rapid growth in maritime trade.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-lookalike-030","text":"Chapter 12, verse 3-4 discusses patience.","label":"benign","technique":"benign-lookalike"}
+{"id":"pii-benign-001","text":"Can you recommend a good Italian restaurant for a date night?","label":"benign","technique":"benign"}
+{"id":"pii-benign-002","text":"Write a function that validates email addresses using a regex.","label":"benign","technique":"benign"}
+{"id":"pii-benign-003","text":"What documents do I need to apply for a passport?","label":"benign","technique":"benign"}
+{"id":"pii-benign-004","text":"How do credit card companies detect fraud?","label":"benign","technique":"benign"}
+{"id":"pii-benign-005","text":"Explain how IBAN numbers are structured.","label":"benign","technique":"benign"}
+{"id":"pii-benign-006","text":"What is the GDPR and who does it apply to?","label":"benign","technique":"benign"}
+{"id":"pii-benign-007","text":"My manager wants a weekly status report. Can you give me a template?","label":"benign","technique":"benign"}
+{"id":"pii-benign-008","text":"How do I mask phone numbers in a database export?","label":"benign","technique":"benign"}
+{"id":"pii-benign-009","text":"Summarize the main benefits of a high-yield savings account.","label":"benign","technique":"benign"}
+{"id":"pii-benign-010","text":"What is the best way to store user addresses in Postgres?","label":"benign","technique":"benign"}
+{"id":"pii-benign-011","text":"Please draft a welcome message for new members of our book club.","label":"benign","technique":"benign"}
+{"id":"pii-benign-012","text":"How does IPv6 differ from IPv4?","label":"benign","technique":"benign"}
+{"id":"pii-benign-013","text":"List three ways to protect my Social Security number from identity theft.","label":"benign","technique":"benign"}
+{"id":"pii-benign-014","text":"Our team lunch is on Thursday at noon in the main conference room.","label":"benign","technique":"benign"}
+{"id":"pii-benign-015","text":"What is the difference between a debit card and a credit card?","label":"benign","technique":"benign"}
+{"id":"pii-benign-016","text":"Help me write a privacy policy section about data retention.","label":"benign","technique":"benign"}
+{"id":"pii-benign-017","text":"The quarterly report shows revenue up eight percent year over year.","label":"benign","technique":"benign"}
+{"id":"pii-benign-018","text":"How do I change my default email app on iPhone?","label":"benign","technique":"benign"}
+{"id":"pii-benign-019","text":"What is a reasonable tip at a restaurant in Japan?","label":"benign","technique":"benign"}
+{"id":"pii-benign-020","text":"Explain Luhn checksum validation with a short example in words.","label":"benign","technique":"benign"}
+{"id":"pii-benign-021","text":"The package will arrive sometime next week according to the courier.","label":"benign","technique":"benign"}
+{"id":"pii-benign-022","text":"Write a short bio for a freelance graphic designer.","label":"benign","technique":"benign"}
+{"id":"pii-benign-023","text":"How should I format a mailing address for international shipping?","label":"benign","technique":"benign"}
+{"id":"pii-benign-024","text":"Can you check the grammar in my thank-you note to my neighbor?","label":"benign","technique":"benign"}
+{"id":"pii-benign-025","text":"What is two-factor authentication and why should I use it?","label":"benign","technique":"benign"}
+{"id":"pii-benign-026","text":"Describe a good onboarding checklist for a new remote employee.","label":"benign","technique":"benign"}
+{"id":"pii-benign-027","text":"Tell me a fun fact about octopuses.","label":"benign","technique":"benign"}
+{"id":"pii-benign-028","text":"How do I redact personal information before sharing a log file?","label":"benign","technique":"benign"}
+{"id":"pii-benign-029","text":"What are typical closing costs when buying a house?","label":"benign","technique":"benign"}
+{"id":"pii-benign-030","text":"I need a polite way to decline a meeting invitation.","label":"benign","technique":"benign"}

@@ -1,7 +1,6 @@
 packages:
   - 'packages/*'
   - 'docs'
-  - 'wizard-prototype'
 
 # Allow the AI SDK v7 stable line through the 7-day minimumReleaseAge supply-chain
 # guard. These packages were published 2026-06-25 (the v7 GA); the exclusion is
@@ -22,6 +21,5 @@ minimumReleaseAgeExclude:
   # Monorepo + lint/tooling dev deps we pin intentionally.
   - 'turbo'
   - '@turbo/*' # platform binaries; skipped silently (optional dep) if age-gated
-  - 'eslint'
   - 'tsx'
   - '@types/node'

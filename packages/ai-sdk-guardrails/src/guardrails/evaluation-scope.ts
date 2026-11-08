@@ -11,6 +11,8 @@ import {
   scanToolCallEgress,
 } from './tool-egress-scan';
 
+import type { GuardrailMetadata } from '../enhanced-types';
+
 export interface EvaluationScopeGuardrailOptions {
   allowedHosts?: (string | RegExp)[];
   blockedHosts?: (string | RegExp)[];
@@ -26,7 +28,7 @@ export interface EvaluationScopeGuardrailOptions {
   sharedStoreId?: string;
 }
 
-export interface EvaluationScopeMetadata extends Record<string, unknown> {
+export interface EvaluationScopeMetadata extends GuardrailMetadata {
   violations: string[];
   observedTools: string[];
   sharedStoreId?: string;
@@ -78,6 +80,7 @@ export function evaluationScopeGuardrail(
       const { result } = context;
       const observedTools = extractToolNamesFromResult(result);
       const payloads = extractToolCallPayloads(result);
+
       const violations = scanToolCallEgress(payloads, {
         allowedHosts,
         blockedHosts,

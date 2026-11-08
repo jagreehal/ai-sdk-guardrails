@@ -3,7 +3,21 @@ title: Built-in Guardrails
 description: Complete reference of all built-in guardrails
 ---
 
-AI SDK Guardrails provides 30+ guardrails for common use cases.
+AI SDK Guardrails ships 52 built-in guardrails: 48 from the root `ai-sdk-guardrails` entry (input, output, tool, MCP, governance and tool-parameter rails) and 4 advanced prompt-injection detectors from `ai-sdk-guardrails/advanced`.
+
+:::note[Heuristic and offline by default]
+No built-in guardrail calls a model or an external API. They run in-process and offline, and they are pattern heuristics, not trained classifiers: paraphrase, translation into an unsupported language, and novel phrasing get through. The [detection benchmark](/reference/threat-model/) measures each one against a labelled attack corpus; see the [threat model](/reference/threat-model/) for held-out catch and false-alarm rates.
+
+- `promptInjectionDetector`, `enhancedPromptInjectionDetector` and its variants, `mcpToolResultGuardrail`: phrase-level injection signals, checked on de-obfuscated and decoded variants (NFKC, zero-width, split letters, base64/hex/URL/ROT13) plus override phrases in ten languages
+- `toxicityDetector`, `toxicityFilter`: English phrase patterns for threats, insults and harassment aimed at a person
+- `piiDetector`: regex with Luhn (cards) and mod-97 (IBAN) validation
+- `hallucinationDetector`, `confidenceThreshold`: uncertainty phrases ("I think", "probably")
+- `enhancedHallucinationDetector`, `factualAccuracyChecker`: claim phrases ("studies show") without citation markers
+- `biasDetector`, `complianceChecker`, `privacyLeakageDetector`: phrase and regex lists
+- `contentConsistencyChecker`: word overlap with a reference string
+
+Where the numbers aren't good enough, put a model behind a guardrail with [`classifierGuardrail`](/guides/classifiers/) (any AI SDK model, OpenAI Moderation, Presidio, or a Hugging Face classifier such as Prompt Guard).
+:::
 
 ## Input Guardrails
 
@@ -54,7 +68,7 @@ const model = withGuardrails({
 - Encoded attacks
 - Tool-hijacking and exfiltration markers (cloud-metadata SSRF, `/etc/passwd`, SSH keys, MCP/`.cursorrules` spoofing)
 
-**Obfuscation resistance:** input is normalized before matching, so leetspeak (`1gn0re`), homoglyphs (full-width / Cyrillic look-alikes), zero-width characters, spaced-out letters, and common typos are caught too. Normalization is additive — it never lowers detection on the raw text. Tune or disable it with the `normalize` option:
+**Obfuscation resistance:** input is normalized before matching, so leetspeak (`1gn0re`), homoglyphs (full-width / Cyrillic look-alikes), zero-width characters, spaced-out letters, and common typos are caught too. Normalization is additive: it never lowers detection on the raw text. Tune or disable it with the `normalize` option:
 
 ```ts
 promptInjectionDetector({ normalize: false }); // match raw text only
@@ -150,7 +164,7 @@ import { toxicityDetector } from 'ai-sdk-guardrails';
 const model = withGuardrails({
   model: openai('gpt-4o'),
   inputGuardrails: [
-    toxicityDetector(0.7), // threshold 0-1, lower = stricter
+    toxicityDetector(0.7), // trips when the score reaches 0.7; lower = stricter
   ],
 });
 ```
@@ -178,7 +192,7 @@ const model = withGuardrails({
 
 ### High Entropy Detector
 
-Flag input whose Shannon entropy is abnormally high — a signal of encoded or obfuscated payloads (base64 blobs, ciphertext, packed data) smuggled into a prompt. Natural language sits well below the default threshold:
+Flag input whose Shannon entropy is abnormally high: a signal of encoded or obfuscated payloads (base64 blobs, ciphertext, packed data) smuggled into a prompt. Natural language sits well below the default threshold:
 
 ```ts
 import { highEntropyDetector } from 'ai-sdk-guardrails';
@@ -196,7 +210,11 @@ const model = withGuardrails({
 Run any input guardrail only when the newest message is the user's. Inside a `ToolLoopAgent` input guardrails otherwise run on every step, including the ones whose newest message is a tool result:
 
 ```ts
-import { agentGuardrails, onUserTurn, promptInjectionDetector } from 'ai-sdk-guardrails';
+import {
+  agentGuardrails,
+  onUserTurn,
+  promptInjectionDetector,
+} from 'ai-sdk-guardrails';
 
 agentGuardrails({
   model,
@@ -208,6 +226,16 @@ agentGuardrails({
 ```
 
 **Use cases:** LLM-judged checks, rate limits, per-message rules in agent loops
+
+### Other input guardrails
+
+| Guardrail                                                                                      | Purpose                                                                                                             |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `blockedWords(string[] \| { words, allowlist?, useWordBoundaries?, severity? })`               | Word blocking with word boundaries (on by default) and an allowlist. `blockedKeywords` is the partial-match variant |
+| `contentLengthLimit(maxLength)`                                                                | Deprecated alias for `inputLengthLimit({ maxLength, countMethod: 'characters' })`                                   |
+| `customInputValidation({ name, description, validator, message?, severity? })`                 | Your own predicate over the input, without writing a full guardrail                                                 |
+| `mathHomeworkDetector({ enabled?, strictMode?, allowedContexts?, severity? })`                 | Policy rail for homework-style math requests. Disabled unless `enabled: true`                                       |
+| `codeGenerationLimiter(string[] \| { allowedLanguages?, deniedLanguages?, mode?, severity? })` | Allow or deny code generation by programming language                                                               |
 
 ## Output Guardrails
 
@@ -280,7 +308,7 @@ import { toxicityFilter } from 'ai-sdk-guardrails';
 const model = withGuardrails({
   model: openai('gpt-4o'),
   outputGuardrails: [
-    toxicityFilter(0.7), // threshold 0-1, lower = stricter
+    toxicityFilter(0.7), // trips when the score reaches 0.7; lower = stricter
   ],
 });
 ```
@@ -371,7 +399,7 @@ import { secretRedaction } from 'ai-sdk-guardrails';
 const model = withGuardrails({
   model: openai('gpt-4o'),
   outputGuardrails: [
-    secretRedaction(), // replaces detected secrets with [REDACTED]
+    secretRedaction, // a guardrail instance, not a factory: don't call it
   ],
 });
 ```
@@ -380,7 +408,7 @@ const model = withGuardrails({
 
 ### System Prompt Leak Detector
 
-Catch the model echoing, quoting, or paraphrasing its own system prompt back to the user. Distinct from the secret/PII filters — this looks for the _instructions themselves_ leaking, using n-gram and word overlap against the system prompt:
+Catch the model echoing, quoting, or paraphrasing its own system prompt back to the user. Distinct from the secret/PII filters: this looks for the _instructions themselves_ leaking, using n-gram and word overlap against the system prompt:
 
 ```ts
 import { systemPromptLeakDetector } from 'ai-sdk-guardrails';
@@ -391,17 +419,56 @@ const model = withGuardrails({
 });
 ```
 
-The system prompt is read from the call context by default, so no configuration is needed. When a leak trips, a redacted copy of the output is provided on `metadata.sanitized` (leaked fragments replaced with `[REDACTED]`) — pair with `replaceOnBlocked` to swap it in, or pass an explicit `systemPrompt`, `threshold`, or `severity`.
+The system prompt is read from the call context by default, so no configuration is needed. When a leak trips, a redacted copy of the output is provided on `metadata.sanitized` (leaked fragments replaced with `[REDACTED]`): pair with `replaceOnBlocked` to swap it in, or pass an explicit `systemPrompt`, `threshold`, or `severity`.
 
 **Use cases:** Preventing system-prompt extraction, protecting proprietary instructions
+
+### Other output guardrails
+
+| Guardrail                                                                                                                              | Purpose                                                                                                                                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blockedContent(words)`                                                                                                                | Block responses containing any of the given words                                                                                                                                                                                                                                                             |
+| `customOutputValidation(name, validator, message)`                                                                                     | Your own boolean predicate over the output                                                                                                                                                                                                                                                                    |
+| `tokenUsageLimit(maxTokens)`                                                                                                           | Block when reported total tokens exceed the limit                                                                                                                                                                                                                                                             |
+| `performanceMonitor(maxGenerationTimeMs)`                                                                                              | Flag slow generations                                                                                                                                                                                                                                                                                         |
+| `biasDetector()`                                                                                                                       | Phrase-list bias detection (gender, age, and similar stereotypes)                                                                                                                                                                                                                                             |
+| `factualAccuracyChecker(requireSources?)`                                                                                              | Flag factual-claim phrases without sources                                                                                                                                                                                                                                                                    |
+| `privacyLeakageDetector()`                                                                                                             | Regex/keyword detection of emails, phone numbers, financial and location terms in output                                                                                                                                                                                                                      |
+| `contentConsistencyChecker(referenceContent?)`                                                                                         | Word-overlap consistency against a reference; no-op without one                                                                                                                                                                                                                                               |
+| `complianceChecker(regulations)`                                                                                                       | Phrase checks for `'gdpr'`, `'hipaa'`, `'pci'`, `'sox'`, `'coppa'`                                                                                                                                                                                                                                            |
+| `unsafeContentDetector`                                                                                                                | Harmful or prohibited content (instance, not a factory)                                                                                                                                                                                                                                                       |
+| `costQuotaRails({ maxTokensPerRequest?, maxCostPerRequest?, tokenCostPer1K? })`                                                        | Per-request token and cost ceilings. For cumulative budgets use `budgetGuardrail`                                                                                                                                                                                                                             |
+| `enhancedHallucinationDetector({ requireCitations?, citationFormats?, factCheckPatterns?, confidenceThreshold?, schemaConstraints? })` | Citation-aware variant of `hallucinationDetector`                                                                                                                                                                                                                                                             |
+| `retryAfterIntegration({ maxRetryDelayMs?, defaultBackoffMs?, jitterFactor?, minRemaining? })`                                         | Reads the provider's `retry-after` / `retry-after-ms` and `x-ratelimit-remaining-*` / `x-ratelimit-reset-*` response headers. Trips when the provider asks you to back off or a remaining quota is at or below `minRemaining` (default 0), with a jittered `recommendedBackoffMs` capped at `maxRetryDelayMs` |
 
 ## MCP Security Guardrails
 
 Specialized guardrails for Model Context Protocol (MCP) tools.
 
+### MCP Tool Result Guardrail
+
+Indirect prompt injection arrives in tool results. `mcpToolResultGuardrail` is an **input** guardrail: on each agent step it scans the `tool` messages since the last assistant turn, before the model reads them, and passes on steps with no new tool results.
+
+```ts
+import { agentGuardrails, mcpToolResultGuardrail } from 'ai-sdk-guardrails';
+import { ToolLoopAgent } from 'ai';
+
+const agent = new ToolLoopAgent({
+  ...agentGuardrails({
+    model: openai('gpt-4o'),
+    inputGuardrails: [
+      mcpToolResultGuardrail({ allowedDomains: ['api.company.com'] }),
+    ],
+  }),
+  tools,
+});
+```
+
+It takes the same options as `mcpSecurityGuardrail` and also trips on phrase-level injection signals aimed at the model ("note to the AI: …", "assistant, when you read this…", fake role markup).
+
 ### MCP Security Guardrail
 
-MCP security:
+An **output** guardrail that checks the model's own response for signs it is acting on an injection: exfiltration URLs, encoded payloads, cascading tool instructions. Pair it with `mcpToolResultGuardrail`, which catches the injection on the way in.
 
 ```ts
 import { mcpSecurityGuardrail } from 'ai-sdk-guardrails';
@@ -419,15 +486,6 @@ const model = withGuardrails({
   ],
 });
 ```
-
-**Prevents:**
-
-- Direct prompt injection
-- Tool response poisoning
-- Data exfiltration via URLs
-- Encoded attacks (base64/hex)
-- Cascading exploits
-- Context poisoning
 
 ### MCP Response Sanitizer
 
@@ -448,13 +506,16 @@ const model = withGuardrails({
 
 ### MCP Tool Scanner
 
-`mcpSecurityGuardrail` scans tool _output_ at runtime; `scanMcpTool` scans a tool _definition_ at registration — before the model ever sees it. It catches malicious or compromised MCP servers via prompt-injection in the description (tool poisoning), names within edit-distance 2 of well-known tools (typosquatting), zero-width characters and homoglyphs (hidden instructions), and abnormally long instruction-laden descriptions (rug-pull):
+`mcpToolResultGuardrail` scans the tool results the model is about to read and `mcpSecurityGuardrail` scans the model's own output for signs it is acting on an injection; `scanMcpTool` scans a tool _definition_ at registration: before the model ever sees it. It catches malicious or compromised MCP servers via prompt-injection in the description (tool poisoning), names within edit-distance 2 of well-known tools (typosquatting), zero-width characters and homoglyphs (hidden instructions), abnormally long instruction-laden descriptions (rug-pull), and descriptions that tell the model to read secret files or send user data to an external URL, email or DNS lookup (exfiltration):
 
 ```ts
 import { scanMcpTool, scanMcpTools } from 'ai-sdk-guardrails';
 
 // Vet tools before handing them to an agent
-const results = scanMcpTools(await mcpClient.listTools());
+const { tools: definitions } = await mcpClient.listTools();
+const results = scanMcpTools(
+  definitions.map((t) => ({ name: t.name, description: t.description ?? '' })),
+);
 const risky = results.filter((r) => !r.safe);
 if (risky.length > 0) {
   throw new Error(
@@ -464,6 +525,73 @@ if (risky.length > 0) {
 ```
 
 Each result carries `threats` (typed by category and severity) and a capped `riskScore` (0–100). **Use cases:** MCP supply-chain security, vetting third-party tool servers.
+
+`guardMcpTools(await client.tools(), { allow, pinned })` wraps the scanner for AI SDK tool sets: it returns only the tools that pass, enforces a name allowlist, and blocks tools whose description changed since you pinned it. Call it on every fetch.
+
+See the [MCP Security guide](/guides/mcp/) for the full picture: definition scanning, approval gating, and the limits of these heuristics.
+
+## Tool Guardrails
+
+Output guardrails that inspect the tool calls in a result.
+
+| Guardrail                                                                                                                                         | Purpose                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `expectedToolUse({ tools, requireAll?, mode?, textMarkers? })`                                                                                    | Require that specific tools were called (detected from provider metadata or text markers) |
+| `toolEgressPolicy({ allowedTools?, deniedTools?, allowedHosts?, blockedHosts?, parameterRules?, scanForUrls?, allowFileUrls?, allowLocalhost? })` | Allow/deny tools and the hosts their arguments reach                                      |
+
+```ts
+import { toolEgressPolicy } from 'ai-sdk-guardrails';
+
+const model = withGuardrails({
+  model: openai('gpt-4o'),
+  outputGuardrails: [
+    toolEgressPolicy({
+      allowedTools: ['search', 'fetch'],
+      allowedHosts: ['api.company.com'],
+    }),
+  ],
+});
+```
+
+## Tool-Parameter Guardrails
+
+These validate a tool call's name and arguments **before the tool runs**. They are not `withGuardrails` rails. Pass them to `guardrailApproval`, which turns them into an AI SDK v7 `toolApproval` function:
+
+| Guardrail                                                                | Checks                                                                  | Severity on failure |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------- | ------------------- |
+| `sqlInjectionGuardrail({ toolName?, patterns? })`                        | `query` / `sql` arguments against SQL-injection patterns                | `critical`          |
+| `pathTraversalGuardrail({ toolName?, allowedPaths?, blockedPatterns? })` | `path` / `file` / `filename` arguments for `..`, `/etc/`, and similar   | varies              |
+| `parameterLengthGuardrail({ toolName?, maxLength?, fields? })`           | String arguments longer than `maxLength` (default 10000)                | `medium`            |
+| `toolRBACGuardrail({ toolName, requiredPermissions, mode? })`            | `requestContext.permissions` contains any (or all) required permissions | varies              |
+
+`toolName` defaults to `'*'` (all tools) for the first three.
+
+```ts
+import { generateText } from 'ai';
+import {
+  guardrailApproval,
+  sqlInjectionGuardrail,
+  toolRBACGuardrail,
+} from 'ai-sdk-guardrails';
+
+await generateText({
+  model,
+  tools,
+  prompt: userPrompt,
+  toolApproval: guardrailApproval(
+    [
+      sqlInjectionGuardrail({ toolName: 'executeSQL' }),
+      toolRBACGuardrail({
+        toolName: 'deleteUser',
+        requiredPermissions: ['admin'],
+      }),
+    ],
+    { requestContext: { permissions: user.permissions } },
+  ),
+});
+```
+
+Failures at or above `denyAtOrAbove` (default `'high'`) are `denied`. Lower-severity failures become `user-approval`. For the lower-level `execute()`-wrapping form, see `withToolParameterGuardrails` in `ai-sdk-guardrails/advanced`.
 
 ## Governance Guardrails
 
@@ -530,7 +658,7 @@ const model = withGuardrails({
 
 ### Evaluation Scope Guardrail
 
-Keep eval agents inside their sandbox — block external hosts, suspicious registry writes, and cross-agent coordination filenames (Artifactory message-board pattern):
+Keep eval agents inside their sandbox: block external hosts, suspicious registry writes, and cross-agent coordination filenames (Artifactory message-board pattern):
 
 ```ts
 import { evaluationScopeGuardrail } from 'ai-sdk-guardrails';
@@ -549,9 +677,31 @@ const model = withGuardrails({
 
 **Use cases:** eval sandboxes, exploit-gym isolation, preventing scope creep to HuggingFace or cloud metadata endpoints. See [Eval Sandbox guide](/guides/eval-sandbox/).
 
+## Advanced Injection Detectors
+
+Multi-signal variants of `promptInjectionDetector`, exported from `ai-sdk-guardrails/advanced`. All are offline heuristics: pattern scoring, context coherence, conversation flow and keyword-based intent extraction.
+
+| Detector                                                                            | Signals enabled                                                                                                                                                                                                               |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enhancedPromptInjectionDetector(options?)`                                         | Everything: incremental (cross-turn) scoring, tool-call focus, intent extraction                                                                                                                                              |
+| `incrementalPromptInjectionDetector({ conversationMemory?, cumulativeThreshold? })` | Cumulative risk across recent conversation turns                                                                                                                                                                              |
+| `toolCallInjectionDetector({ confidenceThreshold? })`                               | Injection aimed at tool or function calls                                                                                                                                                                                     |
+| `intentBasedInjectionDetector({ confidenceThreshold? })`                            | Base pattern scoring plus phrase-level manipulation cues (instruction ignoring, authority claims, safety override, prompt extraction, persona shift, secrecy). Two cues trip on their own; one cue halves the score threshold |
+
+```ts
+import { enhancedPromptInjectionDetector } from 'ai-sdk-guardrails/advanced';
+
+const model = withGuardrails({
+  model: openai('gpt-4o'),
+  inputGuardrails: [
+    enhancedPromptInjectionDetector({ confidenceThreshold: 0.7 }),
+  ],
+});
+```
+
 ## Prompt Hardening
 
-Guardrails catch attacks at runtime; hardening lowers the odds one lands in the first place. `hardenSystemPrompt` wraps your system prompt with a block of defensive rules — instruction/data separation, anti-extraction, and a persona anchor:
+Guardrails catch attacks at runtime; hardening lowers the odds one lands in the first place. `hardenSystemPrompt` wraps your system prompt with a block of defensive rules: instruction/data separation, anti-extraction, and a persona anchor:
 
 ```ts
 import { hardenSystemPrompt } from 'ai-sdk-guardrails';
@@ -608,3 +758,6 @@ const model = withGuardrails({
 
 - [Custom Guardrails](/guides/custom-guardrails/) - Create your own guardrails
 - [Advanced Features](/guides/advanced-features/) - Composition, stream transforms, tool gating, and governance
+- [MCP Security](/guides/mcp/) - Definition scanning, approval gating, and limits
+- [OPA & Policy Interop](/guides/policy-opa/) - Shadow-mode rollout and total MCP coverage
+- [Governance](/guides/governance/) - SAIF policy decisions via autotel-genai

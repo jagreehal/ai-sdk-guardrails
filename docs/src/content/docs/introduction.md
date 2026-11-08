@@ -77,13 +77,19 @@ Run during tool execution in agent workflows. Use these to:
 AI SDK Guardrails works as middleware for the AI SDK:
 
 ```ts
-import { withGuardrails } from 'ai-sdk-guardrails';
+import { openai } from '@ai-sdk/openai';
+import { generateText, streamText } from 'ai';
+import {
+  piiDetector,
+  sensitiveDataFilter,
+  withGuardrails,
+} from 'ai-sdk-guardrails';
 
 // Wrap any AI SDK model
 const guardedModel = withGuardrails({
   model: openai('gpt-4o'),
-  inputGuardrails: [...],
-  outputGuardrails: [...],
+  inputGuardrails: [piiDetector()],
+  outputGuardrails: [sensitiveDataFilter()],
 });
 
 // Use it like a normal model

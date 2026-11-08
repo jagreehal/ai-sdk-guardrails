@@ -1,3 +1,4 @@
 dist
 coverage
 CHANGELOG.md
+tools/oxlint/anti-slop

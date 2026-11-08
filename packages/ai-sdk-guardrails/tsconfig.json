@@ -20,6 +20,6 @@
     "ignoreDeprecations": "6.0",
     "outDir": "./dist"
   },
-  "include": ["src/**/*", "examples/**/*"],
+  "include": ["src/**/*", "examples/**/*", "bench/**/*"],
   "exclude": ["node_modules", "dist"]
 }

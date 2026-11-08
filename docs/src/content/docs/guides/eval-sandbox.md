@@ -44,9 +44,7 @@ const session = createPlanRiskSession();
 
 const model = withGuardrails({
   model: baseModel,
-  outputGuardrails: [
-    planRiskGuardrail({ session, blockAtOrAbove: 'high' }),
-  ],
+  outputGuardrails: [planRiskGuardrail({ session, blockAtOrAbove: 'high' })],
 });
 ```
 

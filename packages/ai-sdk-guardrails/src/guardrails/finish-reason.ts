@@ -1,4 +1,9 @@
-import type { GuardrailExecutionSummary } from '../types';
+import type { FinishReason } from 'ai';
+import { z } from 'zod';
+import type {
+  GuardrailExecutionSummary,
+  LanguageModelV4FinishReason,
+} from '../types';
 
 /**
  * Options for finish reason mapping
@@ -6,36 +11,22 @@ import type { GuardrailExecutionSummary } from '../types';
 export interface FinishReasonOptions {
   /**
    * Custom finish reason for blocked content
-   * @default 'content_filter'
+   * @default 'content-filter'
    */
-  blocked?:
-    | 'content_filter'
-    | 'stop'
-    | 'length'
-    | 'tool_calls'
-    | 'error'
-    | 'other'
-    | 'unknown';
+  blocked?: FinishReason;
 
   /**
    * Custom finish reason for successful completion
    * @default 'stop'
    */
-  success?:
-    | 'content_filter'
-    | 'stop'
-    | 'length'
-    | 'tool_calls'
-    | 'error'
-    | 'other'
-    | 'unknown';
+  success?: FinishReason;
 }
 
 /**
  * Determines the appropriate finish reason based on guardrail execution
  *
  * Maps guardrail violations to standard AI SDK finish reasons:
- * - blocked content → 'content_filter' (standard for safety filtering)
+ * - blocked content → 'content-filter' (standard for safety filtering)
  * - successful completion → 'stop'
  *
  * @param summary - Guardrail execution summary
@@ -45,21 +36,14 @@ export interface FinishReasonOptions {
  * @example
  * ```typescript
  * const finishReason = getGuardrailFinishReason(summary);
- * // Returns 'content_filter' if blocked, 'stop' otherwise
+ * // Returns 'content-filter' if blocked, 'stop' otherwise
  * ```
  */
 export function getGuardrailFinishReason(
   summary: GuardrailExecutionSummary,
   options?: FinishReasonOptions,
-):
-  | 'content_filter'
-  | 'stop'
-  | 'length'
-  | 'tool_calls'
-  | 'error'
-  | 'other'
-  | 'unknown' {
-  const { blocked = 'content_filter', success = 'stop' } = options ?? {};
+): FinishReason {
+  const { blocked = 'content-filter', success = 'stop' } = options ?? {};
 
   if (summary.blockedResults.length > 0) {
     return blocked;
@@ -83,6 +67,29 @@ export interface ProviderMetadataOptions {
    * @default true
    */
   includeStats?: boolean;
+}
+
+/** One blocked result, as reported in provider metadata. */
+interface GuardrailViolationMetadata {
+  message?: string;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+  guardrailName?: string;
+  metadata?: unknown;
+}
+
+/** Provider metadata produced by {@link createGuardrailProviderMetadata}. */
+interface GuardrailProviderMetadata {
+  guardrails: {
+    blocked: boolean;
+    violations: GuardrailViolationMetadata[];
+    executionTime: number;
+    guardrailsExecuted: number;
+    stats?: {
+      passed: number;
+      blocked: number;
+      failed: number;
+    };
+  };
 }
 
 /**
@@ -114,33 +121,11 @@ export interface ProviderMetadataOptions {
 export function createGuardrailProviderMetadata(
   summary: GuardrailExecutionSummary,
   options?: ProviderMetadataOptions,
-): {
-  guardrails: {
-    blocked: boolean;
-    violations: Array<{
-      message?: string;
-      severity?: 'low' | 'medium' | 'high' | 'critical';
-      guardrailName?: string;
-      metadata?: unknown;
-    }>;
-    executionTime: number;
-    guardrailsExecuted: number;
-    stats?: {
-      passed: number;
-      blocked: number;
-      failed: number;
-    };
-  };
-} {
+): GuardrailProviderMetadata {
   const { includeMetadata = false, includeStats = true } = options ?? {};
 
   const violations = summary.blockedResults.map((result) => {
-    const violation: {
-      message?: string;
-      severity?: 'low' | 'medium' | 'high' | 'critical';
-      guardrailName?: string;
-      metadata?: unknown;
-    } = {
+    const violation: GuardrailViolationMetadata = {
       message: result.message,
       severity: result.severity,
       guardrailName: result.context?.guardrailName,
@@ -164,11 +149,20 @@ export function createGuardrailProviderMetadata(
   };
 }
 
+const finishReasonTextSchema = z.string();
+
+/** `generateText` reports a plain string; `doGenerate` reports `{ unified, raw }`. */
+function isFinishReasonText(
+  reason: FinishReason | LanguageModelV4FinishReason,
+): reason is FinishReason {
+  return finishReasonTextSchema.safeParse(reason).success;
+}
+
 /**
  * Enhances a generation result with guardrail finish reason and metadata
  *
  * This function modifies the AI SDK result to include:
- * - Appropriate finish reason (content_filter for blocks)
+ * - Appropriate finish reason (content-filter for blocks)
  * - Provider metadata with guardrail execution details
  *
  * @param summary - Guardrail execution summary
@@ -179,7 +173,7 @@ export function createGuardrailProviderMetadata(
  * @example
  * ```typescript
  * const enhanced = createFinishReasonEnhancement(summary, result);
- * console.log(enhanced.finishReason); // 'content_filter'
+ * console.log(enhanced.finishReason); // 'content-filter'
  * console.log(enhanced.providerMetadata.guardrails.blocked); // true
  * ```
  *
@@ -203,14 +197,8 @@ export function createGuardrailProviderMetadata(
  */
 export function createFinishReasonEnhancement<
   T extends {
-    finishReason:
-      | 'content_filter'
-      | 'stop'
-      | 'length'
-      | 'tool_calls'
-      | 'error'
-      | 'other'
-      | 'unknown';
+    /** `generateText` result (string) or middleware `doGenerate` result (`{ unified, raw }`). */
+    finishReason: FinishReason | LanguageModelV4FinishReason;
     providerMetadata?: Record<string, unknown>;
   },
 >(
@@ -218,7 +206,6 @@ export function createFinishReasonEnhancement<
   result: T,
   options?: FinishReasonOptions & ProviderMetadataOptions,
 ): T {
-  // If no violations, return original result
   if (summary.blockedResults.length === 0) {
     return result;
   }
@@ -228,7 +215,9 @@ export function createFinishReasonEnhancement<
 
   return {
     ...result,
-    finishReason,
+    finishReason: isFinishReasonText(result.finishReason)
+      ? finishReason
+      : { ...result.finishReason, unified: finishReason },
     providerMetadata: result.providerMetadata
       ? { ...result.providerMetadata, ...guardrailMetadata }
       : guardrailMetadata,

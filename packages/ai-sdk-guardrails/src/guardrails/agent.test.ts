@@ -1,31 +1,40 @@
 import { describe, it, expect } from 'vitest';
-import { ToolLoopAgent, stepCountIs } from 'ai';
+import { ToolLoopAgent, generateText, stepCountIs } from 'ai';
 import { MockLanguageModelV3 } from 'ai/test';
 import { agentGuardrails } from './agent';
 import { defineInputGuardrail, defineOutputGuardrail } from '../guardrails';
 import { hasConsecutiveViolations } from './stop-conditions';
+import { extractTextContent } from './input';
+import { extractContent } from './output';
 
-// Drive a real generation through a guarded model fragment (fires the
-// middleware's onOutputBlocked), then flush via the fragment's onStepEnd with a
-// given real step index — exactly what the agent loop does per step.
-async function blockOnStep(
-  f: ReturnType<typeof agentGuardrails>,
-  stepNumber: number,
-): Promise<void> {
-  await (
-    f.model as unknown as { doGenerate: (o: unknown) => Promise<unknown> }
-  ).doGenerate({
-    prompt: [{ role: 'user', content: [{ type: 'text', text: 'x' }] }],
-  });
-  await (f.onStepEnd as (s: unknown) => unknown)({ stepNumber });
+type Fragments = ReturnType<typeof agentGuardrails>;
+
+// Runs a real generation through the guarded model (firing the middleware's
+// onOutputBlocked), then flushes with the given step index, as the agent loop
+// does per step.
+async function blockOnStep(f: Fragments, stepNumber: number): Promise<void> {
+  await generateText({ model: f.model, prompt: 'x' });
+  await cleanStep(f, stepNumber);
 }
 
-// A clean step: no block fired, only the step-end flush runs (records nothing).
-async function cleanStep(
-  f: ReturnType<typeof agentGuardrails>,
-  stepNumber: number,
-): Promise<void> {
-  await (f.onStepEnd as (s: unknown) => unknown)({ stepNumber });
+// A clean step: only the step-end flush runs, which records nothing.
+async function cleanStep(f: Fragments, stepNumber: number): Promise<void> {
+  // SAFETY: agentGuardrails builds onStepEnd as a function that reads only
+  // `stepNumber` from the step event, so the rest of the event is never touched.
+  const onStepEnd = f.onStepEnd as
+    ((step: { stepNumber: number }) => void) | undefined;
+
+  onStepEnd?.({ stepNumber });
+}
+
+function stopCondition(f: Fragments) {
+  const stop = f.stopWhen;
+
+  if (stop === undefined || Array.isArray(stop)) {
+    throw new Error('expected a single stopWhen condition');
+  }
+
+  return stop;
 }
 
 function buildModel(text: string) {
@@ -50,8 +59,7 @@ function buildModel(text: string) {
 const blockInput = defineInputGuardrail({
   name: 'blocks-secret',
   execute: async (ctx) => {
-    const prompt = (ctx as { prompt?: unknown }).prompt;
-    return String(prompt).includes('secret')
+    return extractTextContent(ctx).prompt.includes('secret')
       ? { tripwireTriggered: true, message: 'no secrets', severity: 'high' }
       : { tripwireTriggered: false };
   },
@@ -60,8 +68,7 @@ const blockInput = defineInputGuardrail({
 const blockShort = defineOutputGuardrail({
   name: 'min-length',
   execute: async ({ result }) => {
-    const text = (result as { text?: string }).text ?? '';
-    return text.length < 20
+    return extractContent(result).text.length < 20
       ? { tripwireTriggered: true, message: 'too short', severity: 'critical' }
       : { tripwireTriggered: false };
   },
@@ -73,6 +80,7 @@ describe('agentGuardrails({ model: native settings fragments })', () => {
       model: buildModel('hello'),
       inputGuardrails: [blockInput],
     });
+
     expect(f.model).toBeDefined();
     expect(f.model).not.toBe(undefined);
     expect(f.stopWhen).toBeUndefined();
@@ -84,26 +92,28 @@ describe('agentGuardrails({ model: native settings fragments })', () => {
       outputGuardrails: [blockShort],
       stopOnGuardrailViolation: 1,
     });
-    // Must be a native StopCondition *function*, not an eagerly-computed value.
-    expect(typeof f.stopWhen).toBe('function');
-    expect(typeof f.onStepEnd).toBe('function');
+
+    // Must be a native StopCondition function, not an eagerly computed value.
+    expect(f.stopWhen).toBeInstanceOf(Function);
+    expect(f.onStepEnd).toBeInstanceOf(Function);
   });
 
   it('records real middleware blocks so stopWhen fires at the threshold', async () => {
-    // buildModel('hi') yields 2 chars → blockShort (min length 20) trips on a
-    // real model call, driving the SAME path the middleware enforces.
+    // buildModel('hi') yields 2 chars, so blockShort (min length 20) trips on a
+    // real model call through the same path the middleware enforces.
     const f = agentGuardrails({
       model: buildModel('hi'),
       outputGuardrails: [blockShort],
       stopOnGuardrailViolation: 1,
       replaceOnBlocked: true,
     });
-    const stop = f.stopWhen as (a: unknown) => boolean | Promise<boolean>;
-    expect(await stop({ steps: [] })).toBe(false); // no violations yet
+
+    const stop = stopCondition(f);
+    expect(await stop({ steps: [] })).toBe(false);
 
     await blockOnStep(f, 0);
 
-    expect(await stop({ steps: [] })).toBe(true); // threshold of 1 reached
+    expect(await stop({ steps: [] })).toBe(true);
   });
 
   it('records the REAL agent step index (hasConsecutiveViolations respects gaps)', async () => {
@@ -113,11 +123,11 @@ describe('agentGuardrails({ model: native settings fragments })', () => {
       stopOnGuardrailViolation: hasConsecutiveViolations(2),
       replaceOnBlocked: true,
     });
-    const stop = f.stopWhen as (a: unknown) => boolean | Promise<boolean>;
 
-    // Violations on steps 0 and 2 with a clean step 1 in between — NOT
-    // consecutive, so the condition must not fire. (The old `violationHistory
-    // .length` indexing would have recorded 0,1 and wrongly fired.)
+    const stop = stopCondition(f);
+
+    // Violations on steps 0 and 2 with a clean step 1 in between are not
+    // consecutive, so the condition must not fire.
     await blockOnStep(f, 0);
     await cleanStep(f, 1);
     await blockOnStep(f, 2);

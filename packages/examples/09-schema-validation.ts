@@ -11,7 +11,11 @@
 import { z } from 'zod';
 import { generateText, Output } from 'ai';
 import { model as defaultModel, mistralModel } from './model';
-import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
+import {
+  defineOutputGuardrail,
+  withGuardrails,
+  type GuardrailMetadata,
+} from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
 // Prefer Mistral when configured; otherwise use local Ollama model
@@ -34,10 +38,10 @@ const productSchema = z.object({
 });
 
 // Define the metadata type for schema validation
-interface SchemaValidationMetadata extends Record<string, unknown> {
+interface SchemaValidationMetadata extends GuardrailMetadata {
   schemaName: string;
   valid?: boolean;
-  errors?: z.ZodIssue[];
+  errors?: Array<{ path: string; message: string }>;
   errorCount?: number;
 }
 
@@ -72,7 +76,10 @@ function createSchemaValidator<T>(schema: z.ZodSchema<T>, schemaName: string) {
             metadata: {
               schemaName,
               valid: false,
-              errors: error.issues,
+              errors: error.issues.map((issue) => ({
+                path: issue.path.join('.'),
+                message: issue.message,
+              })),
               errorCount: error.issues.length,
             },
           };
@@ -107,12 +114,12 @@ const strictUserModel = withGuardrails({
       executionSummary.blockedResults[0]?.message,
     );
     const metadata = executionSummary.blockedResults[0]?.metadata as {
-      errors?: z.ZodIssue[];
+      errors?: Array<{ path: string; message: string }>;
     };
     if (metadata?.errors) {
       console.log('   Errors:');
       for (const err of metadata.errors) {
-        console.log(`   - ${err.path.join('.')}: ${err.message}`);
+        console.log(`   - ${err.path}: ${err.message}`);
       }
     }
   },

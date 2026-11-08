@@ -8,6 +8,7 @@
  * folder (pure mappers, the product factories) builds on this layer.
  */
 
+import type { GuardrailMetadata } from '../enhanced-types';
 import type { GuardrailResult } from '../types';
 
 // ============================================================================
@@ -38,7 +39,7 @@ export type AgentActionRiskClass =
   'read' | 'write' | 'destructive' | 'financial' | 'exfiltration_capable';
 
 /** Distinct agent identity (SAIF Principle 1). Mirrors `AgentIdentity`. */
-export interface GovernanceAgentIdentity {
+export type GovernanceAgentIdentity = {
   id: string;
   version?: string;
   framework?: string;
@@ -46,7 +47,7 @@ export interface GovernanceAgentIdentity {
   role?: string;
   sessionId?: string;
   conversationId?: string;
-}
+};
 
 /** The subset of `autotel-genai/agent` this bridge calls. */
 export interface AutotelAgentModule {
@@ -71,12 +72,10 @@ export interface AutotelAgentModule {
     emitSecurityEvent?: boolean;
   }): void;
   createSignedEventEnvelope?(
-    metadata: Record<string, unknown>,
+    metadata: GuardrailMetadata,
     options?: { signer?: (serialized: string) => string | Promise<string> },
   ): Promise<{ eventHash: string; signature?: string }>;
-  createAgentAuditMetadata?(
-    metadata: Record<string, unknown>,
-  ): Record<string, unknown>;
+  createAgentAuditMetadata?(metadata: GuardrailMetadata): GuardrailMetadata;
 }
 
 /**
@@ -179,18 +178,20 @@ let cached: AutotelAgentModule | null | undefined;
  */
 async function loadAutotelAgent(): Promise<AutotelAgentModule | null> {
   if (cached !== undefined) return cached;
+
   try {
     // Non-literal specifier: keeps the optional peer out of static module
     // resolution (no TS2307 when it isn't installed) and leaves bundlers to
     // treat it as an external, lazily-required dependency.
     const specifier = 'autotel-genai/agent';
-    const mod = (await import(
-      /* @vite-ignore */ specifier
-    )) as unknown as AutotelAgentModule;
-    cached = mod;
+
+    // SAFETY: the specifier is `autotel-genai/agent`, whose exports are the
+    // structural surface declared in AutotelAgentModule above.
+    cached = (await import(/* @vite-ignore */ specifier)) as AutotelAgentModule;
   } catch {
     cached = null;
   }
+
   return cached;
 }
 
@@ -213,6 +214,7 @@ export async function withAgent(
   body: (agent: AutotelAgentModule, emit: EmitOptions) => void,
 ): Promise<void> {
   const agent = await loadAutotelAgent();
+
   if (!agent) return;
   body(agent, { onMissingContext: options.onMissingContext ?? 'skip' });
 }

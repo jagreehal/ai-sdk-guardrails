@@ -1,8 +1,11 @@
 import { generateText, streamText, embed } from 'ai';
-import type { LanguageModelV4CallOptions as LMCallOptions } from '@ai-sdk/provider';
-import type { GuardrailResult } from './enhanced-types';
-
-// Type inference utilities for automatic metadata type extraction
+import type {
+  LanguageModelV4CallOptions as LMCallOptions,
+  LanguageModelV4FinishReason as LMFinishReason,
+  LanguageModelV4GenerateResult as LMGenerateResult,
+  LanguageModelV4Usage as LMUsage,
+} from '@ai-sdk/provider';
+import type { GuardrailMetadata, GuardrailResult } from './enhanced-types';
 
 /**
  * Extracts the metadata type from a guardrail
@@ -24,20 +27,13 @@ export type UnionFromGuardrails<T extends readonly unknown[]> =
  * Infers input guardrail metadata union from an array
  */
 export type InferInputMetadata<T extends readonly InputGuardrail<unknown>[]> =
-  T extends readonly InputGuardrail<infer M>[] ? M : Record<string, unknown>;
+  T extends readonly InputGuardrail<infer M>[] ? M : GuardrailMetadata;
 
 /**
  * Infers output guardrail metadata union from an array
  */
 export type InferOutputMetadata<T extends readonly OutputGuardrail<unknown>[]> =
-  T extends readonly OutputGuardrail<infer M>[] ? M : Record<string, unknown>;
-
-/**
- * Result of a guardrail execution with comprehensive error handling information
- *
- * Re-exported from enhanced-types.ts for OpenAI compatibility.
- * This type includes the OpenAI-compatible `info` object structure.
- */
+  T extends readonly OutputGuardrail<infer M>[] ? M : GuardrailMetadata;
 
 export type GuardrailsParams = {
   inputGuardrails?: InputGuardrail[];
@@ -47,12 +43,15 @@ export type GuardrailsParams = {
 };
 
 export type GenerateTextParams = Parameters<typeof generateText>[0];
+
 export type StreamTextParams = Parameters<typeof streamText>[0];
+
 export type EmbedParams = Parameters<typeof embed>[0];
 
-// Derive result types since the AI SDK types are generic and require type parameters
 export type GenerateTextResult = Awaited<ReturnType<typeof generateText>>;
+
 export type StreamTextResult = ReturnType<typeof streamText>;
+
 export type EmbedResult = ReturnType<typeof embed>;
 
 // =============================================================================
@@ -87,6 +86,17 @@ export type {
   LanguageModelV4ResponseMetadata,
   LanguageModelV4Usage,
 } from '@ai-sdk/provider';
+
+/** Streamed output collected so far, passed to `onOutputBlocked` for streams. */
+export interface StreamedOutputSnapshot {
+  text: string;
+  content?: Array<{ type: 'text'; text: string }>;
+  usage?: Partial<LMUsage>;
+  finishReason?: LMFinishReason;
+}
+
+/** The output `onOutputBlocked` receives: a generate result or a stream snapshot. */
+export type BlockedOutputResult = LMGenerateResult | StreamedOutputSnapshot;
 
 /**
  * Logger interface for configurable logging throughout the guardrails system
@@ -123,7 +133,7 @@ export interface GuardrailRetryConfig {
  * Context provided to getRetryInstruction for generating context-aware retry prompts.
  * Contains information about what failed and the current retry attempt.
  */
-export interface RetryInstructionContext<M = Record<string, unknown>> {
+export interface RetryInstructionContext<M = GuardrailMetadata> {
   /** The guardrail result that triggered the retry */
   result: GuardrailResult<M>;
   /** Current retry attempt number (1-based) */
@@ -142,10 +152,8 @@ export interface RetryInstruction {
   /** Optional temperature adjustment (e.g., -0.1 to make more deterministic) */
   temperatureAdjustment?: number;
   /** Optional additional context for logging/debugging */
-  context?: Record<string, unknown>;
+  context?: GuardrailMetadata;
 }
-
-// ============================================================================
 
 // ============================================================================
 // Request Context Types (for passing user/session data through guardrails)
@@ -155,7 +163,7 @@ export interface RetryInstruction {
  * Request-scoped context that can be passed through guardrail execution.
  * Use this to pass user information, permissions, session data, etc.
  */
-export interface RequestContext<T = Record<string, unknown>> {
+export interface RequestContext<T = GuardrailMetadata> {
   /** User identifier for tracking/logging */
   userId?: string;
   /** Session identifier for multi-turn tracking */
@@ -168,10 +176,8 @@ export interface RequestContext<T = Record<string, unknown>> {
   metadata?: T;
 }
 
-// Normalized internal types for better type safety and maintainability
-export interface NormalizedGuardrailContext<
-  TContext = Record<string, unknown>,
-> {
+/** Input context normalized from the different AI SDK call shapes. */
+export interface NormalizedGuardrailContext<TContext = GuardrailMetadata> {
   /** The main prompt/input text */
   prompt: string;
   /** Chat-style messages if available */
@@ -186,7 +192,14 @@ export interface NormalizedGuardrailContext<
   /** Temperature setting */
   temperature?: number;
   /** Additional model parameters */
-  modelParams?: Record<string, unknown>;
+  modelParams?: {
+    topP?: number;
+    topK?: number;
+    frequencyPenalty?: number;
+    presencePenalty?: number;
+    seed?: number;
+    stopSequences?: string[];
+  };
   /** Request-scoped context (user, session, permissions, etc.) */
   requestContext?: RequestContext<TContext>;
 }
@@ -204,7 +217,7 @@ export type OutputGuardrailContext = {
   result: AIResult;
 };
 
-export interface InputGuardrail<M = Record<string, unknown>> {
+export interface InputGuardrail<M = GuardrailMetadata> {
   /** Unique identifier for the guardrail */
   name: string;
   /** Human-readable description of what this guardrail does */
@@ -273,7 +286,7 @@ export interface InputGuardrail<M = Record<string, unknown>> {
   cleanup?: () => Promise<void> | void;
 }
 
-export interface OutputGuardrail<M = Record<string, unknown>> {
+export interface OutputGuardrail<M = GuardrailMetadata> {
   /** Unique identifier for the guardrail */
   name: string;
   /** Human-readable description of what this guardrail does */
@@ -325,9 +338,11 @@ export interface OutputGuardrail<M = Record<string, unknown>> {
    * }
    * ```
    */
-  getRetryInstruction?: (
+  // Method syntax (not a function-typed property) keeps OutputGuardrail
+  // covariant in M, so built-ins with different metadata share one array.
+  getRetryInstruction?(
     context: RetryInstructionContext<M>,
-  ) => RetryInstruction | string | undefined;
+  ): RetryInstruction | string | undefined;
 }
 
 /**
@@ -354,7 +369,7 @@ export interface OutputGuardrail<M = Record<string, unknown>> {
  * };
  * ```
  */
-export interface GuardrailExecutionSummary<M = Record<string, unknown>> {
+export interface GuardrailExecutionSummary<M = GuardrailMetadata> {
   /**
    * All guardrail results (both triggered and non-triggered).
    * Use for comprehensive logging and analytics.
@@ -394,9 +409,6 @@ export interface GuardrailExecutionSummary<M = Record<string, unknown>> {
     averageExecutionTime: number;
   };
 }
-
-// Generic metadata type parameterized via usage sites
-/* intentionally removed duplicate empty interface */
 
 /**
  * Execution + error-handling options shared by the input and output guardrail
@@ -466,9 +478,7 @@ export interface GuardrailExecutionOptions {
 }
 
 /** Fields common to the input and output guardrail middleware configs. */
-export interface GuardrailsMiddlewareConfigBase<
-  TContext = Record<string, unknown>,
-> {
+export interface GuardrailsMiddlewareConfigBase<TContext = GuardrailMetadata> {
   /** Request-scoped context passed to all guardrails */
   context?: RequestContext<TContext>;
   /**
@@ -490,15 +500,13 @@ export interface GuardrailsMiddlewareConfigBase<
 }
 
 export interface InputGuardrailsMiddlewareConfig<
-  M = Record<string, unknown>,
-  TContext = Record<string, unknown>,
+  M = GuardrailMetadata,
+  TContext = GuardrailMetadata,
 > extends GuardrailsMiddlewareConfigBase<TContext> {
   /** Input guardrails to execute before AI calls */
   inputGuardrails: InputGuardrail<M>[];
   /**
    * Callback for when input is blocked - receives comprehensive execution analytics.
-   *
-   * **New in v4.0.0:** Enhanced callback interface with comprehensive execution analytics.
    *
    * @param executionSummary Complete execution results with analytics data
    * @param originalParams The original input parameters that were blocked
@@ -533,15 +541,13 @@ export interface InputGuardrailsMiddlewareConfig<
 }
 
 export interface OutputGuardrailsMiddlewareConfig<
-  M = Record<string, unknown>,
-  TContext = Record<string, unknown>,
+  M = GuardrailMetadata,
+  TContext = GuardrailMetadata,
 > extends GuardrailsMiddlewareConfigBase<TContext> {
   /** Output guardrails to execute after AI calls */
   outputGuardrails: OutputGuardrail<M>[];
   /**
    * Callback for when output is blocked - receives comprehensive execution analytics.
-   *
-   * **New in v4.0.0:** Enhanced callback interface with comprehensive execution analytics.
    *
    * @param executionSummary Complete execution results with analytics data
    * @param originalParams The original input parameters that generated blocked output
@@ -575,13 +581,13 @@ export interface OutputGuardrailsMiddlewareConfig<
   onOutputBlocked?: (
     executionSummary: GuardrailExecutionSummary<M>,
     originalParams: InputGuardrailContext,
-    result: unknown,
+    result: BlockedOutputResult,
   ) => void;
 
   /**
-   * Whether to replace blocked output with placeholder text.
+   * Whether to replace blocked output with a replacement message.
    *
-   * - **true**: Returns placeholder message instead of blocked content
+   * - **true**: Returns a replacement message instead of blocked content
    * - **false**: Returns original content despite being flagged
    *
    * @default true
@@ -631,8 +637,7 @@ export interface OutputGuardrailsMiddlewareConfig<
   /**
    * Optional automatic retry when output guardrails block a result.
    *
-   * **Improved DX in v5.0:** When `buildRetryParams` is not provided, the library
-   * uses a default implementation that:
+   * When `buildRetryParams` is not provided, the default implementation:
    * 1. Finds which guardrail(s) blocked the result
    * 2. Calls their `getRetryInstruction()` method if available
    * 3. Appends the instruction as a user message to the prompt
@@ -680,8 +685,8 @@ export interface OutputGuardrailsMiddlewareConfig<
     /**
      * Build next call params based on previous failure.
      *
-     * **Optional in v5.0:** When not provided, the library uses a default implementation
-     * that appends retry instructions from blocked guardrails' `getRetryInstruction()` methods.
+     * When omitted, the default implementation appends retry instructions from
+     * blocked guardrails' `getRetryInstruction()` methods.
      *
      * When provided, this function has full control over the retry parameters.
      * Must return complete LanguageModelV4CallOptions for the next attempt.

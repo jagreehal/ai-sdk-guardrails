@@ -23,12 +23,14 @@ export {
   resolveDetectNormalization,
   DEFAULT_DETECT_NORMALIZATION,
 } from '../guardrails/normalization';
+
 export type { ResolvedDetectNormalizationOptions } from '../guardrails/normalization';
 
 // ── System-prompt leak detection (standalone) ------------------------------
 // The `systemPromptLeakDetector()` output guardrail lives at the root; this is
 // the pure verdict-only function behind it.
 export { detectSystemPromptLeak } from '../guardrails/prompt-leak';
+
 export type { SystemPromptLeakResult } from '../guardrails/prompt-leak';
 
 // ── Lower-level middleware -------------------------------------------------
@@ -53,6 +55,7 @@ export {
   guardrailMiddleware,
   noopGuardrailMiddleware,
 } from '../guardrails/middleware';
+
 export type { GuardrailMiddlewareConfig } from '../guardrails/middleware';
 
 // ── Composition DSL --------------------------------------------------------
@@ -67,6 +70,7 @@ export {
   inputPipeline,
   outputPipeline,
 } from '../guardrails/composition';
+
 export type {
   ComposableGuardrail,
   GuardrailCondition,
@@ -83,6 +87,7 @@ export {
   strictEscalation,
   withGracePeriod,
 } from '../guardrails/gradual-enforcement';
+
 export type {
   EnforcementMode,
   EscalationConfig,
@@ -97,6 +102,7 @@ export {
   createHealthCheck,
   logExecutionSummary,
 } from '../guardrails/observability';
+
 export type {
   GuardrailMetrics,
   MetricsCollectorOptions,
@@ -113,6 +119,7 @@ export {
   createConsoleDebugger,
   envDebugMode,
 } from '../guardrails/debug';
+
 export type {
   GuardrailTraceEntry,
   ExecutionTrace,
@@ -124,6 +131,7 @@ export {
   createGuardrailStreamTransform,
   createGuardrailStreamTransformBuffered,
 } from '../guardrails/streaming';
+
 export type { GuardrailStreamTransformOptions } from '../guardrails/streaming';
 
 export {
@@ -131,6 +139,7 @@ export {
   createTokenAwareGuardrailTransform,
   estimateTokenCount,
 } from '../guardrails/token-control';
+
 export type {
   TokenBudgetOptions,
   TokenAwareGuardrailOptions,
@@ -142,6 +151,7 @@ export {
   createContentFilterTransform,
   PII_PATTERNS,
 } from '../guardrails/stream-transform';
+
 export type {
   GuardrailTransformOptions,
   ViolationHandler,
@@ -155,8 +165,11 @@ export {
   createGuardrailPrepareStep,
   createAdaptivePrepareStep,
 } from '../guardrails/prepare-step';
+
 export type {
   GuardrailPrepareStepOptions,
+  GuardrailPrepareStepArgs,
+  GuardrailPrepareStepResult,
   AdaptivePrepareStepOptions,
 } from '../guardrails/prepare-step';
 
@@ -164,6 +177,7 @@ export {
   wrapToolWithAbortion,
   createToolAbortionController,
 } from '../guardrails/tool-abortion';
+
 export type {
   ToolAbortionControllerOptions,
   WrapToolWithAbortionOptions,
@@ -180,6 +194,7 @@ export {
   createGuardrailProviderMetadata,
   createFinishReasonEnhancement,
 } from '../guardrails/finish-reason';
+
 export type {
   FinishReasonOptions,
   ProviderMetadataOptions,
@@ -192,6 +207,7 @@ export {
   withToolParameterGuardrails,
   ToolParameterValidationError,
 } from '../guardrails/tool-parameters';
+
 export type { ToolParameterGuardrailsOptions } from '../guardrails/tool-parameters';
 
 // ── Retry / backoff helpers ------------------------------------------------
@@ -199,6 +215,7 @@ export {
   createDefaultBuildRetryParams,
   resolveRetryConfig,
 } from '../guardrails/retry-helpers';
+
 export type { DefaultBuildRetryParamsOptions } from '../guardrails/retry-helpers';
 
 export {
@@ -210,4 +227,7 @@ export {
   jitteredExponentialBackoff,
   presets as backoffPresets,
 } from '../backoff';
+
 export type { BackoffOptions } from '../backoff';
+
+export type { BlockedOutputResult, StreamedOutputSnapshot } from '../types';

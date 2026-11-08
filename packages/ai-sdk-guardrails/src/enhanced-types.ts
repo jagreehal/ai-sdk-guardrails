@@ -5,7 +5,21 @@
  * including context interfaces, result types, and check functions.
  */
 
+import type { JSONValue } from '@ai-sdk/provider';
 import type { LanguageModel } from 'ai';
+
+/** A value a guardrail can attach to its result: JSON, or `undefined` for an absent optional field. */
+export type MetadataValue =
+  | JSONValue
+  | undefined
+  | readonly MetadataValue[]
+  | { readonly [key: string]: MetadataValue };
+
+/**
+ * Key/value bag used as the default metadata and request-context type.
+ * Guardrails narrow it through their metadata type parameter.
+ */
+export type GuardrailMetadata = { [key: string]: MetadataValue };
 
 /**
  * Base context interface that all guardrails receive
@@ -21,8 +35,12 @@ export interface GuardrailContext {
   sessionId?: string;
   /** Environment information */
   environment?: 'development' | 'staging' | 'production';
-  /** Additional context data */
-  [key: string]: any;
+  /** OpenAI API key for the `Moderation` rail (falls back to `OPENAI_API_KEY`) */
+  openaiApiKey?: string;
+  /** Application data for custom guardrails */
+  metadata?: GuardrailMetadata;
+  /** Text streamed so far, set when output specs run mid-stream */
+  accumulatedText?: string;
 }
 
 /**
@@ -64,7 +82,7 @@ export interface ToolCall {
  * Guardrail result matching OpenAI's structure
  * Compatible with OpenAI's GuardrailResult while maintaining our extensions
  */
-export interface GuardrailResult<TMetadata = Record<string, unknown>> {
+export interface GuardrailResult<TMetadata = GuardrailMetadata> {
   /** Whether the guardrail was triggered (blocked the request) */
   tripwireTriggered: boolean;
 
@@ -87,7 +105,7 @@ export interface GuardrailResult<TMetadata = Record<string, unknown>> {
     /** The name of the guardrail that produced this result */
     guardrailName?: string;
     /** Additional guardrail-specific metadata */
-    [key: string]: unknown;
+    [key: string]: MetadataValue;
   };
 
   /** Human-readable message describing the result (extension beyond OpenAI) */
@@ -112,7 +130,6 @@ export interface GuardrailResult<TMetadata = Record<string, unknown>> {
     executedAt?: Date;
     executionTimeMs?: number;
     environment?: string;
-    [key: string]: any;
   };
 
   /** Modified content if the guardrail made changes (extension beyond OpenAI) */
@@ -140,7 +157,7 @@ export interface GuardrailConfig {
   /** The registry name used to look up the guardrail spec (OpenAI format) */
   name: string;
   /** Configuration object for this guardrail instance (OpenAI format) */
-  config: Record<string, unknown>;
+  config: { [key: string]: JSONValue };
 }
 
 /**
@@ -209,65 +226,4 @@ export interface GuardrailRetryOptions<TParams, TResult> {
   backoffMs?: number | ((attempt: number) => number);
   /** Abort signal */
   signal?: AbortSignal;
-}
-
-/**
- * Evaluation sample for testing guardrails
- */
-export interface EvaluationSample {
-  /** Unique sample ID */
-  id: string;
-  /** Input data to test */
-  data: any;
-  /** Expected guardrail triggers */
-  expectedTriggers: Record<string, boolean>;
-  /** Optional metadata */
-  metadata?: Record<string, any>;
-}
-
-/**
- * Evaluation result for a single sample
- */
-export interface EvaluationResult {
-  /** Sample ID */
-  sampleId: string;
-  /** Actual guardrail results */
-  actualResults: Record<string, GuardrailResult>;
-  /** Expected triggers */
-  expectedTriggers: Record<string, boolean>;
-  /** Whether the evaluation passed */
-  passed: boolean;
-  /** Error if evaluation failed */
-  error?: string;
-}
-
-/**
- * Metrics calculated from evaluation results
- */
-export interface EvaluationMetrics {
-  /** Overall accuracy */
-  accuracy: number;
-  /** Precision for each guardrail */
-  precision: Record<string, number>;
-  /** Recall for each guardrail */
-  recall: Record<string, number>;
-  /** F1 score for each guardrail */
-  f1Score: Record<string, number>;
-  /** Confusion matrix for each guardrail */
-  confusionMatrix: Record<
-    string,
-    {
-      truePositives: number;
-      trueNegatives: number;
-      falsePositives: number;
-      falseNegatives: number;
-    }
-  >;
-  /** Execution time statistics */
-  executionStats: {
-    mean: number;
-    median: number;
-    p95: number;
-    p99: number;
-  };
 }

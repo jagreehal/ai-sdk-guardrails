@@ -63,7 +63,13 @@ const GRADE_THRESHOLDS: Array<[string, number]> = [
   ['F', 0],
 ];
 
-const GRADE_ORDER: Record<string, number> = { A: 5, B: 4, C: 3, D: 2, F: 1 };
+const GRADE_ORDER = new Map([
+  ['A', 5],
+  ['B', 4],
+  ['C', 3],
+  ['D', 2],
+  ['F', 1],
+]);
 
 const DEFENSE_RULES: DefenseRule[] = [
   {
@@ -202,10 +208,12 @@ const MAX_PROMPT_LENGTH = 100_000;
 /** FNV-1a 32-bit hash, hex — dependency-free, stable, non-cryptographic. */
 function fnv1aHex(text: string): string {
   let hash = 2_166_136_261; // FNV-1a 32-bit offset basis
+
   for (const ch of text) {
     hash ^= ch.codePointAt(0) ?? 0;
     hash = Math.imul(hash, 16_777_619); // FNV-1a 32-bit prime
   }
+
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
@@ -213,21 +221,26 @@ function scoreToGrade(score: number): string {
   for (const [grade, threshold] of GRADE_THRESHOLDS) {
     if (score >= threshold) return grade;
   }
+
   return 'F';
 }
 
 function evaluateRule(rule: DefenseRule, prompt: string): PromptDefenseFinding {
   let matched = 0;
   let evidence = '';
+
   for (const pattern of rule.patterns) {
     const match = pattern.exec(prompt);
+
     if (match) {
       matched += 1;
+
       if (!evidence) evidence = match[0].slice(0, 60);
     }
   }
 
   const defended = matched >= rule.minMatches;
+
   const confidence = defended
     ? Math.min(0.9, 0.5 + matched * 0.2)
     : matched > 0
@@ -290,6 +303,6 @@ export function evaluatePromptDefense(
     findings,
     promptHash: fnv1aHex(prompt),
     isBlocking: (minGrade = 'C') =>
-      (GRADE_ORDER[grade] ?? 0) < (GRADE_ORDER[minGrade] ?? 3),
+      (GRADE_ORDER.get(grade) ?? 0) < (GRADE_ORDER.get(minGrade) ?? 3),
   };
 }

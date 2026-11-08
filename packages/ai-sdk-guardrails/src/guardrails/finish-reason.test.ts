@@ -4,10 +4,18 @@ import {
   getGuardrailFinishReason,
   createGuardrailProviderMetadata,
 } from './finish-reason';
-import type { GuardrailExecutionSummary } from '../types';
+import type { FinishReason, GuardrailExecutionSummary } from '../types';
+
+type ResultWithMetadata = {
+  finishReason: FinishReason;
+  providerMetadata?: {
+    guardrails?: { blocked?: boolean };
+    existingField?: string;
+  };
+};
 
 describe('getGuardrailFinishReason', () => {
-  it('should return content_filter for blocked output', () => {
+  it('should return content-filter for blocked output', () => {
     const summary: GuardrailExecutionSummary = {
       blockedResults: [
         {
@@ -26,7 +34,7 @@ describe('getGuardrailFinishReason', () => {
     };
 
     const finishReason = getGuardrailFinishReason(summary);
-    expect(finishReason).toBe('content_filter');
+    expect(finishReason).toBe('content-filter');
   });
 
   it('should return stop when no violations', () => {
@@ -71,6 +79,7 @@ describe('getGuardrailFinishReason', () => {
     const finishReason = getGuardrailFinishReason(summary, {
       blocked: 'other',
     });
+
     expect(finishReason).toBe('other');
   });
 });
@@ -212,7 +221,26 @@ describe('createFinishReasonEnhancement', () => {
 
     const enhanced = createFinishReasonEnhancement(summary, originalResult);
 
-    expect(enhanced.finishReason).toBe('content_filter');
+    expect(enhanced.finishReason).toBe('content-filter');
+  });
+
+  it('sets unified on a middleware doGenerate finish reason', () => {
+    const summary: GuardrailExecutionSummary = {
+      blockedResults: [{ tripwireTriggered: true, message: 'x' }],
+      allResults: [],
+      totalExecutionTime: 0,
+      guardrailsExecuted: 1,
+      stats: { passed: 0, blocked: 1, failed: 0, averageExecutionTime: 0 },
+    };
+
+    const enhanced = createFinishReasonEnhancement(summary, {
+      finishReason: { unified: 'stop' as const, raw: 'end_turn' },
+    });
+
+    expect(enhanced.finishReason).toEqual({
+      unified: 'content-filter',
+      raw: 'end_turn',
+    });
   });
 
   it('should add provider metadata', () => {
@@ -234,18 +262,15 @@ describe('createFinishReasonEnhancement', () => {
       stats: { passed: 0, blocked: 1, failed: 0, averageExecutionTime: 10 },
     };
 
-    const originalResult = {
-      finishReason: 'stop' as const,
+    const originalResult: ResultWithMetadata = {
+      finishReason: 'stop',
       providerMetadata: {},
     };
 
     const enhanced = createFinishReasonEnhancement(summary, originalResult);
 
     expect(enhanced.providerMetadata).toBeDefined();
-    expect(
-      (enhanced.providerMetadata as { guardrails?: { blocked?: boolean } })
-        ?.guardrails?.blocked,
-    ).toBe(true);
+    expect(enhanced.providerMetadata?.guardrails?.blocked).toBe(true);
   });
 
   it('should preserve existing provider metadata', () => {
@@ -266,8 +291,8 @@ describe('createFinishReasonEnhancement', () => {
       stats: { passed: 0, blocked: 1, failed: 0, averageExecutionTime: 10 },
     };
 
-    const originalResult = {
-      finishReason: 'stop' as const,
+    const originalResult: ResultWithMetadata = {
+      finishReason: 'stop',
       providerMetadata: {
         existingField: 'value',
       },
@@ -276,9 +301,7 @@ describe('createFinishReasonEnhancement', () => {
     const enhanced = createFinishReasonEnhancement(summary, originalResult);
 
     expect(enhanced.providerMetadata?.existingField).toBe('value');
-    expect(
-      (enhanced.providerMetadata as { guardrails?: unknown })?.guardrails,
-    ).toBeDefined();
+    expect(enhanced.providerMetadata?.guardrails).toBeDefined();
   });
 
   it('should not modify result when no violations', () => {
@@ -298,15 +321,13 @@ describe('createFinishReasonEnhancement', () => {
       stats: { passed: 1, blocked: 0, failed: 0, averageExecutionTime: 10 },
     };
 
-    const originalResult = {
-      finishReason: 'stop' as const,
+    const originalResult: ResultWithMetadata = {
+      finishReason: 'stop',
     };
 
     const enhanced = createFinishReasonEnhancement(summary, originalResult);
 
     expect(enhanced.finishReason).toBe('stop');
-    expect(
-      (enhanced as { providerMetadata?: unknown }).providerMetadata,
-    ).toBeUndefined();
+    expect(enhanced.providerMetadata).toBeUndefined();
   });
 });

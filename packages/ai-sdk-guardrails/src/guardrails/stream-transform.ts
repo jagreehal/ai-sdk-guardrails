@@ -5,31 +5,80 @@
  * Enables real-time content filtering, redaction, and modification during streaming.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable unicorn/switch-case-braces */
-/* eslint-disable unicorn/no-useless-switch-case */
-/* eslint-disable unicorn/prefer-ternary */
-/* eslint-disable no-case-declarations */
-
-import type { ToolSet } from 'ai';
+import type { StreamTextTransform, TextStreamPart, ToolSet } from 'ai';
 import type {
+  AIResult,
   OutputGuardrail,
   GuardrailResult,
   RequestContext,
 } from '../types';
 
+export type { StreamTextTransform } from 'ai';
+
 /**
- * Stream part type (simplified for transform context)
+ * Parts a transform must emit after calling `stopStream()`: the SDK drops the
+ * rest of the source stream, so without a closing `finish-step` / `finish`
+ * `streamText` rejects with "No output generated". Closes the open text block
+ * when `textId` is given.
  */
-export interface StreamPart {
-  type: string;
-  id?: string;
-  text?: string;
-  delta?: string;
-  textDelta?: string;
-  [key: string]: unknown;
+export function guardrailStopParts<TOOLS extends ToolSet>(
+  textId?: string,
+): Array<TextStreamPart<TOOLS>> {
+  // Usage and response metadata of the cut-off step are unknown, so they stay empty.
+  const usage = {
+    inputTokens: undefined,
+    inputTokenDetails: {
+      noCacheTokens: undefined,
+      cacheReadTokens: undefined,
+      cacheWriteTokens: undefined,
+    },
+    outputTokens: undefined,
+    outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
+    totalTokens: undefined,
+  };
+
+  const performance = {
+    effectiveOutputTokensPerSecond: 0,
+    outputTokensPerSecond: undefined,
+    inputTokensPerSecond: undefined,
+    effectiveTotalTokensPerSecond: 0,
+    stepTimeMs: 0,
+    responseTimeMs: 0,
+    toolExecutionMs: {},
+    timeToFirstOutputMs: undefined,
+  };
+
+  return [
+    ...(textId === undefined
+      ? []
+      : [{ type: 'text-end' as const, id: textId }]),
+    {
+      type: 'finish-step',
+      finishReason: 'content-filter',
+      rawFinishReason: undefined,
+      providerMetadata: undefined,
+      usage,
+      performance,
+      response: {
+        id: 'guardrail-stop',
+        modelId: 'unknown',
+        timestamp: new Date(),
+      },
+    },
+    {
+      type: 'finish',
+      finishReason: 'content-filter',
+      rawFinishReason: undefined,
+      totalUsage: usage,
+    },
+  ];
 }
+
+/** The `text-delta` stream part a violation was found in. */
+export type TextDeltaPart = Extract<
+  TextStreamPart<ToolSet>,
+  { type: 'text-delta' }
+>;
 
 /**
  * Violation handler result
@@ -47,7 +96,7 @@ export interface ViolationHandlerResult {
  * Violation handler function type
  */
 export type ViolationHandler = (
-  chunk: StreamPart,
+  chunk: TextDeltaPart,
   violation: GuardrailResult,
   context: StreamTransformContext,
 ) => ViolationHandlerResult | Promise<ViolationHandlerResult>;
@@ -97,16 +146,11 @@ export interface GuardrailTransformOptions {
     accumulatedText: string,
   ) => void;
   /** Callback for each violation (even if not stopping) */
-  onViolationDetected?: (violation: GuardrailResult, chunk: StreamPart) => void;
+  onViolationDetected?: (
+    violation: GuardrailResult,
+    chunk: TextDeltaPart,
+  ) => void;
 }
-
-/**
- * AI SDK StreamTextTransform type
- */
-export type StreamTextTransform<TOOLS extends ToolSet> = (options: {
-  tools: TOOLS;
-  stopStream: () => void;
-}) => TransformStream<StreamPart, StreamPart>;
 
 /**
  * Creates a guardrail-based stream transform for use with AI SDK's experimental_transform.
@@ -196,31 +240,26 @@ export function createGuardrailTransform<TOOLS extends ToolSet = ToolSet>(
       requestContext,
     };
 
-    return new TransformStream<StreamPart, StreamPart>({
+    return new TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>>({
       async transform(chunk, controller) {
         if (stopped) {
           return; // Don't process more chunks after stopping
         }
 
-        // Extract text from chunk
-        const chunkText = chunk.delta || chunk.textDelta || chunk.text || '';
-
-        if (chunk.type === 'text-delta' || chunk.type === 'text') {
+        if (chunk.type === 'text-delta') {
+          const chunkText = chunk.text;
           accumulatedText += chunkText;
           chunkCount++;
 
-          // Update context
           context.accumulatedText = accumulatedText;
           context.chunkCount = chunkCount;
           context.violations = violations;
 
-          // Check if we should run guardrails this chunk
           const shouldCheck =
             accumulatedText.length >= minCharsBeforeCheck &&
             chunkCount % checkEveryNChunks === 0;
 
           if (shouldCheck && guardrails.length > 0) {
-            // Run guardrails on accumulated text
             for (const guardrail of guardrails) {
               if (guardrail.enabled === false) continue;
 
@@ -233,7 +272,9 @@ export function createGuardrailTransform<TOOLS extends ToolSet = ToolSet>(
                       system: '',
                       requestContext,
                     },
-                    result: { text: accumulatedText } as any,
+                    // SAFETY: mid-stream there is no SDK result yet; output
+                    // guardrails read the accumulated text from `result.text`.
+                    result: { text: accumulatedText } as AIResult,
                   },
                   accumulatedText,
                 );
@@ -246,7 +287,6 @@ export function createGuardrailTransform<TOOLS extends ToolSet = ToolSet>(
                     onViolationDetected(result, chunk);
                   }
 
-                  // Handle violation based on configured behavior
                   const handlerResult = await handleViolation(
                     chunk,
                     result,
@@ -263,15 +303,20 @@ export function createGuardrailTransform<TOOLS extends ToolSet = ToolSet>(
                     case 'stop':
                       stopped = true;
                       stopStream();
+
                       if (onStreamStopped) {
                         onStreamStopped(violations, accumulatedText);
                       }
-                      // Emit final message before stopping
+
                       controller.enqueue({
                         ...chunk,
-                        type: 'text-delta',
-                        delta: `\n[Stream stopped: ${handlerResult.reason || result.message}]`,
+                        text: `\n[Stream stopped: ${handlerResult.reason || result.message}]`,
                       });
+
+                      for (const part of guardrailStopParts<TOOLS>(chunk.id)) {
+                        controller.enqueue(part);
+                      }
+
                       return;
 
                     case 'drop':
@@ -279,17 +324,15 @@ export function createGuardrailTransform<TOOLS extends ToolSet = ToolSet>(
                       return;
 
                     case 'replace':
-                      // Replace chunk content
                       controller.enqueue({
                         ...chunk,
-                        delta: handlerResult.replacement || replacementText,
-                        textDelta: handlerResult.replacement || replacementText,
+                        text: handlerResult.replacement || replacementText,
                       });
+
                       return;
 
                     case 'pass':
                     default:
-                      // Continue with original chunk
                       break;
                   }
                 }
@@ -307,26 +350,16 @@ export function createGuardrailTransform<TOOLS extends ToolSet = ToolSet>(
               redactPatterns,
               redactionText,
             );
+
             if (redactedText !== chunkText) {
-              controller.enqueue({
-                ...chunk,
-                delta: redactedText,
-                textDelta: redactedText,
-              });
+              controller.enqueue({ ...chunk, text: redactedText });
+
               return;
             }
           }
         }
 
-        // Pass through chunk unchanged
         controller.enqueue(chunk);
-      },
-
-      flush(controller) {
-        // Final cleanup if needed
-        if (stopped && violations.length > 0) {
-          // Already handled in transform
-        }
       },
     });
   };
@@ -336,7 +369,7 @@ export function createGuardrailTransform<TOOLS extends ToolSet = ToolSet>(
  * Handles a violation based on configured behavior
  */
 async function handleViolation(
-  chunk: StreamPart,
+  chunk: TextDeltaPart,
   violation: GuardrailResult,
   context: StreamTransformContext,
   options: {
@@ -349,7 +382,7 @@ async function handleViolation(
   const { onViolation, redactPatterns, redactionText, replacementText } =
     options;
 
-  if (typeof onViolation === 'function') {
+  if (onViolation instanceof Function) {
     return onViolation(chunk, violation, context);
   }
 
@@ -361,8 +394,9 @@ async function handleViolation(
       return { action: 'drop', reason: violation.message };
 
     case 'redact':
-      const chunkText = chunk.delta || chunk.textDelta || '';
+      const chunkText = chunk.text;
       const redacted = applyRedaction(chunkText, redactPatterns, redactionText);
+
       if (redacted !== chunkText) {
         return {
           action: 'replace',
@@ -370,6 +404,7 @@ async function handleViolation(
           reason: 'Content redacted',
         };
       }
+
       return { action: 'pass' };
 
     case 'replace':
@@ -395,11 +430,10 @@ function applyRedaction(
   let result = text;
 
   for (const pattern of patterns) {
-    if (typeof pattern === 'string') {
-      result = result.split(pattern).join(redactionText);
-    } else {
-      result = result.replace(pattern, () => redactionText);
-    }
+    result =
+      pattern instanceof RegExp
+        ? result.replace(pattern, () => redactionText)
+        : result.split(pattern).join(redactionText);
   }
 
   return result;
@@ -463,25 +497,18 @@ export function createContentFilterTransform<
   onBlocked?: (keyword: string, text: string) => void;
   requestContext?: RequestContext;
 }): StreamTextTransform<TOOLS> {
-  const {
-    blockedKeywords,
-    caseSensitive = false,
-    onBlocked,
-    requestContext,
-  } = options;
+  const { blockedKeywords, caseSensitive = false, onBlocked } = options;
 
   return ({ stopStream }) => {
     let accumulatedText = '';
     let stopped = false;
 
-    return new TransformStream<StreamPart, StreamPart>({
+    return new TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>>({
       transform(chunk, controller) {
         if (stopped) return;
 
-        const chunkText = chunk.delta || chunk.textDelta || chunk.text || '';
-
-        if (chunk.type === 'text-delta' || chunk.type === 'text') {
-          accumulatedText += chunkText;
+        if (chunk.type === 'text-delta') {
+          accumulatedText += chunk.text;
 
           const textToCheck = caseSensitive
             ? accumulatedText
@@ -502,9 +529,13 @@ export function createContentFilterTransform<
 
               controller.enqueue({
                 ...chunk,
-                type: 'text-delta',
-                delta: `\n[Content blocked: prohibited content detected]`,
+                text: `\n[Content blocked: prohibited content detected]`,
               });
+
+              for (const part of guardrailStopParts<TOOLS>(chunk.id)) {
+                controller.enqueue(part);
+              }
+
               return;
             }
           }

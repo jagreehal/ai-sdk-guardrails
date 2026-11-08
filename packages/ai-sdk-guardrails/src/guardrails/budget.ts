@@ -35,7 +35,9 @@
 
 import { createOutputGuardrail } from '../core';
 import type { OutputGuardrail, OutputGuardrailContext } from '../types';
-import { extractContent, normalizeUsage } from './output';
+import { extractContent } from './output';
+
+import type { GuardrailMetadata } from '../enhanced-types';
 
 /**
  * Whether an error is autotel-genai's deliberate stop signal (a `GenAiGuard`
@@ -43,7 +45,7 @@ import { extractContent, normalizeUsage } from './output';
  * Anything else thrown from `record()` is a real fault and must propagate, not
  * be silently misread as "budget exceeded".
  */
-function isGuardStop(error: unknown): boolean {
+function isGuardStop(error: unknown): error is Error {
   return (
     error instanceof Error &&
     (error.name === 'GenAiGuardStop' ||
@@ -51,14 +53,14 @@ function isGuardStop(error: unknown): boolean {
   );
 }
 
-/** Per-step usage contribution. Mirrors autotel-genai's `GuardUsage`. */
+/** Per-step usage contribution. Matches autotel-genai's `GuardUsage`. */
 export interface BudgetUsage {
   costUsd?: number;
   inputTokens?: number;
   outputTokens?: number;
 }
 
-/** A supervised step fed to the budget. Mirrors autotel-genai's `GenAiGuardStep`. */
+/** A supervised step fed to the budget. Matches autotel-genai's `GenAiGuardStep`. */
 export interface BudgetStep {
   kind?: string;
   name?: string;
@@ -82,8 +84,8 @@ export interface BudgetState {
  * it can be passed directly — no adapter, no import from this package's side.
  */
 export interface GuardrailBudget {
-  /** Record a step and accumulate its usage. Return value is ignored here. */
-  record(step: BudgetStep): unknown;
+  /** Record a step and accumulate its usage. Any return value is ignored. */
+  record(step: BudgetStep): void;
   /** `true` once a stop ceiling has been crossed. */
   readonly stopped: boolean;
   /** Current accumulated totals. */
@@ -118,7 +120,9 @@ export function createGuardrailBudget(
   return {
     record(step: BudgetStep) {
       stepCount += 1;
+
       if (step.kind === 'tool') toolCallCount += 1;
+
       if (step.error) errorCount += 1;
       costUsd += step.usage?.costUsd ?? 0;
       inputTokens += step.usage?.inputTokens ?? 0;
@@ -127,12 +131,14 @@ export function createGuardrailBudget(
       if (options.maxCostUsd !== undefined && costUsd > options.maxCostUsd) {
         stopped = true;
       }
+
       if (
         options.maxTokens !== undefined &&
         inputTokens + outputTokens > options.maxTokens
       ) {
         stopped = true;
       }
+
       if (
         options.maxToolCalls !== undefined &&
         toolCallCount > options.maxToolCalls
@@ -156,7 +162,7 @@ export function createGuardrailBudget(
   };
 }
 
-export interface BudgetMetadata extends Record<string, unknown> {
+export interface BudgetMetadata extends GuardrailMetadata {
   costUsd: number;
   inputTokens: number;
   outputTokens: number;
@@ -197,18 +203,17 @@ export function budgetGuardrail(
   return createOutputGuardrail<BudgetMetadata>(
     'budget',
     (context: OutputGuardrailContext) => {
+      // extractContent already maps provider usage to prompt/completion counts.
       const { usage } = extractContent(context.result);
-      const normalized = normalizeUsage(
-        usage as Parameters<typeof normalizeUsage>[0],
-      );
-      const inputTokens = normalized?.promptTokens;
-      const outputTokens = normalized?.completionTokens;
+      const inputTokens = usage?.promptTokens;
+      const outputTokens = usage?.completionTokens;
       const costUsd = estimateCost?.({ inputTokens, outputTokens });
 
       // The budget is the single source of truth for `stopped`: read it after a
       // successful record, or trust the deliberate stop-throw. Any other throw
       // is a real fault and propagates.
       let stopped: boolean;
+
       try {
         budget.record({
           kind: 'llm',
@@ -221,6 +226,7 @@ export function budgetGuardrail(
       }
 
       const state = budget.state;
+
       const metadata: BudgetMetadata = {
         costUsd: state.costUsd,
         inputTokens: state.inputTokens,

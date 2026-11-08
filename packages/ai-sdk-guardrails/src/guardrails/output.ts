@@ -1,39 +1,33 @@
+import type { JSONValue } from '@ai-sdk/provider';
+import type { LanguageModelUsage } from 'ai';
+import { z } from 'zod';
 import { createOutputGuardrail } from '../core';
+import { assessToxicity } from './toxicity-signals';
 import type {
   OutputGuardrail,
   AIResult,
   OutputGuardrailContext,
 } from '../types';
 
-// Type definitions for AI result objects
-interface BaseResult {
-  usage?: {
-    promptTokens?: number;
-    completionTokens?: number;
-    totalTokens?: number;
-  };
+import { isObjectLike } from './internal';
+
+/** Members guardrails read from an AI SDK result. All optional; each is checked before use. */
+interface ResultFields {
+  content?: Array<{ type: string; text?: string }>;
+  output?: unknown;
+  object?: unknown;
+  text?: string;
+  usage?: LanguageModelUsage;
   finishReason?: string;
+  reasoningText?: string;
   experimental_providerMetadata?: {
     generationTimeMs?: number;
     reasoningText?: string;
   };
-  reasoningText?: string;
+  providerMetadata?: {
+    generationTimeMs?: number;
+  };
 }
-
-interface ObjectResult extends BaseResult {
-  object: unknown;
-  text?: string;
-}
-
-interface TextResult extends BaseResult {
-  text: string;
-}
-
-interface InputContextWithEnvironment {
-  environment?: string;
-}
-
-type UsageRecord = Record<string, unknown> | undefined;
 
 interface ContentExtraction {
   text: string;
@@ -57,51 +51,54 @@ const EMPTY_CONTENT: ContentExtraction = {
   reasoningText: undefined,
 };
 
-function emptyContent(): ContentExtraction {
-  return { ...EMPTY_CONTENT };
+/**
+ * A token count is either a number or, in the provider (V3) usage format, an
+ * object carrying it in `total`.
+ */
+const tokenCount = z.union([
+  z.number(),
+  z.object({ total: z.number() }).transform(({ total }) => total),
+]);
+
+function pickTokenCount<U extends Record<string, unknown>>(
+  usage: U,
+  keys: string[],
+): number | undefined {
+  for (const key of keys) {
+    const count = tokenCount.safeParse(usage[key]);
+
+    if (count.success) {
+      return count.data;
+    }
+  }
+
+  return undefined;
 }
 
-function mapUsage(
-  usage: UsageRecord,
-):
-  | { promptTokens?: number; completionTokens?: number; totalTokens?: number }
-  | undefined {
+interface UsageKeys {
+  total: string[];
+  prompt: string[];
+  completion: string[];
+}
+
+/** Reads token counts under the given key aliases; computes the total when only parts are present. */
+function readUsage<U extends Record<string, unknown>>(
+  usage: U | undefined,
+  keys: UsageKeys,
+): NormalizedUsage | undefined {
   if (!usage) {
     return undefined;
   }
 
-  // Helper to pick a number value, supporting both flat and V3 nested structures
-  // V3 usage has: { inputTokens: { total: number }, outputTokens: { total: number } }
-  // Unified usage has: { promptTokens: number, completionTokens: number }
-  const pickNumber = (keys: string[]): number | undefined => {
-    for (const key of keys) {
-      const value = usage[key];
-      if (typeof value === 'number') {
-        return value;
-      }
-      // Handle V3 nested structure: { total: number, ... }
-      if (
-        value &&
-        typeof value === 'object' &&
-        'total' in value &&
-        typeof (value as { total: number }).total === 'number'
-      ) {
-        return (value as { total: number }).total;
-      }
-    }
-    return undefined;
-  };
+  const totalTokens = pickTokenCount(usage, keys.total);
+  const promptTokens = pickTokenCount(usage, keys.prompt);
+  const completionTokens = pickTokenCount(usage, keys.completion);
 
-  const totalTokens = pickNumber(['totalTokens']);
-  const promptTokens = pickNumber(['inputTokens', 'promptTokens']);
-  const completionTokens = pickNumber(['outputTokens', 'completionTokens']);
-
-  // Calculate total if not provided but components are available
   const computedTotal =
     totalTokens ??
-    (promptTokens !== undefined && completionTokens !== undefined
-      ? promptTokens + completionTokens
-      : undefined);
+    (promptTokens === undefined || completionTokens === undefined
+      ? undefined
+      : promptTokens + completionTokens);
 
   if (
     promptTokens === undefined &&
@@ -118,19 +115,32 @@ function mapUsage(
   };
 }
 
-function extractGenerationTime(result: BaseResult) {
+const RESULT_USAGE_KEYS: UsageKeys = {
+  total: ['totalTokens'],
+  prompt: ['inputTokens', 'promptTokens'],
+  completion: ['outputTokens', 'completionTokens'],
+};
+
+const PROVIDER_USAGE_KEYS: UsageKeys = {
+  total: ['totalTokens', 'total_tokens'],
+  prompt: ['inputTokens', 'promptTokens', 'input_tokens', 'prompt_tokens'],
+  completion: [
+    'outputTokens',
+    'completionTokens',
+    'output_tokens',
+    'completion_tokens',
+  ],
+};
+
+function extractGenerationTime(result: ResultFields) {
   return (
     result.experimental_providerMetadata?.generationTimeMs ??
-    (
-      (result as Record<string, unknown>).providerMetadata as {
-        generationTimeMs?: number;
-      }
-    )?.generationTimeMs ??
+    result.providerMetadata?.generationTimeMs ??
     0
   );
 }
 
-function extractReasoningText(result: BaseResult) {
+function extractReasoningText(result: ResultFields) {
   return (
     result.reasoningText ||
     result.experimental_providerMetadata?.reasoningText ||
@@ -138,120 +148,76 @@ function extractReasoningText(result: BaseResult) {
   );
 }
 
-function createContent(partial: Partial<ContentExtraction>): ContentExtraction {
+function resultContent(
+  fields: ResultFields,
+  partial: Pick<ContentExtraction, 'text' | 'object'>,
+): ContentExtraction {
   return {
     ...EMPTY_CONTENT,
     ...partial,
+    usage: readUsage(fields.usage, RESULT_USAGE_KEYS),
+    finishReason: fields.finishReason,
+    generationTimeMs: extractGenerationTime(fields),
+    reasoningText: extractReasoningText(fields),
   };
 }
 
-// Helper function to safely extract content from different AI result types
+const resultText = z.string();
+
+/** Extracts text, structured output, usage and timing from any AI SDK result shape. */
 export function extractContent(result: AIResult): ContentExtraction {
-  const contentArray = (result as { content?: unknown[] }).content;
-  if (
-    'content' in result &&
-    Array.isArray(contentArray) &&
-    contentArray.length > 0
-  ) {
-    const typedResult = result as BaseResult & {
-      content: Array<{ type: string; text?: string }>;
-      usage?: UsageRecord;
-      output?: unknown;
-      object?: unknown;
-    };
-    const textContent = typedResult.content
-      .filter((item) => item.type === 'text' && item.text)
-      .map((item) => item.text as string)
+  // SAFETY: ResultFields only lists optional members, and each one is checked
+  // for presence (or parsed) below before its value is used.
+  const fields = result as ResultFields;
+  const { content } = fields;
+
+  if (Array.isArray(content) && content.length > 0) {
+    const textContent = content
+      .flatMap((item) => (item.type === 'text' && item.text ? [item.text] : []))
       .join('');
 
-    // Check for output/object property (AI SDK v6 Output.object() includes both content and output)
-    const objectValue = typedResult.output ?? typedResult.object ?? null;
-
-    return createContent({
+    // AI SDK Output.object() results carry both `content` and `output`.
+    return resultContent(fields, {
       text: textContent || '',
-      object: objectValue,
-      usage: mapUsage(typedResult.usage),
-      finishReason: typedResult.finishReason,
-      generationTimeMs: extractGenerationTime(typedResult),
-      reasoningText: extractReasoningText(typedResult),
+      object: fields.output ?? fields.object ?? null,
     });
   }
 
-  // Check for output property first (AI SDK v6 Output.object() results)
-  // Output.object() returns both text (serialized) and output (parsed), so check output first
-  if (
-    'output' in result &&
-    (result as { output?: unknown }).output !== null &&
-    (result as { output?: unknown }).output !== undefined
-  ) {
-    const outputResult = result as BaseResult & {
-      output: unknown;
-      text?: string;
-    };
-    return createContent({
-      text: outputResult.text || '',
-      object: outputResult.output,
-      usage: mapUsage(outputResult.usage as UsageRecord),
-      finishReason: outputResult.finishReason,
-      generationTimeMs: extractGenerationTime(outputResult),
-      reasoningText: extractReasoningText(outputResult),
+  // Output.object() results carry the serialized text and the parsed `output`;
+  // the parsed value wins.
+  if (fields.output !== null && fields.output !== undefined) {
+    return resultContent(fields, {
+      text: fields.text || '',
+      object: fields.output,
     });
   }
 
-  // Check for object property (for structured outputs)
-  if (
-    'object' in result &&
-    result.object !== null &&
-    result.object !== undefined
-  ) {
-    const objectResult = result as ObjectResult;
-    return createContent({
-      text: objectResult.text || '',
-      object: objectResult.object,
-      usage: mapUsage(objectResult.usage as UsageRecord),
-      finishReason: objectResult.finishReason,
-      generationTimeMs: extractGenerationTime(objectResult),
-      reasoningText: extractReasoningText(objectResult),
+  if (fields.object !== null && fields.object !== undefined) {
+    return resultContent(fields, {
+      text: fields.text || '',
+      object: fields.object,
     });
   }
 
-  // Check for text property (plain text responses)
-  if ('text' in result && typeof result.text === 'string') {
-    const textResult = result as TextResult;
-    return createContent({
-      text: textResult.text || '',
-      object: null,
-      usage: mapUsage(textResult.usage as UsageRecord),
-      finishReason: textResult.finishReason,
-      generationTimeMs: extractGenerationTime(textResult),
-      reasoningText: extractReasoningText(textResult),
-    });
+  const text = resultText.safeParse(fields.text);
+
+  if (text.success) {
+    return resultContent(fields, { text: text.data || '', object: null });
   }
 
-  if (
-    'textStream' in result ||
-    'objectStream' in result ||
-    'embeddings' in result ||
-    'then' in result
-  ) {
-    return emptyContent();
-  }
-
-  return emptyContent();
+  return { ...EMPTY_CONTENT };
 }
 
-// Unified content stringification helper for streaming-aware content
-export function stringifyContent(
+/** The text guardrails check: accumulated stream text, else `text`, else the JSON-serialized object. */
+export function stringifyContent<T>(
   text?: string,
-  object?: unknown,
+  object?: T,
   accumulatedText?: string,
 ): string {
-  // For streaming, always prefer accumulatedText
   if (accumulatedText !== undefined) {
     return accumulatedText;
   }
 
-  // For non-streaming, prioritize text over object
   if (text !== undefined && text !== null && text.length > 0) {
     return text;
   }
@@ -263,77 +229,18 @@ export function stringifyContent(
   return '';
 }
 
-// Normalized usage metrics interface
-export interface NormalizedUsage {
+/** Token usage in the unified prompt/completion/total form. */
+export type NormalizedUsage = {
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
-}
+};
 
-// Helper to normalize usage metrics from different providers
-export function normalizeUsage(
-  usage: UsageRecord,
+/** Normalizes usage from any provider: camelCase, snake_case, and V3 `{ total }` objects. */
+export function normalizeUsage<U extends Record<string, unknown>>(
+  usage: U | undefined,
 ): NormalizedUsage | undefined {
-  if (!usage) {
-    return undefined;
-  }
-
-  // Helper to pick a number value, supporting both flat and V3 nested structures
-  // V3 usage has: { inputTokens: { total: number }, outputTokens: { total: number } }
-  // Unified usage has: { promptTokens: number, completionTokens: number }
-  const pickNumber = (keys: string[]): number | undefined => {
-    for (const key of keys) {
-      const value = usage[key];
-      if (typeof value === 'number') {
-        return value;
-      }
-      // Handle V3 nested structure: { total: number, ... }
-      if (
-        value &&
-        typeof value === 'object' &&
-        'total' in value &&
-        typeof (value as { total: number }).total === 'number'
-      ) {
-        return (value as { total: number }).total;
-      }
-    }
-    return undefined;
-  };
-
-  const totalTokens = pickNumber(['totalTokens', 'total_tokens']);
-  const promptTokens = pickNumber([
-    'inputTokens',
-    'promptTokens',
-    'input_tokens',
-    'prompt_tokens',
-  ]);
-  const completionTokens = pickNumber([
-    'outputTokens',
-    'completionTokens',
-    'output_tokens',
-    'completion_tokens',
-  ]);
-
-  // Calculate total if not provided but components are available
-  const computedTotal =
-    totalTokens ??
-    (promptTokens !== undefined && completionTokens !== undefined
-      ? promptTokens + completionTokens
-      : undefined);
-
-  if (
-    promptTokens === undefined &&
-    completionTokens === undefined &&
-    computedTotal === undefined
-  ) {
-    return undefined;
-  }
-
-  return {
-    promptTokens,
-    completionTokens,
-    totalTokens: computedTotal,
-  };
+  return readUsage(usage, PROVIDER_USAGE_KEYS);
 }
 
 export const outputLengthLimit = (maxLength: number): OutputGuardrail =>
@@ -344,7 +251,7 @@ export const outputLengthLimit = (maxLength: number): OutputGuardrail =>
         extractContent(context.result);
 
       const content = stringifyContent(text, object, accumulatedText);
-      const normalizedUsage = normalizeUsage(usage as UsageRecord);
+      const normalizedUsage = normalizeUsage(usage);
 
       return {
         tripwireTriggered: content.length > maxLength,
@@ -377,6 +284,7 @@ export const minLengthRequirement = (minLength: number): OutputGuardrail =>
     'output-min-length',
     (context: OutputGuardrailContext, accumulatedText?: string) => {
       const { text, object } = extractContent(context.result);
+
       const content =
         accumulatedText || text || (object ? JSON.stringify(object) : '');
 
@@ -417,6 +325,7 @@ export const sensitiveDataFilter = (): OutputGuardrail =>
     'sensitive-data-filter',
     (context: OutputGuardrailContext, accumulatedText?: string) => {
       const { text, object } = extractContent(context.result);
+
       const content =
         accumulatedText || text || (object ? JSON.stringify(object) : '');
 
@@ -460,9 +369,11 @@ export const sensitiveDataFilter = (): OutputGuardrail =>
       ];
 
       const detected = sensitivePatterns.filter((p) => p.regex.test(content));
+
       if (detected.length > 0) {
         const severityOrder = { low: 1, medium: 2, high: 3, critical: 4 };
         let highestSeverity = detected[0]?.severity || 'medium';
+
         for (const pattern of detected) {
           if (
             severityOrder[pattern.severity] > severityOrder[highestSeverity]
@@ -534,10 +445,6 @@ export const blockedContent = (words: string[]): OutputGuardrail =>
     },
   );
 
-// Removed duplicate - use outputLengthLimit above
-
-// Removed duplicate - use blockedContent above
-
 export const jsonValidation = (): OutputGuardrail =>
   createOutputGuardrail(
     'json-validation',
@@ -557,6 +464,7 @@ export const jsonValidation = (): OutputGuardrail =>
 
       // Fast-fail non-JSON by prefix check
       const trimmed = content.trim();
+
       if (
         !trimmed.startsWith('{') &&
         !trimmed.startsWith('[') &&
@@ -583,6 +491,7 @@ export const jsonValidation = (): OutputGuardrail =>
 
       try {
         JSON.parse(content);
+
         return {
           tripwireTriggered: false,
           info: {
@@ -592,6 +501,7 @@ export const jsonValidation = (): OutputGuardrail =>
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
+
         return {
           tripwireTriggered: true,
           message: `Output is not valid JSON: ${errorMessage}`,
@@ -624,6 +534,7 @@ export const confidenceThreshold = (minConfidence: number): OutputGuardrail =>
         generationTimeMs,
         reasoningText,
       } = extractContent(context.result);
+
       const content = text || (object ? JSON.stringify(object) : '');
 
       const hasUncertainty =
@@ -633,7 +544,6 @@ export const confidenceThreshold = (minConfidence: number): OutputGuardrail =>
         content.toLowerCase().includes('uncertain') ||
         content.toLowerCase().includes('not sure');
 
-      // Consider finish reason for confidence
       const finishReasonPenalty = finishReason === 'length' ? 0.2 : 0;
       const baseConfidence = hasUncertainty ? 0.5 : 0.9;
       const confidence = Math.max(0, baseConfidence - finishReasonPenalty);
@@ -671,22 +581,24 @@ export const toxicityFilter = (threshold: number = 0.7): OutputGuardrail =>
       const { text, object } = extractContent(context.result);
       const content = text || (object ? JSON.stringify(object) : '');
 
-      // Simplified toxicity detection - in real implementation,
-      // you'd use a proper toxicity detection API
-      const toxicWords = ['toxic', 'harmful', 'offensive', 'inappropriate'];
-      const detectedWords = toxicWords.filter((word) =>
-        content.toLowerCase().includes(word),
-      );
-      const toxicityScore = detectedWords.length * 0.3;
+      // Phrase-level abuse signals shared with toxicityDetector.
+      const assessment = assessToxicity(content);
+      const toxicityScore = assessment.score;
+      const detectedWords = assessment.matches;
+      const categories = assessment.categories;
 
       return {
-        tripwireTriggered: toxicityScore > threshold,
-        message: `Content toxicity score ${toxicityScore} exceeds threshold ${threshold}`,
+        tripwireTriggered: toxicityScore >= threshold,
+        message:
+          toxicityScore >= threshold
+            ? `Content toxicity score ${toxicityScore} exceeds threshold ${threshold}`
+            : undefined,
         severity: 'high' as const,
         metadata: {
           toxicityScore,
           threshold,
           detectedWords,
+          categories,
           contentLength: content.length,
         },
         info: {
@@ -724,6 +636,7 @@ export const customValidation = (
   return createOutputGuardrail(name, (context: OutputGuardrailContext) => {
     const { text, object, usage, finishReason, generationTimeMs } =
       extractContent(context.result);
+
     const validatorInput: CustomOutputValidationInput = {
       text,
       object,
@@ -731,7 +644,9 @@ export const customValidation = (
       finishReason,
       generationTimeMs,
     };
+
     const blocked = validator(validatorInput);
+
     return {
       tripwireTriggered: blocked,
       message: blocked ? message : undefined,
@@ -754,8 +669,8 @@ export const customValidation = (
   });
 };
 
-export const schemaValidation = (schema: {
-  parse: (obj: unknown) => unknown;
+export const schemaValidation = <T>(schema: {
+  parse: (data: JSONValue) => T;
 }): OutputGuardrail =>
   createOutputGuardrail(
     'schema-validation',
@@ -783,7 +698,9 @@ export const schemaValidation = (schema: {
       }
 
       try {
-        schema.parse(object);
+        // SAFETY: structured output objects are parsed from the model's JSON.
+        schema.parse(object as JSONValue);
+
         return {
           tripwireTriggered: false,
           metadata: {
@@ -802,6 +719,7 @@ export const schemaValidation = (schema: {
       } catch (error: unknown) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
+
         return {
           tripwireTriggered: true,
           message: `Schema validation failed: ${errorMessage}`,
@@ -839,6 +757,7 @@ export const tokenUsageLimit = (maxTokens: number): OutputGuardrail =>
       const { text, object, usage, generationTimeMs } = extractContent(
         context.result,
       );
+
       const totalTokens = usage?.totalTokens || 0;
       const content = text || (object ? JSON.stringify(object) : '');
 
@@ -849,12 +768,8 @@ export const tokenUsageLimit = (maxTokens: number): OutputGuardrail =>
         metadata: {
           totalTokens,
           maxTokens,
-          inputTokens:
-            (usage as { inputTokens?: number })?.inputTokens ||
-            (usage as { promptTokens?: number })?.promptTokens,
-          outputTokens:
-            (usage as { outputTokens?: number })?.outputTokens ||
-            (usage as { completionTokens?: number })?.completionTokens,
+          inputTokens: usage?.promptTokens,
+          outputTokens: usage?.completionTokens,
           contentLength: content.length,
           generationTimeMs,
           tokensPerMs:
@@ -881,6 +796,7 @@ export const performanceMonitor = (
       const { text, object, usage, generationTimeMs } = extractContent(
         context.result,
       );
+
       const actualGenerationTimeMs = generationTimeMs || 0;
       const content = text || (object ? JSON.stringify(object) : '');
 
@@ -911,8 +827,9 @@ export const performanceMonitor = (
     },
   );
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
+const plainObject = z.looseObject({});
+
+const headerValue = z.string();
 
 export const hallucinationDetector = (
   confidenceThreshold: number = 0.7,
@@ -922,11 +839,14 @@ export const hallucinationDetector = (
     (context: OutputGuardrailContext, accumulatedText?: string) => {
       const { text, object, usage, finishReason, generationTimeMs } =
         extractContent(context.result);
+
       const content =
         accumulatedText ||
-        (object && isObject(object) ? JSON.stringify(object) : text || '');
+        (plainObject.safeParse(object).success
+          ? JSON.stringify(object)
+          : text || '');
 
-      // Simple hallucination detection based on uncertainty indicators
+      // Heuristic: uncertainty indicators, alone and alongside factual claims.
       const uncertaintyIndicators = [
         'i think',
         'i believe',
@@ -969,6 +889,7 @@ export const hallucinationDetector = (
       // Higher uncertainty with factual claims suggests potential hallucination
       const hallucinationScore =
         uncertaintyCount * 0.3 + factualClaimCount * 0.2;
+
       const isHallucination = hallucinationScore > confidenceThreshold;
 
       return {
@@ -1007,7 +928,7 @@ export const biasDetector = (): OutputGuardrail =>
     const content = text || (object ? JSON.stringify(object) : '');
     const lowerContent = content.toLowerCase();
 
-    // Simple bias detection patterns
+    // Bias indicator patterns
     const biasPatterns = {
       gender: [
         'men are better at',
@@ -1054,6 +975,7 @@ export const biasDetector = (): OutputGuardrail =>
       const found = patterns.filter((pattern) =>
         lowerContent.includes(pattern),
       );
+
       if (found.length > 0) {
         detectedBias.push(category);
         matches.push(...found);
@@ -1182,6 +1104,7 @@ export const privacyLeakageDetector = (): OutputGuardrail =>
 
       for (const [category, pattern] of Object.entries(privacyPatterns)) {
         const found = content.match(pattern);
+
         if (found) {
           detectedLeakage.push(category);
           matches.push(...found);
@@ -1230,13 +1153,14 @@ export const contentConsistencyChecker = (
       const { text, object } = extractContent(context.result);
       const content = text || (object ? JSON.stringify(object) : '');
 
-      // Simple consistency check - in production, use semantic similarity
+      // Consistency is the share of words the output has in common with the reference.
       const contentWords = content.toLowerCase().split(/\s+/);
       const referenceWords = referenceContent.toLowerCase().split(/\s+/);
 
       const commonWords = contentWords.filter((word: string) =>
         referenceWords.includes(word),
       );
+
       const consistencyScore =
         commonWords.length /
         Math.max(contentWords.length, referenceWords.length);
@@ -1277,26 +1201,46 @@ export const complianceChecker = (
       const { text, object } = extractContent(context.result);
       const content = text || (object ? JSON.stringify(object) : '');
 
-      // Check for regulatory compliance patterns
-      const compliancePatterns = {
-        gdpr: ['personal data', 'data processing', 'consent', 'data subject'],
-        hipaa: ['patient', 'medical', 'health information', 'protected health'],
-        pci: ['credit card', 'payment', 'cardholder', 'card number'],
-        sox: ['financial', 'audit', 'internal controls', 'financial reporting'],
-        coppa: ['children', 'under 13', 'parental consent', 'minor'],
-      };
+      const compliancePatterns = new Map(
+        Object.entries({
+          gdpr: ['personal data', 'data processing', 'consent', 'data subject'],
+          hipaa: [
+            'patient',
+            'medical',
+            'health information',
+            'protected health',
+          ],
+          pci: ['credit card', 'payment', 'cardholder', 'card number'],
+          sox: [
+            'financial',
+            'audit',
+            'internal controls',
+            'financial reporting',
+          ],
+          coppa: ['children', 'under 13', 'parental consent', 'minor'],
+        }),
+      );
+
+      const environment = z
+        .string()
+        .optional()
+        .catch(undefined)
+        .parse(
+          isObjectLike(context.input) && 'environment' in context.input
+            ? context.input.environment
+            : undefined,
+        );
 
       const violations = [];
 
       for (const regulation of regulations) {
-        const patterns =
-          compliancePatterns[
-            regulation.toLowerCase() as keyof typeof compliancePatterns
-          ];
+        const patterns = compliancePatterns.get(regulation.toLowerCase());
+
         if (patterns) {
           const found = patterns.some((pattern) =>
             content.toLowerCase().includes(pattern),
           );
+
           if (found) {
             violations.push(regulation.toUpperCase());
           }
@@ -1314,8 +1258,7 @@ export const complianceChecker = (
           violations,
           regulations,
           contentLength: content.length,
-          environment: (context.input as InputContextWithEnvironment)
-            ?.environment,
+          environment,
         },
         suggestion: 'Review output for compliance with applicable regulations',
         info: {
@@ -1323,8 +1266,7 @@ export const complianceChecker = (
           violations,
           regulations,
           contentLength: content.length,
-          environment: (context.input as InputContextWithEnvironment)
-            ?.environment,
+          environment,
         },
       };
     },
@@ -1334,6 +1276,13 @@ export const complianceChecker = (
  * Secret redaction guardrail that detects and blocks output containing sensitive information
  * like API keys, access tokens, AWS ARNs, JWTs, and PEM certificates
  */
+const PLACEHOLDER =
+  /x{6,}|X{6,}|EXAMPLE|YOUR[_-]|<[^>]+>|REPLACE|PLACEHOLDER|CHANGEME|\*{4,}|\.{3}|\b(?:USER|USERNAME):(?:PASS|PASSWORD)@|\$\{|\{\{/;
+
+function isSecretPlaceholder(value: string): boolean {
+  return PLACEHOLDER.test(value) || /(.)\1{9,}/.test(value);
+}
+
 export const secretRedaction = createOutputGuardrail(
   'secret-redaction',
   (context: OutputGuardrailContext) => {
@@ -1354,9 +1303,12 @@ export const secretRedaction = createOutputGuardrail(
         pattern: /AKIA[0-9A-Z]{16}/g,
       },
       // AWS Secret Keys
+      // Exactly 40 base64 chars with mixed case and a digit: excludes git SHAs
+      // (lowercase hex) and longer hashes like npm `sha512-…` integrity values.
       {
         name: 'AWS Secret Key',
-        pattern: /[A-Za-z0-9/+=]{40}/g,
+        pattern:
+          /(?<![A-Za-z0-9/+=])(?=[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=]))(?=[a-z0-9/+=]*[A-Z])(?=[A-Z0-9/+=]*[a-z])(?=[A-Za-z/+=]*\d)[A-Za-z0-9/+=]{40}/g,
       },
       // AWS ARNs
       {
@@ -1377,7 +1329,8 @@ export const secretRedaction = createOutputGuardrail(
       // GitHub Personal Access Tokens
       {
         name: 'GitHub Token',
-        pattern: /ghp_[a-zA-Z0-9]{36}/g,
+        pattern:
+          /\b(?:gh[pousr]_[a-zA-Z0-9]{36,}|github_pat_[a-zA-Z0-9_]{60,})\b/g,
       },
       // Google API Keys
       {
@@ -1399,7 +1352,22 @@ export const secretRedaction = createOutputGuardrail(
       {
         name: 'Database Connection String',
         pattern:
-          /(?:mongodb|postgres|mysql|redis):\/\/[^@\s]+:[^@\s]+@[^/\s]+/gi,
+          /\b(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|mariadb|rediss?|amqps?|mssql|sqlserver|ftp|sftp|smtp|ldap):\/\/[^:@\s/]+:[^@\s]+@[^/\s]+/gi,
+      },
+      {
+        name: 'Connection String Password',
+        pattern: /\b(?:Password|Pwd)\s*=\s*[^;\s]{4,};/gi,
+      },
+      // Passwords written in prose: "password is X", "with password X", "pw: X"
+      {
+        name: 'Password',
+        pattern:
+          /\b(?:password|passphrase|passwd|pwd)\b(?:\s+(?:for|on|of)\s+[\w ]{1,40}?)?(?:\s+(?:is|was|is still|=|:)|\s*[:=])?\s+(?:still\s+)?["'“]?(?=[^\s"'”]*[\d!@#$%^&*_-])([^\s"'”]{6,})/gi,
+      },
+      {
+        name: 'Password',
+        pattern:
+          /\b(?:login|user(?:name)?)\s*:\s*\S+\s*\/\s*(?=\S*[\d!@#$%^&*])\S{6,}/gi,
       },
       // Environment variables with secrets (more specific to reduce false positives)
       {
@@ -1415,16 +1383,21 @@ export const secretRedaction = createOutputGuardrail(
       position: number;
     }> = [];
 
-    // Check for each pattern (precompiled regexes)
     for (const { name, pattern } of secretPatterns) {
-      // Reset regex lastIndex for global patterns
       if (pattern.global) {
         pattern.lastIndex = 0;
       }
 
       let match;
+
       while ((match = pattern.exec(content)) !== null) {
-        // Mask the secret for security
+        // Documented placeholders ("ghp_xxxx…", "AKIA…EXAMPLE", "USER:PASSWORD")
+        // are not leaks.
+        if (isSecretPlaceholder(match[0])) {
+          if (match[0].length === 0) pattern.lastIndex++;
+          continue;
+        }
+
         const maskedSecret =
           match[0].length > 20
             ? match[0].slice(0, 8) + '...' + match[0].slice(-4)
@@ -1481,7 +1454,6 @@ export const unsafeContentDetector = createOutputGuardrail(
     const { text, object } = extractContent(context.result);
     const content = text || (object ? JSON.stringify(object) : '');
 
-    // Define categories of unsafe content
     const unsafePatterns = [
       {
         category: 'Violence',
@@ -1536,12 +1508,15 @@ export const unsafeContentDetector = createOutputGuardrail(
 
     for (const { category, patterns } of unsafePatterns) {
       let totalMatches = 0;
+
       for (const pattern of patterns) {
         const matches = content.match(pattern);
+
         if (matches) {
           totalMatches += matches.length;
         }
       }
+
       if (totalMatches > 0) {
         detectedIssues.push({ category, matches: totalMatches });
       }
@@ -1601,6 +1576,7 @@ export const costQuotaRails = (options: {
       const content = text || (object ? JSON.stringify(object) : '');
 
       const totalTokens = usage?.totalTokens || 0;
+
       const estimatedCost = options.tokenCostPer1K
         ? (totalTokens / 1000) * options.tokenCostPer1K
         : 0;
@@ -1701,12 +1677,10 @@ export const enhancedHallucinationDetector = (options: {
       const issues: string[] = [];
       let hallucinationScore = 0;
 
-      // Check for factual claims
       const factualClaims = factCheckPatterns.filter((pattern) =>
         content.toLowerCase().includes(pattern.toLowerCase()),
       );
 
-      // Check for citations if required
       const citations = citationFormats.filter((format) =>
         content.toLowerCase().includes(format.toLowerCase()),
       );
@@ -1722,7 +1696,6 @@ export const enhancedHallucinationDetector = (options: {
         hallucinationScore += 0.4;
       }
 
-      // Check uncertainty indicators
       const uncertaintyIndicators = [
         'i think',
         'i believe',
@@ -1749,43 +1722,40 @@ export const enhancedHallucinationDetector = (options: {
         hallucinationScore += uncertaintyCount * 0.1;
       }
 
-      // Check schema constraints for structured output
       if (schemaConstraints && object) {
-        const obj = object as Record<string, unknown>;
+        const fields = new Map(Object.entries(object));
 
-        // Check required fields
         if (schemaConstraints.requiredFields) {
           const missingFields = schemaConstraints.requiredFields.filter(
             (field) =>
-              !Object.hasOwn(obj, field) ||
-              obj[field] === null ||
-              obj[field] === undefined,
+              fields.get(field) === null || fields.get(field) === undefined,
           );
+
           if (missingFields.length > 0) {
             issues.push(`Missing required fields: ${missingFields.join(', ')}`);
             hallucinationScore += 0.3;
           }
         }
 
-        // Check allowed values
         if (schemaConstraints.allowedValues) {
           for (const [field, allowedValues] of Object.entries(
             schemaConstraints.allowedValues,
           )) {
             if (
-              !Object.hasOwn(obj, field) ||
-              allowedValues.includes(String(obj[field]))
+              !fields.has(field) ||
+              allowedValues.includes(String(fields.get(field)))
             ) {
               continue;
             }
 
-            issues.push(`Invalid value for field '${field}': ${obj[field]}`);
+            issues.push(
+              `Invalid value for field '${field}': ${fields.get(field)}`,
+            );
             hallucinationScore += 0.2;
           }
         }
       }
 
-      // Check for contradictory statements
       const contradictionPatterns = [
         ['always', 'never'],
         ['all', 'none'],
@@ -1849,118 +1819,137 @@ export const enhancedHallucinationDetector = (options: {
     },
   );
 
+/** Parse `retry-after` (delta-seconds or HTTP-date) / `retry-after-ms` / `x-ratelimit-reset-*` ("1s", "6m0s", "250ms", seconds) into ms. */
+export function parseRetryAfterMs(
+  value: string | undefined,
+  now = Date.now(),
+): number | undefined {
+  if (value === undefined) return undefined;
+  const v = value.trim();
+
+  if (/^\d+(\.\d+)?$/.test(v)) return Math.round(Number(v) * 1000);
+
+  const duration =
+    /^(?:(\d+)h)?(?:(\d+)m(?!s))?(?:(\d+(?:\.\d+)?)s)?(?:(\d+)ms)?$/.exec(v);
+
+  if (duration && v !== '') {
+    const [, h = '0', m = '0', sec = '0', ms = '0'] = duration;
+
+    return Math.round(
+      Number(h) * 3_600_000 +
+        Number(m) * 60_000 +
+        Number(sec) * 1000 +
+        Number(ms),
+    );
+  }
+
+  const date = Date.parse(v);
+
+  return Number.isNaN(date) ? undefined : Math.max(0, date - now);
+}
+
 /**
- * Retry-After integration guardrail that handles provider rate limiting and backoff
+ * Reads the provider's rate-limit response headers (`retry-after`,
+ * `retry-after-ms`, `x-ratelimit-remaining-{requests,tokens}` and the matching
+ * `x-ratelimit-reset-*`) and trips when the provider asks you to back off or a
+ * remaining quota is at or below `minRemaining`. The result carries a jittered
+ * `recommendedBackoffMs` capped at `maxRetryDelayMs`. Passes when the provider
+ * sends no such headers.
  */
-export const retryAfterIntegration = (options: {
-  maxRetryDelayMs?: number;
-  defaultBackoffMs?: number;
-  jitterFactor?: number; // 0-1, adds randomness to backoff
-  trackRateLimits?: boolean;
-}): OutputGuardrail =>
-  createOutputGuardrail(
-    'retry-after-integration',
-    (context: OutputGuardrailContext) => {
-      const { usage, generationTimeMs } = extractContent(context.result);
+export const retryAfterIntegration = (
+  options: {
+    maxRetryDelayMs?: number;
+    defaultBackoffMs?: number;
+    /** 0-1, randomness added to the backoff. */
+    jitterFactor?: number;
+    /** Trip when a remaining-requests/tokens header is at or below this. Default 0. */
+    minRemaining?: number;
+    /** @deprecated No effect; rate-limit headers are always read. */
+    trackRateLimits?: boolean;
+  } = {},
+): OutputGuardrail =>
+  createOutputGuardrail('retry-after-integration', (context) => {
+    const {
+      maxRetryDelayMs = 60_000,
+      defaultBackoffMs = 1000,
+      jitterFactor = 0.1,
+      minRemaining = 0,
+    } = options;
 
-      const {
-        maxRetryDelayMs = 60_000, // 1 minute max
-        defaultBackoffMs = 1000, // 1 second default
-        jitterFactor = 0.1,
-        trackRateLimits = true,
-      } = options;
+    // SAFETY: only `response.headers` is read, and it is parsed before use.
+    const raw = (context.result as { response?: { headers?: unknown } })
+      .response?.headers;
 
-      // Check for rate limiting indicators in the result
-      // Note: In a real implementation, you'd access response headers directly
-      const rateLimitIndicators = {
-        hasRetryAfter: false,
-        retryAfterMs: 0,
-        rateLimitExceeded: false,
-        requestsRemaining: null as number | null,
-        resetTime: null as Date | null,
-      };
+    const headers: Record<string, string> = {};
+    const rawHeaders = plainObject.safeParse(raw);
 
-      // Simulate checking for rate limit headers (in real usage, these would come from provider response)
-      // const headers = context.result.response?.headers;
-      // if (headers && 'retry-after' in headers) {
-      //   rateLimitIndicators.hasRetryAfter = true;
-      //   rateLimitIndicators.retryAfterMs = parseInt(headers['retry-after']) * 1000;
-      // }
+    if (rawHeaders.success) {
+      for (const [k, v] of Object.entries(rawHeaders.data)) {
+        const value = headerValue.safeParse(v);
 
-      // Check for high generation time as potential rate limiting indicator
-      if (generationTimeMs && generationTimeMs > 5000) {
-        rateLimitIndicators.rateLimitExceeded = true;
+        if (value.success) headers[k.toLowerCase()] = value.data;
       }
+    }
 
-      // Check usage patterns for potential rate limiting
-      const totalTokens = usage?.totalTokens || 0;
-      if (totalTokens > 10_000) {
-        // High token usage might indicate approaching limits
-        rateLimitIndicators.rateLimitExceeded = true;
-      }
+    const msHeader = Number(headers['retry-after-ms']);
 
-      let recommendedBackoffMs = defaultBackoffMs;
+    const retryAfterMs =
+      headers['retry-after-ms'] !== undefined && Number.isFinite(msHeader)
+        ? msHeader
+        : parseRetryAfterMs(headers['retry-after']);
 
-      if (rateLimitIndicators.hasRetryAfter) {
-        recommendedBackoffMs = Math.min(
-          rateLimitIndicators.retryAfterMs,
-          maxRetryDelayMs,
-        );
-      } else if (rateLimitIndicators.rateLimitExceeded) {
-        // Exponential backoff with jitter
-        recommendedBackoffMs = Math.min(
-          defaultBackoffMs * 2 +
-            Math.random() * jitterFactor * defaultBackoffMs,
-          maxRetryDelayMs,
-        );
-      }
+    const remaining = (['requests', 'tokens'] as const).flatMap((kind) => {
+      const n = Number(headers[`x-ratelimit-remaining-${kind}`]);
 
-      // Add jitter to prevent thundering herd
-      const jitter = Math.random() * jitterFactor * recommendedBackoffMs;
-      const finalBackoffMs = Math.round(recommendedBackoffMs + jitter);
+      return headers[`x-ratelimit-remaining-${kind}`] !== undefined &&
+        Number.isFinite(n)
+        ? [
+            {
+              kind,
+              remaining: n,
+              resetMs: parseRetryAfterMs(headers[`x-ratelimit-reset-${kind}`]),
+            },
+          ]
+        : [];
+    });
 
-      if (
-        rateLimitIndicators.hasRetryAfter ||
-        rateLimitIndicators.rateLimitExceeded
-      ) {
-        return {
-          tripwireTriggered: true,
-          message: `Rate limiting detected, recommended backoff: ${finalBackoffMs}ms`,
-          severity: 'medium' as const,
-          metadata: {
-            ...rateLimitIndicators,
-            recommendedBackoffMs: finalBackoffMs,
-            originalBackoffMs: recommendedBackoffMs,
-            jitterMs: jitter,
-            maxRetryDelayMs,
-            totalTokens,
-            generationTimeMs,
-            trackRateLimits,
-          },
-          suggestion: `Wait ${finalBackoffMs}ms before making the next request to respect rate limits`,
-          info: {
-            guardrailName: 'retry-after-integration',
-            hasRetryAfter: rateLimitIndicators.hasRetryAfter,
-            rateLimitExceeded: rateLimitIndicators.rateLimitExceeded,
-            recommendedBackoffMs: finalBackoffMs,
-            totalTokens: totalTokens,
-          },
-        };
-      }
+    const exhausted = remaining.filter((r) => r.remaining <= minRemaining);
 
+    if (retryAfterMs === undefined && exhausted.length === 0) {
       return {
         tripwireTriggered: false,
-        metadata: {
-          backoffCalculated: finalBackoffMs,
-          rateLimitTracking: trackRateLimits,
-          generationTimeMs,
-          totalTokens,
-        },
-        info: {
-          guardrailName: 'retry-after-integration',
-          backoffCalculated: finalBackoffMs,
-          rateLimitTracking: trackRateLimits,
-        },
+        metadata: { remaining },
+        info: { guardrailName: 'retry-after-integration' },
       };
-    },
-  );
+    }
+
+    const baseMs =
+      retryAfterMs ??
+      Math.max(...exhausted.map((r) => r.resetMs ?? defaultBackoffMs));
+
+    const cappedMs = Math.min(baseMs, maxRetryDelayMs);
+    const jitterMs = Math.random() * jitterFactor * cappedMs;
+
+    const recommendedBackoffMs = Math.min(
+      Math.round(cappedMs + jitterMs),
+      maxRetryDelayMs,
+    );
+
+    const reason =
+      retryAfterMs === undefined
+        ? `${exhausted.map((r) => `${r.kind} remaining ${r.remaining}`).join(', ')}`
+        : `provider sent retry-after ${retryAfterMs}ms`;
+
+    return {
+      tripwireTriggered: true,
+      message: `Rate limited (${reason}); back off ${recommendedBackoffMs}ms`,
+      severity: 'medium' as const,
+      metadata: { retryAfterMs, remaining, recommendedBackoffMs },
+      suggestion: `Wait ${recommendedBackoffMs}ms before the next request`,
+      info: {
+        guardrailName: 'retry-after-integration',
+        retryAfterMs,
+        recommendedBackoffMs,
+      },
+    };
+  });

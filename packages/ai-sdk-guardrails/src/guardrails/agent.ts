@@ -13,8 +13,6 @@ import type {
   OutputGuardrailsMiddlewareConfig,
 } from '../types';
 
-type AnyRecord = Record<string, unknown>;
-
 export interface AgentGuardrailsConfig<TOOLS extends ToolSet = ToolSet> {
   /** The language model the agent runs on, wrapped with the guardrails below. */
   model: LanguageModel;
@@ -37,15 +35,15 @@ export interface AgentGuardrailsConfig<TOOLS extends ToolSet = ToolSet> {
   /** Replace blocked output text with a message (default true). */
   replaceOnBlocked?: boolean;
   /** Auto-retry config forwarded to the model's output-guardrail middleware. */
-  retry?: OutputGuardrailsMiddlewareConfig<AnyRecord>['retry'];
+  retry?: OutputGuardrailsMiddlewareConfig['retry'];
   executionOptions?: {
     parallel?: boolean;
     timeout?: number;
     continueOnFailure?: boolean;
     logLevel?: 'none' | 'error' | 'warn' | 'info' | 'debug';
   };
-  onInputBlocked?: InputGuardrailsMiddlewareConfig<AnyRecord>['onInputBlocked'];
-  onOutputBlocked?: OutputGuardrailsMiddlewareConfig<AnyRecord>['onOutputBlocked'];
+  onInputBlocked?: InputGuardrailsMiddlewareConfig['onInputBlocked'];
+  onOutputBlocked?: OutputGuardrailsMiddlewareConfig['onOutputBlocked'];
   /**
    * A `stopWhen` condition to compose with the guardrail-violation stop
    * condition. Pass it here (not to `ToolLoopAgent`) so it is combined rather
@@ -110,18 +108,19 @@ function buildGuardrailStopCondition<TOOLS extends ToolSet>(
           (r) => (r.severity ?? 'medium') === 'critical',
         ),
       );
+
       return violationHistory.length >= 3 || critical.length > 0;
     }
-    if (typeof stopOnViolation === 'number') {
-      return violationHistory.length >= stopOnViolation;
-    }
-    if (typeof stopOnViolation === 'function') {
+
+    if (stopOnViolation instanceof Function) {
       return stopOnViolation(violationHistory);
     }
-    return false;
+
+    return violationHistory.length >= stopOnViolation;
   };
 
   if (!userStopWhen) return guardrailStop;
+
   return Array.isArray(userStopWhen)
     ? [...userStopWhen, guardrailStop]
     : [userStopWhen, guardrailStop];
@@ -185,9 +184,10 @@ export function agentGuardrails<TOOLS extends ToolSet = ToolSet>(
     step: number;
     summary: GuardrailExecutionSummary;
   }> = [];
+
   let pendingBlock: GuardrailExecutionSummary | null = null;
 
-  const recordingOnOutputBlocked: OutputGuardrailsMiddlewareConfig<AnyRecord>['onOutputBlocked'] =
+  const recordingOnOutputBlocked: OutputGuardrailsMiddlewareConfig['onOutputBlocked'] =
     stopOnGuardrailViolation
       ? (summary, ...rest) => {
           pendingBlock = summary;
@@ -210,14 +210,14 @@ export function agentGuardrails<TOOLS extends ToolSet = ToolSet>(
   const fragments: AgentGuardrailsFragments<TOOLS> = { model: guardedModel };
 
   if (stopOnGuardrailViolation) {
-    fragments.onStepEnd = ((step: { stepNumber: number }) => {
+    fragments.onStepEnd = (step) => {
       if (!pendingBlock) {
         return;
       }
 
       violationHistory.push({ step: step.stepNumber, summary: pendingBlock });
       pendingBlock = null;
-    }) as GenerateTextOnStepEndCallback<TOOLS>;
+    };
 
     fragments.stopWhen = buildGuardrailStopCondition<TOOLS>(
       stopWhen,

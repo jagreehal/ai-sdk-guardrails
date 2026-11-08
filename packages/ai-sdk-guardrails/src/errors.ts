@@ -1,9 +1,11 @@
 import { AISDKError } from '@ai-sdk/provider';
+import type { GuardrailMetadata, MetadataValue } from './enhanced-types';
 
-// Marker symbol for cross-version `instanceof`-free detection, mirroring the AI
+// Marker symbol for cross-version `instanceof`-free detection, following the AI
 // SDK's own error convention (see `AISDKError`). Any GuardrailsError is also an
 // AISDKError, so `AISDKError.isInstance(err)` catches guardrail errors too.
 const marker = 'ai-sdk-guardrails.error';
+
 const symbol = Symbol.for(marker);
 
 /**
@@ -17,12 +19,12 @@ export abstract class GuardrailsError extends AISDKError {
   abstract readonly code: string;
 
   public readonly timestamp: Date;
-  public readonly metadata: Record<string, unknown>;
+  public readonly metadata: GuardrailMetadata;
 
   constructor(
     name: string,
     message: string,
-    metadata: Record<string, unknown> = {},
+    metadata: GuardrailMetadata = {},
     cause?: unknown,
   ) {
     super({ name, message, cause });
@@ -48,10 +50,8 @@ export abstract class GuardrailsError extends AISDKError {
    * Check if this error is of a specific guardrails error subclass.
    */
   is<T extends GuardrailsError>(
-    // `any[]`, not `unknown[]`: concrete constructors aren't assignable to a
-    // construct signature taking `unknown` params.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    errorClass: new (...args: any[]) => T,
+    // `never[]` params accept any concrete constructor signature.
+    errorClass: new (...args: never[]) => T,
   ): this is T {
     return this instanceof errorClass;
   }
@@ -77,7 +77,7 @@ export class GuardrailValidationError extends GuardrailsError {
   constructor(
     guardrailName: string,
     validationErrors: ValidationError[],
-    metadata: Record<string, unknown> = {},
+    metadata: GuardrailMetadata = {},
   ) {
     const message = `Guardrail "${guardrailName}" validation failed: ${validationErrors.map((e) => e.message).join(', ')}`;
     super('GuardrailValidationError', message, {
@@ -103,7 +103,7 @@ export class GuardrailExecutionError extends GuardrailsError {
   constructor(
     guardrailName: string,
     originalError?: Error,
-    metadata: Record<string, unknown> = {},
+    metadata: GuardrailMetadata = {},
   ) {
     const message = originalError
       ? `Guardrail "${guardrailName}" execution failed: ${originalError.message}`
@@ -133,7 +133,7 @@ export class GuardrailTimeoutError extends GuardrailsError {
   constructor(
     guardrailName: string,
     timeoutMs: number,
-    metadata: Record<string, unknown> = {},
+    metadata: GuardrailMetadata = {},
   ) {
     const message = `Guardrail "${guardrailName}" timed out after ${timeoutMs}ms`;
     super('GuardrailTimeoutError', message, {
@@ -159,7 +159,7 @@ export class GuardrailConfigurationError extends GuardrailsError {
   constructor(
     configErrors: string[],
     configPath?: string,
-    metadata: Record<string, unknown> = {},
+    metadata: GuardrailMetadata = {},
   ) {
     const message = `Guardrail configuration error${configPath ? ` in ${configPath}` : ''}: ${configErrors.join(', ')}`;
     super('GuardrailConfigurationError', message, {
@@ -187,7 +187,7 @@ export class GuardrailsInputError extends GuardrailsError {
 
   constructor(
     blockedGuardrails: GuardrailsInputError['blockedGuardrails'],
-    metadata: Record<string, unknown> = {},
+    metadata: GuardrailMetadata = {},
   ) {
     const guardrailNames = blockedGuardrails.map((g) => g.name).join(', ');
     const message = `Input blocked by guardrail${blockedGuardrails.length > 1 ? 's' : ''}: ${guardrailNames}`;
@@ -211,7 +211,7 @@ export class GuardrailsOutputError extends GuardrailsError {
 
   constructor(
     blockedGuardrails: GuardrailsOutputError['blockedGuardrails'],
-    metadata: Record<string, unknown> = {},
+    metadata: GuardrailMetadata = {},
   ) {
     const guardrailNames = blockedGuardrails.map((g) => g.name).join(', ');
     const message = `Output blocked by guardrail${blockedGuardrails.length > 1 ? 's' : ''}: ${guardrailNames}`;
@@ -235,7 +235,7 @@ export class MiddlewareError extends GuardrailsError {
     middlewareType: 'input' | 'output',
     phase: 'transform' | 'wrap' | 'execute',
     originalError?: Error,
-    metadata: Record<string, unknown> = {},
+    metadata: GuardrailMetadata = {},
   ) {
     const message = originalError
       ? `${middlewareType} middleware ${phase} error: ${originalError.message}`
@@ -262,12 +262,12 @@ export class MiddlewareError extends GuardrailsError {
 /**
  * Individual validation error within a guardrail
  */
-export interface ValidationError {
+export type ValidationError = {
   field?: string;
   message: string;
   code?: string;
-  value?: unknown;
-}
+  value?: MetadataValue;
+};
 
 /**
  * Utility function to check if an error is a guardrails error.
@@ -277,33 +277,36 @@ export function isGuardrailsError(error: unknown): error is GuardrailsError {
   return GuardrailsError.isInstance(error);
 }
 
-/**
- * Utility function to extract error information for logging
- */
-export function extractErrorInfo(error: unknown): {
+/** Loggable summary of a thrown value, as returned by {@link extractErrorInfo}. */
+interface ErrorInfo {
   name: string;
   message: string;
   code?: string;
-  metadata?: Record<string, unknown>;
-} {
-  if (isGuardrailsError(error)) {
+  metadata?: GuardrailMetadata;
+}
+
+/**
+ * Utility function to extract error information for logging
+ */
+export function extractErrorInfo(cause: unknown): ErrorInfo {
+  if (isGuardrailsError(cause)) {
     return {
-      name: error.name,
-      message: error.message,
-      code: error.code,
-      metadata: error.metadata,
+      name: cause.name,
+      message: cause.message,
+      code: cause.code,
+      metadata: cause.metadata,
     };
   }
 
-  if (error instanceof Error) {
+  if (cause instanceof Error) {
     return {
-      name: error.name,
-      message: error.message,
+      name: cause.name,
+      message: cause.message,
     };
   }
 
   return {
     name: 'UnknownError',
-    message: String(error),
+    message: String(cause),
   };
 }

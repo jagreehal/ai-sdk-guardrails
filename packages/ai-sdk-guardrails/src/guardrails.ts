@@ -13,11 +13,11 @@ import type {
   OutputGuardrail,
   GuardrailResult,
   LanguageModel,
-  LanguageModelV4,
   LanguageModelV4Middleware,
   InputGuardrailsMiddlewareConfig,
   OutputGuardrailsMiddlewareConfig,
 } from './types';
+import type { GuardrailMetadata } from './enhanced-types';
 
 // ── Re-exports -------------------------------------------------------------
 // The execution engine + context helpers live in ./guardrails/internal and the
@@ -40,17 +40,20 @@ export {
  * {@link defineInputGuardrail} and {@link defineOutputGuardrail}, whose only
  * difference is the (differently typed) `execute` signature they forward to.
  */
-async function runWithEnvelope<M extends Record<string, unknown>>(
+async function runWithEnvelope<M extends GuardrailMetadata>(
   name: string,
   version: string | undefined,
   run: () => GuardrailResult<M> | Promise<GuardrailResult<M>>,
 ): Promise<GuardrailResult<M>> {
   const startTime = ENABLE_PERFORMANCE_TRACKING ? Date.now() : 0;
+
   try {
     const result = await run();
+
     const executionTime = ENABLE_PERFORMANCE_TRACKING
       ? Date.now() - startTime
       : undefined;
+
     return {
       ...result,
       context: createConditionalContext(
@@ -64,6 +67,7 @@ async function runWithEnvelope<M extends Record<string, unknown>>(
     const executionTime = ENABLE_PERFORMANCE_TRACKING
       ? Date.now() - startTime
       : undefined;
+
     return guardrailErrorResult<M>(name, error, {
       context: createConditionalContext(name, version, executionTime),
     });
@@ -75,10 +79,11 @@ async function runWithEnvelope<M extends Record<string, unknown>>(
  * @param guardrail - The guardrail configuration
  * @returns Enhanced input guardrail with automatic metadata injection
  */
-export function defineInputGuardrail<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(guardrail: InputGuardrail<M>): InputGuardrail<M> {
+export function defineInputGuardrail<M extends GuardrailMetadata>(
+  guardrail: InputGuardrail<M>,
+): InputGuardrail<M> {
   const originalExecute = guardrail.execute;
+
   return {
     enabled: true,
     priority: 'medium',
@@ -99,10 +104,11 @@ export function defineInputGuardrail<
  * @param guardrail - The guardrail configuration
  * @returns Enhanced output guardrail with automatic metadata injection
  */
-export function defineOutputGuardrail<
-  M extends Record<string, unknown> = Record<string, unknown>,
->(guardrail: OutputGuardrail<M>): OutputGuardrail<M> {
+export function defineOutputGuardrail<M extends GuardrailMetadata>(
+  guardrail: OutputGuardrail<M>,
+): OutputGuardrail<M> {
   const originalExecute = guardrail.execute;
+
   return {
     enabled: true,
     priority: 'medium',
@@ -127,8 +133,8 @@ export function defineOutputGuardrail<
  * The model itself is supplied separately by `withGuardrails`.
  */
 export interface GuardrailModelConfig<
-  MIn extends Record<string, unknown> = Record<string, unknown>,
-  MOut extends Record<string, unknown> = Record<string, unknown>,
+  MIn extends GuardrailMetadata = GuardrailMetadata,
+  MOut extends GuardrailMetadata = GuardrailMetadata,
 > {
   inputGuardrails?: InputGuardrail<MIn>[];
   outputGuardrails?: OutputGuardrail<MOut>[];
@@ -171,8 +177,8 @@ export interface GuardrailModelConfig<
  * ```
  */
 export function withGuardrails<
-  MIn extends Record<string, unknown> = Record<string, unknown>,
-  MOut extends Record<string, unknown> = Record<string, unknown>,
+  MIn extends GuardrailMetadata = GuardrailMetadata,
+  MOut extends GuardrailMetadata = GuardrailMetadata,
 >(
   config: GuardrailModelConfig<MIn, MOut> & {
     /** The language model to wrap. */
@@ -221,15 +227,16 @@ export function withGuardrails<
     );
   }
 
-  // If no guardrails provided, return the original model unchanged.
   if (middlewares.length === 0) {
     return model;
   }
 
   return wrapLanguageModel({
-    model: model as unknown as LanguageModelV4,
-    middleware: middlewares as unknown as LanguageModelV4Middleware[],
-  }) as LanguageModel;
+    // SAFETY: guardrails wrap provider model instances; a global model-id
+    // string has no middleware surface and is not a supported input here.
+    model: model as Exclude<LanguageModel, string>,
+    middleware: middlewares,
+  });
 }
 
 /**
@@ -267,8 +274,8 @@ export function withGuardrails<
  * ```
  */
 export function createGuardrails<
-  MIn extends Record<string, unknown> = Record<string, unknown>,
-  MOut extends Record<string, unknown> = Record<string, unknown>,
+  MIn extends GuardrailMetadata = GuardrailMetadata,
+  MOut extends GuardrailMetadata = GuardrailMetadata,
 >(config: GuardrailModelConfig<MIn, MOut>) {
   return (model: LanguageModel): LanguageModel =>
     withGuardrails({ model, ...config });

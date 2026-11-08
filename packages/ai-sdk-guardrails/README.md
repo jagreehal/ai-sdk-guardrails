@@ -33,25 +33,6 @@ await generateText({ model: safeModel, prompt: '...' });
 npm install ai-sdk-guardrails
 ```
 
-## 🧙‍♂️ No-Code Wizard (New!)
-
-**Don't want to write code?** Use our visual wizard to configure guardrails:
-
-1. **Open the wizard**: [wizard-prototype/index.html](../../wizard-prototype/index.html)
-2. **Choose your use case**: Content moderation, data protection, quality assurance, or security
-3. **Select guardrails**: Pick from 40+ built-in guardrails
-4. **Configure settings**: Adjust thresholds and parameters with sliders and toggles
-5. **Copy generated code**: Get production-ready TypeScript code instantly
-
-**Perfect for:**
-
-- 🎯 **Non-technical users** who need AI safety
-- 🚀 **Quick prototyping** of guardrail configurations
-- 📚 **Learning** how to use the library
-- 👥 **Team onboarding** and training
-
-The wizard generates code that works out of the box - just copy, paste, and run!
-
 ## Why Guardrails Matter
 
 Real problems that guardrails solve:
@@ -203,53 +184,92 @@ flowchart LR
 | `toxicityDetector()`        | Detect toxic content                     | Safety              |
 | `allowedToolsGuardrail()`   | Restrict which tools can be used         | Tool security       |
 | `highEntropyDetector()`     | Flag encoded/obfuscated payloads         | Security            |
+| `blockedWords()`            | Word-boundary blocking with allowlist    | Content policy      |
+| `codeGenerationLimiter()`   | Allow/deny code by language              | Policy              |
+| `mathHomeworkDetector()`    | Homework-request policy (opt-in)         | Policy              |
+| `customInputValidation()`   | Your own predicate                       | Custom rules        |
 
 ### Output Guardrails (Run After Model)
 
-| Guardrail                    | Purpose                                | Example                   |
-| ---------------------------- | -------------------------------------- | ------------------------- |
-| `sensitiveDataFilter()`      | Remove secrets, API keys               | Security                  |
-| `minLengthRequirement()`     | Enforce minimum length                 | Quality control           |
-| `outputLengthLimit()`        | Enforce maximum length                 | Cost/UX control           |
-| `toxicityFilter()`           | Block toxic responses                  | Safety                    |
-| `jsonValidation()`           | Validate JSON structure                | Structured output         |
-| `schemaValidation()`         | Validate against Zod schema            | Type safety               |
-| `confidenceThreshold()`      | Require minimum confidence             | Quality                   |
-| `hallucinationDetector()`    | Detect uncertain claims                | Accuracy                  |
-| `secretRedaction()`          | Redact secrets from output             | Security                  |
-| `systemPromptLeakDetector()` | Catch the model echoing its own prompt | Prompt protection         |
-| `mcpSecurityGuardrail()`     | MCP tool security                      | Prevent data exfiltration |
+| Guardrail                         | Purpose                                 | Example                   |
+| --------------------------------- | --------------------------------------- | ------------------------- |
+| `sensitiveDataFilter()`           | Remove secrets, API keys                | Security                  |
+| `minLengthRequirement()`          | Enforce minimum length                  | Quality control           |
+| `outputLengthLimit()`             | Enforce maximum length                  | Cost/UX control           |
+| `toxicityFilter()`                | Block toxic responses                   | Safety                    |
+| `jsonValidation()`                | Validate JSON structure                 | Structured output         |
+| `schemaValidation()`              | Validate against Zod schema             | Type safety               |
+| `confidenceThreshold()`           | Require minimum confidence              | Quality                   |
+| `hallucinationDetector()`         | Detect uncertain claims                 | Accuracy                  |
+| `secretRedaction`                 | Redact secrets (instance, not a call)   | Security                  |
+| `systemPromptLeakDetector()`      | Catch the model echoing its own prompt  | Prompt protection         |
+| `mcpSecurityGuardrail()`          | Model output acting on an injection     | Prevent data exfiltration |
+| `mcpResponseSanitizer()`          | Redact injection patterns, never block  | MCP hygiene               |
+| `unsafeContentDetector`           | Harmful content (instance)              | Safety                    |
+| `privacyLeakageDetector()`        | Personal data in output                 | Privacy                   |
+| `biasDetector()`                  | Phrase-list bias detection              | Quality                   |
+| `factualAccuracyChecker()`        | Claims without sources                  | Accuracy                  |
+| `enhancedHallucinationDetector()` | Citation-aware hallucination check      | Accuracy                  |
+| `contentConsistencyChecker()`     | Overlap with reference content          | Quality                   |
+| `complianceChecker()`             | GDPR/HIPAA/PCI/SOX/COPPA phrase checks  | Compliance                |
+| `blockedContent()`                | Block words in output                   | Content policy            |
+| `customOutputValidation()`        | Your own predicate                      | Custom rules              |
+| `tokenUsageLimit()`               | Max tokens per response                 | Cost control              |
+| `costQuotaRails()`                | Per-request token/cost ceilings         | Cost control              |
+| `performanceMonitor()`            | Flag slow generations                   | Performance               |
+| `retryAfterIntegration()`         | Back off on provider rate-limit headers | Resilience                |
+
+### Tool, Governance and Agent Guardrails
+
+| Guardrail                    | Stage               | Purpose                                     |
+| ---------------------------- | ------------------- | ------------------------------------------- |
+| `expectedToolUse()`          | Output              | Require specific tools to have been called  |
+| `toolEgressPolicy()`         | Output              | Allow/deny tools and the hosts they reach   |
+| `budgetGuardrail()`          | Output              | Cumulative cost/token/tool-call kill-switch |
+| `planRiskGuardrail()`        | Output              | Block risky tool plans (SAIF Layer-2)       |
+| `evaluationScopeGuardrail()` | Output              | Keep eval agents inside their sandbox       |
+| `sqlInjectionGuardrail()`    | `guardrailApproval` | SQL injection in tool arguments             |
+| `pathTraversalGuardrail()`   | `guardrailApproval` | Path traversal in tool arguments            |
+| `parameterLengthGuardrail()` | `guardrailApproval` | Oversized tool arguments                    |
+| `toolRBACGuardrail()`        | `guardrailApproval` | Permission checks per tool                  |
+
+Advanced injection detectors (`enhancedPromptInjectionDetector`, `incrementalPromptInjectionDetector`, `toolCallInjectionDetector`, `intentBasedInjectionDetector`) are exported from `ai-sdk-guardrails/advanced`.
+
+All built-ins run offline, with no model or API calls, and they are pattern heuristics rather than trained classifiers. A labelled attack benchmark (`bench/`) measures each one; the [threat model](https://jagreehal.github.io/ai-sdk-guardrails/reference/threat-model/) lists held-out catch and false-alarm rates and what each detector is not meant to stop. Where a heuristic isn't enough, put a model behind a guardrail with `classifierGuardrail` (any AI SDK model, OpenAI Moderation, Presidio, or Prompt Guard): see [Model-Backed Detectors](https://jagreehal.github.io/ai-sdk-guardrails/guides/classifiers/).
 
 ### MCP Security Guardrails
 
-Protect against prompt injection and data exfiltration when using Model Context Protocol (MCP) tools:
+Indirect prompt injection arrives in tool results. Scan them on the way in with `mcpToolResultGuardrail` (an input guardrail that checks the tool results new in each agent step), and check the model's output on the way out with `mcpSecurityGuardrail`:
 
 ```ts
-import { mcpSecurityGuardrail, mcpResponseSanitizer } from 'ai-sdk-guardrails';
+import {
+  agentGuardrails,
+  mcpToolResultGuardrail,
+  mcpSecurityGuardrail,
+  mcpResponseSanitizer,
+} from 'ai-sdk-guardrails';
+import { ToolLoopAgent } from 'ai';
 
-const model = withGuardrails({
-  model: openai('gpt-4o'),
-  outputGuardrails: [
-    mcpSecurityGuardrail({
-      detectExfiltration: true, // Detect data exfiltration attempts
-      scanEncodedContent: true, // Scan base64/hex encoded content
-      allowedDomains: ['api.company.com'], // Domain allowlist
-      maxContentSize: 51200, // 50KB limit
-      injectionThreshold: 0.7, // Sensitivity (lower = stricter)
-    }),
-    mcpResponseSanitizer(), // Clean malicious content vs blocking
-  ],
+const agent = new ToolLoopAgent({
+  ...agentGuardrails({
+    model: openai('gpt-4o'),
+    inputGuardrails: [
+      mcpToolResultGuardrail({ allowedDomains: ['api.company.com'] }),
+    ],
+    outputGuardrails: [
+      mcpSecurityGuardrail({
+        detectExfiltration: true, // exfiltration URLs in the model's output
+        scanEncodedContent: true, // base64/hex payloads
+        allowedDomains: ['api.company.com'],
+      }),
+      mcpResponseSanitizer(), // redact instead of blocking
+    ],
+  }),
+  tools,
 });
 ```
 
-**Attack vectors prevented:**
-
-- ✅ Direct prompt injection
-- ✅ Tool response poisoning
-- ✅ Data exfiltration via URLs
-- ✅ Encoded attacks (base64/hex)
-- ✅ Cascading exploits
-- ✅ Context poisoning
+These are heuristics. Pair them with `guardMcpTools` on every tool fetch and `guardrailApproval` gating. See the [MCP Security guide](https://jagreehal.github.io/ai-sdk-guardrails/guides/mcp/).
 
 See [MCP Security documentation](#mcp-security-guardrails-advanced) for full details.
 
@@ -362,8 +382,7 @@ const model = withGuardrails({
 
 ### Agent Support
 
-`agentGuardrails({ model, ...config })` returns native `ToolLoopAgentSettings` fragments —
-spread them into your **own** `ToolLoopAgent`. The result is a real agent, so
+`agentGuardrails({ model, ...config })` returns native `ToolLoopAgentSettings` fragments: spread them into your **own** `ToolLoopAgent`. The result is a real agent, so
 streaming, structured `output`, `runtimeContext`, and `InferAgentUIMessage` all work:
 
 ```ts
@@ -395,7 +414,7 @@ const agent = new ToolLoopAgent({
 const result = await agent.generate({ prompt: '...' }); // .stream() is guarded too
 ```
 
-> Guardrails ride the SDK's own primitives — input/output guards run as model
+> Guardrails ride the SDK's own primitives: input/output guards run as model
 > middleware, tool-parameter gating uses native `toolApproval`
 > (`guardrailApproval([...])`), loop-stop uses `stopWhen`. Nothing wraps your agent.
 
@@ -415,7 +434,11 @@ context, so a per-message rule should read the latest user message with
 `extractTextContent(ctx).messages.at(-1)`:
 
 ```ts
-import { agentGuardrails, onUserTurn, promptInjectionDetector } from 'ai-sdk-guardrails';
+import {
+  agentGuardrails,
+  onUserTurn,
+  promptInjectionDetector,
+} from 'ai-sdk-guardrails';
 
 agentGuardrails({
   model,
@@ -430,9 +453,9 @@ agentGuardrails({
 
 AI SDK v7 added a first-class `toolApproval` hook to `generateText`, `streamText`,
 and `ToolLoopAgent`. It runs **inside the agent loop**, so it can deny a tool call
-outright or pause for human review and resume — something wrapping the model cannot do.
+outright or pause for human review and resume: something wrapping the model cannot do.
 
-Guardrails split cleanly across two axes — use the right tool for each:
+Guardrails split cleanly across two axes: use the right tool for each:
 
 | Axis                   | Question                                                           | Mechanism                            |
 | ---------------------- | ------------------------------------------------------------------ | ------------------------------------ |
@@ -441,7 +464,7 @@ Guardrails split cleanly across two axes — use the right tool for each:
 
 `guardrailApproval()` adapts your existing tool-parameter guardrails into the
 `toolApproval` slot. It drops straight into a `ToolLoopAgent` (the recommended
-agent API) — the tool set is inferred, no casts:
+agent API): the tool set is inferred, no casts:
 
 ```ts
 import { ToolLoopAgent, tool } from 'ai';
@@ -495,7 +518,7 @@ observe every decision via `onDecision`. See
 [example 54](../examples/54-tool-approval-guardrails.ts).
 
 > Need to **rewrite** tool input before it runs (e.g. sanitize a query) rather than
-> just allow/deny? Use `withToolParameterGuardrails` instead — `toolApproval` is
+> just allow/deny? Use `withToolParameterGuardrails` instead: `toolApproval` is
 > allow/deny only.
 
 ## Advanced Stopping Mechanisms
@@ -663,7 +686,7 @@ import { createFinishReasonEnhancement } from 'ai-sdk-guardrails/advanced';
 // Automatically set in middleware, or manually:
 const enhanced = createFinishReasonEnhancement(summary, result);
 
-console.log(enhanced.finishReason); // 'content_filter' for blocks
+console.log(enhanced.finishReason); // 'content-filter' for blocks
 console.log(enhanced.providerMetadata.guardrails);
 // {
 //   blocked: true,
@@ -675,7 +698,7 @@ console.log(enhanced.providerMetadata.guardrails);
 
 **Features:**
 
-- Standard `content_filter` finish reason
+- Standard `content-filter` finish reason
 - Structured violation metadata
 - Execution statistics
 - Custom metadata preservation
@@ -821,19 +844,24 @@ try {
 
 ### Primary Functions
 
-| Function                       | Purpose                                     |
-| ------------------------------ | ------------------------------------------- |
-| `withGuardrails`               | Wrap model with guardrails (main API)       |
-| `createGuardrails`             | Create reusable guardrail configurations    |
-| `agentGuardrails`              | Native settings fragments for ToolLoopAgent |
-| `guardrailApproval`            | Gate tool calls via v7 `toolApproval`       |
-| `defineInputGuardrail`         | Create custom input guardrail               |
-| `defineOutputGuardrail`        | Create custom output guardrail              |
-| `hardenSystemPrompt`           | Wrap a system prompt with defensive rules   |
-| `evaluatePromptDefense`        | Grade a system prompt's OWASP-LLM coverage  |
-| `scanMcpTool` / `scanMcpTools` | Scan MCP tool definitions for threats       |
-| `executeInputGuardrails`       | Run input guardrails programmatically       |
-| `executeOutputGuardrails`      | Run output guardrails programmatically      |
+| Function                                                                                        | Purpose                                          |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `withGuardrails`                                                                                | Wrap model with guardrails (main API)            |
+| `createGuardrails`                                                                              | Create reusable guardrail configurations         |
+| `agentGuardrails`                                                                               | Native settings fragments for ToolLoopAgent      |
+| `guardrailApproval`                                                                             | Gate tool calls via v7 `toolApproval`            |
+| `defineInputGuardrail`                                                                          | Create custom input guardrail                    |
+| `defineOutputGuardrail`                                                                         | Create custom output guardrail                   |
+| `hardenSystemPrompt`                                                                            | Wrap a system prompt with defensive rules        |
+| `evaluatePromptDefense`                                                                         | Grade a system prompt's OWASP-LLM coverage       |
+| `scanMcpTool` / `scanMcpTools`                                                                  | Scan MCP tool definitions for threats            |
+| `guardMcpTools`                                                                                 | Filter an MCP tool set: scan, allowlist, pin     |
+| `mcpToolResultGuardrail`                                                                        | Scan incoming tool results (indirect injection)  |
+| `classifierGuardrail` / `classifierOutputGuardrail`                                             | Put a model-backed classifier behind a guardrail |
+| `llmClassifier` / `openAIModerationClassifier` / `presidioClassifier` / `huggingFaceClassifier` | Ready-made classifiers                           |
+| `piiPack` / `mcpHardenedPack` / `evalSandboxPack`                                               | Policy packs bundling the rails above            |
+| `executeInputGuardrails`                                                                        | Run input guardrails programmatically            |
+| `executeOutputGuardrails`                                                                       | Run output guardrails programmatically           |
 
 ### Error Utilities
 
@@ -861,7 +889,7 @@ See source for all built-in guardrails:
 
 ## Examples
 
-Browse 48+ runnable examples: [examples/README.md](../examples/README.md) |
+Browse 58 runnable examples: [examples/README.md](../examples/README.md) |
 
 ### Quick Starts
 
@@ -906,6 +934,18 @@ Browse 48+ runnable examples: [examples/README.md](../examples/README.md) |
 | SQL code safety            | Basic SQL safety checks       | [24-sql-code-safety.ts](../examples/24-sql-code-safety.ts)                       |
 | Role hierarchy enforcement | Enforce role rules in prompts | [23-role-hierarchy-enforcement.ts](../examples/23-role-hierarchy-enforcement.ts) |
 
+## Upgrading to v7
+
+Metadata and context now carry JSON values, so TypeScript checks what you attach:
+
+- Declare custom metadata with `interface MyMetadata extends GuardrailMetadata { ... }` (exported from `ai-sdk-guardrails`) instead of `extends Record<string, unknown>`. Values must be JSON (strings, numbers, booleans, null, arrays, plain objects) or `undefined`; turn a `Date` into an ISO string. Nested object types must be `type` aliases, since TypeScript only matches interfaces against index signatures when they declare one.
+- `GuardrailContext` (the `./config` runtime) has named fields. Put your own data on `ctx.metadata`; pass the Moderation key as `ctx.openaiApiKey`.
+- `GuardrailResult.info` values are `MetadataValue`; `GuardrailResult.context` has only its named fields.
+- `retryOnError` and `onError` receive an `Error` (a thrown non-Error arrives as `cause`). `RetryBuilderArgs.lastResult` is optional, since an attempt can throw.
+- `toxicityDetector` / `toxicityFilter` trip when the score reaches the threshold; `metadata.detectedWords` holds the matched phrases and `metadata.categories` the categories.
+- `./config`: LLM rails, Moderation and malformed replies block and report `executionFailed`. `Hallucination Detection` is no longer registered, so configs that name it fail validation.
+- Input guardrails see tool results in `messages` (role `tool`); `extractTextContent()` leaves them out unless you pass `{ includeToolResults: true }`.
+
 ## Migration from v3.x
 
 v6 removed the old v3.x names. Update imports and call sites:
@@ -937,7 +977,7 @@ a provider the spans are no-ops.
 
 ## Compatibility
 
-- **Runtime**: Node.js 18+ recommended
+- **Runtime**: Node.js 22+
 - **AI SDK**: v6 requires AI SDK 7 (`ai@^7`, `@ai-sdk/provider@^4`). Stay on
   `ai-sdk-guardrails@5.x` for AI SDK 6.
 - **TypeScript**: Full type safety with TypeScript 5+
@@ -945,7 +985,7 @@ a provider the spans are no-ops.
 
 ### Upgrading to v6 (AI SDK 7)
 
-The public API is source-compatible — `withGuardrails`, `defineInputGuardrail`,
+The public API is source-compatible: `withGuardrails`, `defineInputGuardrail`,
 `defineOutputGuardrail`, and every built-in guardrail keep the same signatures.
 What changes:
 
@@ -966,7 +1006,7 @@ What changes:
 
 **Type-safe**: Rich TypeScript types and inference throughout.
 
-**Comprehensive**: 40+ built-in guardrails covering security, quality, compliance, and performance.
+**Comprehensive**: 52 built-in guardrails covering security, quality, compliance, and performance.
 
 **Advanced features**: Early detection, parallel execution, enhanced prompt injection detection, MCP security, and more.
 

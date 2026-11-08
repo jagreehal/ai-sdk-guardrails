@@ -7,7 +7,11 @@ import {
 } from './guardrails';
 import { extractTextContent } from './guardrails/input';
 import { extractContent } from './guardrails/output';
+import type { GuardrailMetadata } from './enhanced-types';
 import type { AIResult } from './types';
+
+// SAFETY: the output guardrails under test read only `text` via extractContent.
+const textResult = (text: string) => ({ text }) as AIResult;
 
 describe('Input and Output Guardrails Integration', () => {
   describe('Input Guardrails', () => {
@@ -18,6 +22,7 @@ describe('Input and Output Guardrails Integration', () => {
         execute: async (params) => {
           const { prompt } = extractTextContent(params);
           const profanity = ['damn', 'hell', 'crap'];
+
           const found = profanity.find((word) =>
             prompt.toLowerCase().includes(word),
           );
@@ -33,6 +38,7 @@ describe('Input and Output Guardrails Integration', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             info: {
@@ -52,6 +58,7 @@ describe('Input and Output Guardrails Integration', () => {
         [profanityGuardrail],
         inputContext,
       );
+
       const blockedResults = results.filter((r) => r.tripwireTriggered);
 
       expect(blockedResults).toHaveLength(0);
@@ -64,6 +71,7 @@ describe('Input and Output Guardrails Integration', () => {
         execute: async (params) => {
           const { prompt } = extractTextContent(params);
           const profanity = ['damn', 'hell', 'crap'];
+
           const found = profanity.find((word) =>
             prompt.toLowerCase().includes(word),
           );
@@ -79,6 +87,7 @@ describe('Input and Output Guardrails Integration', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             info: {
@@ -98,6 +107,7 @@ describe('Input and Output Guardrails Integration', () => {
         [profanityGuardrail],
         inputContext,
       );
+
       const blockedResults = results.filter((r) => r.tripwireTriggered);
 
       expect(blockedResults).toHaveLength(1);
@@ -112,6 +122,7 @@ describe('Input and Output Guardrails Integration', () => {
         execute: async (params) => {
           const { prompt } = extractTextContent(params);
           const profanity = ['damn', 'hell', 'crap'];
+
           const found = profanity.find((word) =>
             prompt.toLowerCase().includes(word),
           );
@@ -127,6 +138,7 @@ describe('Input and Output Guardrails Integration', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             info: {
@@ -141,6 +153,7 @@ describe('Input and Output Guardrails Integration', () => {
         description: 'Limits input length',
         execute: async (params) => {
           const { prompt } = extractTextContent(params);
+
           if (prompt.length > 100) {
             return {
               tripwireTriggered: true,
@@ -152,6 +165,7 @@ describe('Input and Output Guardrails Integration', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             info: {
@@ -168,10 +182,11 @@ describe('Input and Output Guardrails Integration', () => {
         system: '',
       };
 
-      const results = await executeInputGuardrails(
-        [profanityGuardrail, lengthGuardrail] as any,
+      const results = await executeInputGuardrails<GuardrailMetadata>(
+        [profanityGuardrail, lengthGuardrail],
         inputContext,
       );
+
       const blockedResults = results.filter((r) => r.tripwireTriggered);
 
       expect(blockedResults).toHaveLength(1);
@@ -187,6 +202,7 @@ describe('Input and Output Guardrails Integration', () => {
         execute: async (context) => {
           const { text } = extractContent(context.result);
           const inappropriate = ['hate', 'violence', 'discrimination'];
+
           const found = inappropriate.find((word) =>
             text.toLowerCase().includes(word),
           );
@@ -202,6 +218,7 @@ describe('Input and Output Guardrails Integration', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             info: {
@@ -217,15 +234,14 @@ describe('Input and Output Guardrails Integration', () => {
           messages: [],
           system: '',
         },
-        result: {
-          text: 'The weather is sunny and pleasant today.',
-        } as unknown as AIResult,
+        result: textResult('The weather is sunny and pleasant today.'),
       };
 
       const results = await executeOutputGuardrails(
         [contentFilter],
         outputContext,
       );
+
       const blockedResults = results.filter((r) => r.tripwireTriggered);
 
       expect(blockedResults).toHaveLength(0);
@@ -238,6 +254,7 @@ describe('Input and Output Guardrails Integration', () => {
         execute: async (context) => {
           const { text } = extractContent(context.result);
           const inappropriate = ['hate', 'violence', 'discrimination'];
+
           const found = inappropriate.find((word) =>
             text.toLowerCase().includes(word),
           );
@@ -253,6 +270,7 @@ describe('Input and Output Guardrails Integration', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             info: {
@@ -268,15 +286,16 @@ describe('Input and Output Guardrails Integration', () => {
           messages: [],
           system: '',
         },
-        result: {
-          text: 'Hate speech is a form of discrimination that should be avoided.',
-        } as unknown as AIResult,
+        result: textResult(
+          'Hate speech is a form of discrimination that should be avoided.',
+        ),
       };
 
       const results = await executeOutputGuardrails(
         [contentFilter],
         outputContext,
       );
+
       const blockedResults = results.filter((r) => r.tripwireTriggered);
 
       expect(blockedResults).toHaveLength(1);
@@ -294,6 +313,7 @@ describe('Input and Output Guardrails Integration', () => {
         description: 'Filters input',
         execute: async (params) => {
           const { prompt } = extractTextContent(params);
+
           if (prompt.includes('blocked')) {
             return {
               tripwireTriggered: true,
@@ -304,6 +324,7 @@ describe('Input and Output Guardrails Integration', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             info: {
@@ -318,6 +339,7 @@ describe('Input and Output Guardrails Integration', () => {
         description: 'Filters output',
         execute: async (context) => {
           const { text } = extractContent(context.result);
+
           if (text.includes('blocked')) {
             return {
               tripwireTriggered: true,
@@ -328,6 +350,7 @@ describe('Input and Output Guardrails Integration', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             info: {
@@ -348,6 +371,7 @@ describe('Input and Output Guardrails Integration', () => {
         [inputGuardrail],
         inputContext,
       );
+
       const inputBlocked = inputResults.filter((r) => r.tripwireTriggered);
       expect(inputBlocked).toHaveLength(1);
       expect(inputBlocked[0]?.message).toBe('Input contains blocked word');
@@ -355,15 +379,14 @@ describe('Input and Output Guardrails Integration', () => {
       // Test output violation
       const outputContext = {
         input: inputContext,
-        result: {
-          text: 'This response contains blocked word',
-        } as unknown as AIResult,
+        result: textResult('This response contains blocked word'),
       };
 
       const outputResults = await executeOutputGuardrails(
         [outputGuardrail],
         outputContext,
       );
+
       const outputBlocked = outputResults.filter((r) => r.tripwireTriggered);
       expect(outputBlocked).toHaveLength(1);
       expect(outputBlocked[0]?.message).toBe('Output contains blocked word');
@@ -390,6 +413,7 @@ describe('Input and Output Guardrails Integration', () => {
         [errorGuardrail],
         inputContext,
       );
+
       const blockedResults = results.filter((r) => r.tripwireTriggered);
 
       expect(blockedResults).toHaveLength(1);
@@ -405,6 +429,7 @@ describe('Input and Output Guardrails Integration', () => {
         description: 'Slow guardrail',
         execute: async () => {
           await new Promise((resolve) => setTimeout(resolve, 1000));
+
           return {
             tripwireTriggered: false,
             info: {
@@ -444,7 +469,7 @@ describe('Input and Output Guardrails Integration', () => {
 
       const outputContext = {
         input: inputContext,
-        result: { text: 'Test response' } as unknown as AIResult,
+        result: textResult('Test response'),
       };
 
       const outputResults = await executeOutputGuardrails([], outputContext);
@@ -476,6 +501,7 @@ describe('Input and Output Guardrails Integration', () => {
         [disabledGuardrail],
         inputContext,
       );
+
       expect(results).toHaveLength(0);
     });
   });
@@ -489,6 +515,7 @@ describe('Input and Output Guardrails Integration', () => {
         description: 'Slow guardrail 1',
         execute: async () => {
           await new Promise((resolve) => setTimeout(resolve, 100));
+
           return {
             tripwireTriggered: false,
             info: {
@@ -503,6 +530,7 @@ describe('Input and Output Guardrails Integration', () => {
         description: 'Slow guardrail 2',
         execute: async () => {
           await new Promise((resolve) => setTimeout(resolve, 100));
+
           return {
             tripwireTriggered: false,
             info: {
@@ -536,6 +564,7 @@ describe('Input and Output Guardrails Integration', () => {
         description: 'Slow guardrail 1',
         execute: async () => {
           await new Promise((resolve) => setTimeout(resolve, 50));
+
           return {
             tripwireTriggered: false,
             info: {
@@ -550,6 +579,7 @@ describe('Input and Output Guardrails Integration', () => {
         description: 'Slow guardrail 2',
         execute: async () => {
           await new Promise((resolve) => setTimeout(resolve, 50));
+
           return {
             tripwireTriggered: false,
             info: {

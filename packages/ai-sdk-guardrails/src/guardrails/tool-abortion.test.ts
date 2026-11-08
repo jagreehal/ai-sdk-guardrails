@@ -3,7 +3,21 @@ import {
   wrapToolWithAbortion,
   createToolAbortionController,
 } from './tool-abortion';
-import type { OutputGuardrail, OutputGuardrailContext } from '../types';
+import type {
+  AIResult,
+  OutputGuardrail,
+  OutputGuardrailContext,
+} from '../types';
+
+type ToolInput = Record<string, string>;
+
+function outputContext(): OutputGuardrailContext {
+  // SAFETY: the guardrails under test never read the result; it carries only
+  // `text` so the context has the shape of a generate result.
+  const result = { text: 'test output' } as AIResult;
+
+  return { input: { prompt: 'test', messages: [], system: '' }, result };
+}
 
 describe('createToolAbortionController', () => {
   it('should create controller with abort signal', () => {
@@ -30,15 +44,7 @@ describe('createToolAbortionController', () => {
       },
     ];
 
-    await controller.checkAndAbort(guardrails, {
-      input: { prompt: 'test', messages: [], system: '' },
-      result: {
-        text: 'test output',
-        content: [],
-        finishReason: 'stop',
-        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-      },
-    } as unknown as OutputGuardrailContext);
+    await controller.checkAndAbort(guardrails, outputContext());
 
     expect(controller.signal.aborted).toBe(true);
   });
@@ -59,15 +65,7 @@ describe('createToolAbortionController', () => {
       },
     ];
 
-    await controller.checkAndAbort(guardrails, {
-      input: { prompt: 'test', messages: [], system: '' },
-      result: {
-        text: 'test output',
-        content: [],
-        finishReason: 'stop',
-        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-      },
-    } as unknown as OutputGuardrailContext);
+    await controller.checkAndAbort(guardrails, outputContext());
 
     expect(controller.signal.aborted).toBe(false);
   });
@@ -91,15 +89,7 @@ describe('createToolAbortionController', () => {
       },
     ];
 
-    await controller.checkAndAbort(guardrails, {
-      input: { prompt: 'test', messages: [], system: '' },
-      result: {
-        text: 'test output',
-        content: [],
-        finishReason: 'stop',
-        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-      },
-    } as unknown as OutputGuardrailContext);
+    await controller.checkAndAbort(guardrails, outputContext());
 
     expect(controller.signal.aborted).toBe(false);
   });
@@ -107,7 +97,8 @@ describe('createToolAbortionController', () => {
 
 describe('wrapToolWithAbortion', () => {
   it('should wrap tool execute function', () => {
-    const originalExecute = vi.fn(async () => 'result');
+    const originalExecute = vi.fn(async (_input: ToolInput) => 'result');
+
     const tool = {
       description: 'Test tool',
       parameters: {},
@@ -121,7 +112,8 @@ describe('wrapToolWithAbortion', () => {
   });
 
   it('should execute tool normally when no violations', async () => {
-    const originalExecute = vi.fn(async () => 'success');
+    const originalExecute = vi.fn(async (_input: ToolInput) => 'success');
+
     const tool = {
       description: 'Test tool',
       parameters: {},
@@ -149,7 +141,8 @@ describe('wrapToolWithAbortion', () => {
   });
 
   it('should check guardrails before execution', async () => {
-    const originalExecute = vi.fn(async () => 'result');
+    const originalExecute = vi.fn(async (_input: ToolInput) => 'result');
+
     const guardrailExecute = vi.fn(async () => ({
       tripwireTriggered: false,
       message: '',
@@ -182,7 +175,8 @@ describe('wrapToolWithAbortion', () => {
   });
 
   it('should abort execution on critical violation before execution', async () => {
-    const originalExecute = vi.fn(async () => 'result');
+    const originalExecute = vi.fn(async (_input: ToolInput) => 'result');
+
     const tool = {
       description: 'Test tool',
       parameters: {},
@@ -216,7 +210,7 @@ describe('wrapToolWithAbortion', () => {
 
   it('should monitor execution with polling', async () => {
     const originalExecute = vi.fn(
-      async () =>
+      async (_input: ToolInput) =>
         new Promise((resolve) => setTimeout(() => resolve('result'), 100)),
     );
 
@@ -227,11 +221,13 @@ describe('wrapToolWithAbortion', () => {
     };
 
     let checkCount = 0;
+
     const guardrails: OutputGuardrail[] = [
       {
         name: 'monitor',
         execute: async () => {
           checkCount++;
+
           return {
             tripwireTriggered: false,
             message: '',
@@ -248,15 +244,23 @@ describe('wrapToolWithAbortion', () => {
       monitorInterval: 20,
     });
 
-    await wrapped.execute({ test: 'input' });
+    // Fake timers: real ones starve under coverage/parallel load and flake.
+    vi.useFakeTimers();
 
-    // Should have checked multiple times during execution
+    try {
+      const run = wrapped.execute({ test: 'input' });
+      await vi.advanceTimersByTimeAsync(100);
+      await run;
+    } finally {
+      vi.useRealTimers();
+    }
+
     expect(checkCount).toBeGreaterThan(1);
   });
 
   it('should abort long-running execution on violation', async () => {
     const originalExecute = vi.fn(
-      async () =>
+      async (_input: ToolInput) =>
         new Promise((resolve) => setTimeout(() => resolve('result'), 200)),
     );
 
@@ -267,11 +271,13 @@ describe('wrapToolWithAbortion', () => {
     };
 
     let checkCount = 0;
+
     const guardrails: OutputGuardrail[] = [
       {
         name: 'monitor',
         execute: async () => {
           checkCount++;
+
           if (checkCount > 2) {
             return {
               tripwireTriggered: true,
@@ -282,6 +288,7 @@ describe('wrapToolWithAbortion', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             message: '',
@@ -304,8 +311,10 @@ describe('wrapToolWithAbortion', () => {
 
   it('should use provided AbortSignal', async () => {
     const externalController = new AbortController();
-    const originalExecute = vi.fn(async (input: unknown, { abortSignal }) => {
+
+    const originalExecute = vi.fn(async (input: ToolInput, { abortSignal }) => {
       expect(abortSignal).toBe(externalController.signal);
+
       return 'result';
     });
 
@@ -327,6 +336,7 @@ describe('wrapToolWithAbortion', () => {
 
   it('should handle onInputDelta callback', async () => {
     const onInputDelta = vi.fn();
+
     const tool = {
       description: 'Test tool',
       parameters: {},
@@ -338,10 +348,8 @@ describe('wrapToolWithAbortion', () => {
       {
         name: 'stream-monitor',
         execute: async ({ result }) => {
-          const text =
-            typeof result === 'object' && result && 'text' in result
-              ? String((result as { text: string }).text)
-              : '';
+          const text = 'text' in result ? String(result.text) : '';
+
           if (text.includes('bad')) {
             return {
               tripwireTriggered: true,
@@ -352,6 +360,7 @@ describe('wrapToolWithAbortion', () => {
               },
             };
           }
+
           return {
             tripwireTriggered: false,
             message: '',
@@ -369,7 +378,6 @@ describe('wrapToolWithAbortion', () => {
 
     expect(wrapped.onInputDelta).toBeDefined();
 
-    // Should allow good input
     await wrapped.onInputDelta?.({
       inputTextDelta: 'good',
       toolCallId: '1',

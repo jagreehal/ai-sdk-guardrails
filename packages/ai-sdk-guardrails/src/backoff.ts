@@ -44,6 +44,7 @@ export function exponentialBackoff(
     // Apply jitter if specified
     if (jitter > 0) {
       const jitterAmount = cappedDelay * jitter * Math.random();
+
       return Math.round(
         cappedDelay + jitterAmount - (cappedDelay * jitter) / 2,
       );
@@ -81,6 +82,7 @@ export function linearBackoff(
     // Apply jitter if specified
     if (jitter > 0) {
       const jitterAmount = cappedDelay * jitter * Math.random();
+
       return Math.round(
         cappedDelay + jitterAmount - (cappedDelay * jitter) / 2,
       );
@@ -112,6 +114,7 @@ export function fixedBackoff(
     // Apply jitter if specified
     if (jitter > 0) {
       const jitterAmount = base * jitter * Math.random();
+
       return Math.round(base + jitterAmount - (base * jitter) / 2);
     }
 
@@ -167,6 +170,7 @@ export function compositeBackoff(
 
     // Fallback to last strategy
     const lastStrategy = strategies.at(-1);
+
     return lastStrategy ? lastStrategy.backoff(attempt) : 0;
   };
 }

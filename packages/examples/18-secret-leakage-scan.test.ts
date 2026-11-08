@@ -11,11 +11,15 @@
 import { describe, it, expect } from 'vitest';
 import { generateText } from 'ai';
 import { model } from './model';
-import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
+import {
+  defineOutputGuardrail,
+  withGuardrails,
+  type GuardrailMetadata,
+} from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
 // Define types for secret leakage scan metadata
-interface SecretLeakageMetadata extends Record<string, unknown> {
+interface SecretLeakageMetadata extends GuardrailMetadata {
   totalSecrets?: number;
   secretsByType?: Record<
     string,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AIResult, OutputGuardrailContext } from '../types';
+import type { GenerateTextResult, OutputGuardrailContext } from '../types';
 import {
   builtinPlanRiskClassifier,
   planRiskGuardrail,
@@ -8,10 +8,21 @@ import {
 
 /** Minimal output-guardrail context carrying tool calls in the AI SDK shape. */
 function contextWithTools(toolNames: string[]): OutputGuardrailContext {
-  const result = {
-    content: toolNames.map((toolName) => ({ type: 'tool-call', toolName })),
-  } as unknown as AIResult;
-  return { result } as OutputGuardrailContext;
+  const content: GenerateTextResult['content'] = toolNames.map(
+    (toolName, index) => ({
+      type: 'tool-call',
+      toolCallId: String(index),
+      toolName,
+      input: {},
+      dynamic: true,
+    }),
+  );
+
+  return {
+    input: { prompt: '', messages: [], system: '' },
+    // SAFETY: planRiskGuardrail reads only the tool-call parts of `content`.
+    result: { content } as GenerateTextResult,
+  };
 }
 
 describe('builtinPlanRiskClassifier', () => {
@@ -83,9 +94,11 @@ describe('builtinPlanRiskClassifier', () => {
 describe('planRiskGuardrail', () => {
   it('trips when the verdict reaches the threshold (default high)', async () => {
     const guardrail = planRiskGuardrail();
+
     const res = await guardrail.execute(
       contextWithTools(['readInbox', 'transferFunds']),
     );
+
     expect(res.tripwireTriggered).toBe(true);
     expect(res.severity).toBe('high');
     expect(res.metadata?.verdict).toBe('high');
@@ -112,17 +125,20 @@ describe('planRiskGuardrail', () => {
       verdict: 'critical',
       reason: 'nope',
     });
+
     const tripped = await planRiskGuardrail({ classifier: always }).execute(
       contextWithTools(['anything']),
     );
+
     expect(tripped.tripwireTriggered).toBe(true);
     expect(tripped.severity).toBe('critical');
 
-    // eslint-disable-next-line unicorn/no-useless-undefined -- the type requires an explicit return to model abstention
     const abstain: PlanRiskClassifier = () => undefined;
+
     const passed = await planRiskGuardrail({ classifier: abstain }).execute(
       contextWithTools(['readInbox', 'transferFunds']),
     );
+
     expect(passed.tripwireTriggered).toBe(false);
   });
 });

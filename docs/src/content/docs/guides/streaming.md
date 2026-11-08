@@ -129,7 +129,9 @@ const model = withGuardrails({
         ...lastParams.prompt,
         {
           role: 'user',
-          content: 'Please provide a more detailed response.',
+          content: [
+            { type: 'text', text: 'Please provide a more detailed response.' },
+          ],
         },
       ],
     }),
@@ -166,14 +168,14 @@ const result = await streamText({
 In progressive mode, guardrails automatically receive the accumulated text as chunks arrive. This allows guardrails to make decisions based on the full text seen so far:
 
 ```ts
-import { defineOutputGuardrail } from 'ai-sdk-guardrails';
+import { defineOutputGuardrail, extractContent } from 'ai-sdk-guardrails';
 
 const streamingAwareGuardrail = defineOutputGuardrail({
   name: 'streaming-check',
   execute: async ({ result }, accumulatedText) => {
     // In progressive mode, accumulatedText contains all text seen so far
     // In buffer mode, accumulatedText is undefined
-    const text = accumulatedText ?? result.text ?? '';
+    const text = accumulatedText ?? extractContent(result).text;
 
     // Check the accumulated text for violations
     if (text.includes('forbidden')) {
@@ -220,9 +222,9 @@ const model = withGuardrails({
   model: openai('gpt-4o'),
   outputGuardrails: [minLengthRequirement(100)],
   replaceOnBlocked: true,
-  onOutputBlocked: async (summary, params, result) => {
+  onOutputBlocked: (summary, params, result) => {
     // Log to monitoring
-    await logToMonitoring({ summary, params, result, timestamp: Date.now() });
+    logger.warn('guardrail.output_blocked', { summary, params, result });
   },
 });
 ```

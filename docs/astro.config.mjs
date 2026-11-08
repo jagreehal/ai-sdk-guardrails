@@ -85,6 +85,14 @@ export default defineConfig({
             { label: 'Custom Guardrails', link: '/guides/custom-guardrails/' },
             { label: 'Advanced Features', link: '/guides/advanced-features/' },
             { label: 'OpenAI Configs', link: '/guides/openai-configs/' },
+            { label: 'Model-Backed Detectors', link: '/guides/classifiers/' },
+            { label: 'Governance', link: '/guides/governance/' },
+            { label: 'Observability', link: '/guides/observability/' },
+            { label: 'MCP Security', link: '/guides/mcp/' },
+            {
+              label: 'OPA & Policy Interop',
+              link: '/guides/policy-opa/',
+            },
           ],
         },
         {
@@ -93,7 +101,10 @@ export default defineConfig({
             { label: 'Overview', link: '/cookbook/' },
             { label: 'Input Safety', link: '/cookbook/input-safety/' },
             { label: 'Output Safety', link: '/cookbook/output-safety/' },
-            { label: 'Quality & Judges', link: '/cookbook/quality-and-judges/' },
+            {
+              label: 'Quality & Judges',
+              link: '/cookbook/quality-and-judges/',
+            },
             { label: 'Security', link: '/cookbook/security/' },
             { label: 'Tools & Agents', link: '/cookbook/tools-and-agents/' },
           ],
@@ -104,6 +115,10 @@ export default defineConfig({
             {
               label: 'Built-in Guardrails',
               link: '/reference/built-in-guardrails/',
+            },
+            {
+              label: 'Threat Model & Detection Rates',
+              link: '/reference/threat-model/',
             },
           ],
         },

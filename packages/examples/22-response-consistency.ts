@@ -8,11 +8,15 @@
 
 import { generateText } from 'ai';
 import { model } from './model';
-import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
+import {
+  defineOutputGuardrail,
+  withGuardrails,
+  type GuardrailMetadata,
+} from 'ai-sdk-guardrails';
 import { extractContent } from 'ai-sdk-guardrails/guardrails/output';
 
 // Define types for response consistency metadata
-interface ResponseConsistencyMetadata extends Record<string, unknown> {
+interface ResponseConsistencyMetadata extends GuardrailMetadata {
   topic?: string;
   contradictions?: string[];
   issues?: string[];

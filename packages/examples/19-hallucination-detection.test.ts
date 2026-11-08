@@ -13,11 +13,15 @@
 import { describe, it, expect } from 'vitest';
 import { generateText, Output } from 'ai';
 import { model } from './model';
-import { defineOutputGuardrail, withGuardrails } from 'ai-sdk-guardrails';
+import {
+  defineOutputGuardrail,
+  withGuardrails,
+  type GuardrailMetadata,
+} from 'ai-sdk-guardrails';
 import { z } from 'zod';
 
 // Define types for hallucination detection metadata
-interface HallucinationDetectionMetadata extends Record<string, unknown> {
+interface HallucinationDetectionMetadata extends GuardrailMetadata {
   confidenceScore?: number;
   riskLevel?: string;
   claimsFound?: number;

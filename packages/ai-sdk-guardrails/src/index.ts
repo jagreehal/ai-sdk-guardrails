@@ -30,10 +30,12 @@ export { createInputGuardrail, createOutputGuardrail } from './core';
 
 // Prompt hardening — wrap a system prompt with defensive rules.
 export { hardenSystemPrompt } from './guardrails/harden';
+
 export type { HardenOptions } from './guardrails/harden';
 
 // Prompt-defense evaluation — grade a system prompt's OWASP-LLM coverage.
 export { evaluatePromptDefense } from './guardrails/prompt-defense';
+
 export type {
   PromptDefenseOptions,
   PromptDefenseReport,
@@ -42,6 +44,7 @@ export type {
 
 // Tool-call gating via AI SDK v7 `toolApproval`.
 export { guardrailApproval } from './guardrails/tool-approval';
+
 export type {
   GuardrailApprovalOptions,
   GuardrailApprovalFunction,
@@ -62,6 +65,7 @@ export {
   isGuardrailsError,
   extractErrorInfo,
 } from './core';
+
 export type { RetryOptions, RetryAttemptInfo, RetryBuilderArgs } from './core';
 
 // ── Built-in guardrails: output --------------------------------------------
@@ -93,6 +97,7 @@ export {
   stringifyContent,
   normalizeUsage,
 } from './guardrails/output';
+
 export type { NormalizedUsage } from './guardrails/output';
 
 // ── Built-in guardrails: input ---------------------------------------------
@@ -114,6 +119,7 @@ export {
   extractTextContent,
   extractMetadata,
 } from './guardrails/input';
+
 export type {
   AllowedToolsOptions,
   LengthLimitOptions,
@@ -137,6 +143,7 @@ export {
   toolEgressPolicy,
   extractToolNamesFromResult,
 } from './guardrails/tools';
+
 export type {
   ExpectedToolUseOptions,
   ExpectedToolUseMetadata,
@@ -145,8 +152,10 @@ export type {
 
 export {
   mcpSecurityGuardrail,
+  mcpToolResultGuardrail,
   mcpResponseSanitizer,
 } from './guardrails/mcp-security';
+
 export type {
   McpSecurityOptions,
   McpSecurityMetadata,
@@ -154,13 +163,21 @@ export type {
 
 // System-prompt leak detection (output) — the model echoing its own prompt.
 export { systemPromptLeakDetector } from './guardrails/prompt-leak';
+
 export type {
   SystemPromptLeakOptions,
   SystemPromptLeakMetadata,
 } from './guardrails/prompt-leak';
 
 // MCP tool-definition scanner — supply-chain threats in tool definitions.
-export { scanMcpTool, scanMcpTools } from './guardrails/mcp-tool-scan';
+export {
+  scanMcpTool,
+  scanMcpTools,
+  guardMcpTools,
+  type GuardMcpToolsOptions,
+  type GuardMcpToolsResult,
+} from './guardrails/mcp-tool-scan';
+
 export type {
   McpToolDefinition,
   McpToolScanOptions,
@@ -176,14 +193,18 @@ export {
   planRiskGuardrail,
   builtinPlanRiskClassifier,
 } from './guardrails/plan-risk';
+
 export { createPlanRiskSession } from './guardrails/plan-risk-session';
+
 export type { PlanRiskSession } from './guardrails/plan-risk-session';
 
 export { evaluationScopeGuardrail } from './guardrails/evaluation-scope';
+
 export type {
   EvaluationScopeGuardrailOptions,
   EvaluationScopeMetadata,
 } from './guardrails/evaluation-scope';
+
 export type {
   PlanRiskGuardrailOptions,
   PlanRiskClassifier,
@@ -193,6 +214,7 @@ export type {
 } from './guardrails/plan-risk';
 
 export { budgetGuardrail, createGuardrailBudget } from './guardrails/budget';
+
 export type {
   GuardrailBudget,
   BudgetGuardrailOptions,
@@ -210,6 +232,7 @@ export {
   parameterLengthGuardrail,
   toolRBACGuardrail,
 } from './guardrails/tool-parameters';
+
 export type {
   ToolParameterGuardrail,
   ToolValidationResult,
@@ -227,6 +250,7 @@ export {
   allOf,
   custom as customStopCondition,
 } from './guardrails/stop-conditions';
+
 export type { GuardrailViolation } from './guardrails/stop-conditions';
 
 export type {
@@ -273,3 +297,34 @@ export type {
 } from './types';
 
 export { onUserTurn } from './guardrails/on-user-turn';
+
+// Policy packs — bundles of the rails above for common threat models.
+export { piiPack, mcpHardenedPack, evalSandboxPack } from './guardrails/packs';
+
+export type {
+  GuardrailPack,
+  McpHardenedPackOptions,
+  EvalSandboxPackOptions,
+} from './guardrails/packs';
+
+// Model-backed detectors — put a real classifier behind a guardrail.
+export {
+  classifierGuardrail,
+  classifierOutputGuardrail,
+  llmClassifier,
+  openAIModerationClassifier,
+  presidioClassifier,
+  huggingFaceClassifier,
+} from './guardrails/classifier';
+
+export type {
+  Classifier,
+  ClassifierVerdict,
+  ClassifierGuardrailOptions,
+} from './guardrails/classifier';
+
+// Metadata value types: declare custom guardrail metadata with
+// `interface MyMetadata extends GuardrailMetadata { ... }`.
+export type { GuardrailMetadata, MetadataValue } from './enhanced-types';
+
+export type { BlockedOutputResult, StreamedOutputSnapshot } from './types';

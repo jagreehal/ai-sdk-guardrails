@@ -24,7 +24,7 @@
  * mapping in {@link ./mappers}.
  *
  * ```ts
- * import { withGuardrails, promptInjectionDetector, sensitiveDataFilter } from 'ai-sdk-guardrails';
+import { withGuardrails, promptInjectionDetector, sensitiveDataFilter } from 'ai-sdk-guardrails';
  * import { guardrailGovernance } from 'ai-sdk-guardrails/governance';
  *
  * const gov = guardrailGovernance({
@@ -41,8 +41,9 @@
  * ```
  */
 
-import type { Telemetry } from 'ai';
+import type { Telemetry, ToolApprovalStatus } from 'ai';
 import type { GuardrailExecutionSummary, GuardrailResult } from '../types';
+import type { ToolValidationResult } from '../guardrails/tool-parameters';
 import { withAgent, tryEmit } from './peer';
 import type {
   AgentActionRiskClass,
@@ -60,8 +61,11 @@ import {
   toPolicyDecisionMetadata,
 } from './mappers';
 
+import { isCallable } from '../guardrails/internal';
+
 // ── Re-exports: the substrate + pure mappers are part of this module's surface.
 export { __setAutotelAgentModule } from './peer';
+
 export type {
   PolicyDecision,
   AgentInputProvenance,
@@ -72,6 +76,7 @@ export type {
   PolicyDecisionMetadata,
   GuardrailGovernanceOptions,
 } from './peer';
+
 export {
   severityToRiskScore,
   guardrailNameOf,
@@ -100,14 +105,16 @@ async function emitBlocked(
 
       for (const toolName of observedToolsOf(result)) {
         const riskClass = options.toolRiskClass?.(toolName);
+
         if (riskClass) tryEmit(() => agent.recordActionRiskClass(riskClass));
       }
 
       if (options.signBlockedEvents && agent.createSignedEventEnvelope) {
         const signOpts =
-          typeof options.signBlockedEvents === 'object'
-            ? options.signBlockedEvents
-            : undefined;
+          options.signBlockedEvents === true
+            ? undefined
+            : options.signBlockedEvents;
+
         const raw = {
           action: `guardrail.block.${stage}`,
           resource: guardrailNameOf(result),
@@ -119,9 +126,11 @@ async function emitBlocked(
             reason: result.message,
           },
         };
+
         const metadata = agent.createAgentAuditMetadata
           ? agent.createAgentAuditMetadata(raw)
           : raw;
+
         void agent.createSignedEventEnvelope(metadata, signOpts).catch(() => {
           /* best-effort */
         });
@@ -132,9 +141,11 @@ async function emitBlocked(
     // that the input is untrusted.
     if (stage === 'input') {
       const { controllerId, hashSalt } = options;
+
       if (controllerId) {
         tryEmit(() => agent.recordControllerId({ controllerId, hashSalt }));
       }
+
       tryEmit(() =>
         agent.recordInputProvenance({
           provenance: options.inputProvenance ?? 'external_untrusted',
@@ -176,9 +187,27 @@ export interface ApprovalDecisionInfo {
   toolName: string;
   /** The SDK tool-call id, threaded through to `recordHumanApproval`. */
   toolCallId?: string;
-  status: { type: 'approved' | 'denied' | 'user-approval' | 'not-applicable' };
+  /** Any AI SDK approval status (string, object, or `undefined`). */
+  status: ToolApprovalStatus;
   guardrail?: string;
-  result?: GuardrailResult;
+  /** The failing guardrail's result (`guardrailApproval` passes a `ToolValidationResult`). */
+  result?: GuardrailResult | ToolValidationResult;
+}
+
+/** Normalize a tool-parameter result to a `GuardrailResult` for risk scoring. */
+function toGuardrailResult(
+  result: GuardrailResult | ToolValidationResult | undefined,
+  guardrailName: string | undefined,
+): GuardrailResult | undefined {
+  if (!result || !('valid' in result)) return result;
+
+  return {
+    tripwireTriggered: !result.valid,
+    message: result.message,
+    severity: result.severity,
+    metadata: result.metadata,
+    info: { guardrailName },
+  };
 }
 
 /**
@@ -200,10 +229,19 @@ export function guardrailGovernanceApproval(
       // tool, governed or not — so it is recorded even when the decision is
       // `not-applicable` below.
       const riskClass = options.toolRiskClass?.(info.toolName);
+
       if (riskClass) tryEmit(() => agent.recordActionRiskClass(riskClass));
 
-      const decision = approvalStatusToPolicyDecision(info.status.type);
+      const statusType =
+        info.status instanceof Object
+          ? info.status.type
+          : (info.status ?? 'not-applicable');
+
+      const decision = approvalStatusToPolicyDecision(statusType);
+
       if (!decision) return; // not-applicable → no opinion
+
+      const result = toGuardrailResult(info.result, info.guardrail);
 
       tryEmit(() =>
         agent.recordPolicyDecision(
@@ -211,20 +249,15 @@ export function guardrailGovernanceApproval(
             action: info.guardrail ?? info.toolName,
             agent: options.agent,
             decision,
-            riskScore: info.result
-              ? riskScoreOf(info.result, options)
-              : undefined,
-            reason: info.result?.message,
-            category: info.result?.severity,
+            riskScore: result ? riskScoreOf(result, options) : undefined,
+            reason: result?.message,
+            category: result?.severity,
           }),
           emit,
         ),
       );
 
-      if (
-        info.status.type === 'denied' ||
-        info.status.type === 'user-approval'
-      ) {
+      if (statusType === 'denied' || statusType === 'user-approval') {
         tryEmit(() =>
           agent.recordHumanApproval({
             // The real SDK tool-call id when threaded; omitted otherwise rather
@@ -232,7 +265,7 @@ export function guardrailGovernanceApproval(
             toolCallId: info.toolCallId,
             toolName: info.toolName,
             approved: false,
-            required: info.status.type === 'user-approval',
+            required: statusType === 'user-approval',
             controllerId: options.controllerId,
             hashSalt: options.hashSalt,
           }),
@@ -290,6 +323,7 @@ export function guardrailTelemetry(
     void withAgent(options, (agent, emit) => {
       // SAIF Principle 3: characterize what the agent actually reached for.
       const riskClass = options.toolRiskClass?.(toolName);
+
       if (riskClass) tryEmit(() => agent.recordActionRiskClass(riskClass));
 
       // The action ran (it passed any approval gate): record it as observed.
@@ -410,7 +444,7 @@ export function withGuardedTool<T extends { execute?: GuardedExecute }>(
   tool: T,
   options: GuardedToolOptions,
 ): T {
-  if (typeof tool.execute !== 'function') return tool;
+  if (!isCallable(tool.execute)) return tool;
 
   const required = options.requiredScopes ?? [];
   const granted = new Set(options.grantedScopes);
@@ -422,6 +456,7 @@ export function withGuardedTool<T extends { execute?: GuardedExecute }>(
 
     await withAgent(options, (agent, emit) => {
       const { riskClass, controllerId, hashSalt } = options;
+
       if (riskClass) tryEmit(() => agent.recordActionRiskClass(riskClass));
       tryEmit(() =>
         agent.recordPolicyDecision(
@@ -436,6 +471,7 @@ export function withGuardedTool<T extends { execute?: GuardedExecute }>(
           emit,
         ),
       );
+
       if (denied && controllerId) {
         tryEmit(() => agent.recordControllerId({ controllerId, hashSalt }));
       }
@@ -444,8 +480,9 @@ export function withGuardedTool<T extends { execute?: GuardedExecute }>(
     if (denied) {
       throw new ToolScopeDeniedError(options.toolName, missing);
     }
+
     return original(...args);
   };
 
-  return { ...tool, execute: guardedExecute } as T;
+  return { ...tool, execute: guardedExecute };
 }

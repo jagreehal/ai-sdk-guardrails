@@ -27,6 +27,7 @@
 
 import type { ToolApprovalStatus } from 'ai';
 import type { RequestContext } from '../types';
+import type { GuardrailMetadata } from '../enhanced-types';
 import { SEVERITY_RANK, type Severity } from '../severity';
 import type {
   ToolParameterGuardrail,
@@ -34,7 +35,7 @@ import type {
   ToolValidationResult,
 } from './tool-parameters';
 
-export interface GuardrailApprovalOptions<TContext = Record<string, unknown>> {
+export interface GuardrailApprovalOptions<TContext = GuardrailMetadata> {
   /**
    * Severity at or above which a blocking failure becomes an outright `denied`
    * instead of escalating to human `user-approval`. Default: `'high'`.
@@ -65,16 +66,15 @@ function matchesToolName(
   pattern: string | RegExp | string[],
   toolName: string,
 ): boolean {
-  if (typeof pattern === 'string') {
-    return pattern === toolName || pattern === '*';
-  }
   if (pattern instanceof RegExp) {
     return pattern.test(toolName);
   }
+
   if (Array.isArray(pattern)) {
     return pattern.includes(toolName);
   }
-  return false;
+
+  return pattern === toolName || pattern === '*';
 }
 
 /**
@@ -122,9 +122,8 @@ export type GuardrailApprovalFunction = (args: {
  * Prefer these SDK-native helpers over re-implementing shadow mode or MCP
  * fallback coverage in the guardrails layer.
  */
-export function guardrailApproval<TContext = Record<string, unknown>>(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  guardrails: ToolParameterGuardrail<any, TContext>[],
+export function guardrailApproval<TContext = GuardrailMetadata>(
+  guardrails: ToolParameterGuardrail<unknown, TContext>[],
   options: GuardrailApprovalOptions<TContext> = {},
 ): GuardrailApprovalFunction {
   const denyFloor = SEVERITY_RANK[options.denyAtOrAbove ?? 'high'];
@@ -140,6 +139,7 @@ export function guardrailApproval<TContext = Record<string, unknown>>(
     if (applicable.length === 0) {
       const status: ToolApprovalStatus = { type: 'not-applicable' };
       options.onDecision?.({ toolName, toolCallId, status });
+
       return status;
     }
 
@@ -151,6 +151,7 @@ export function guardrailApproval<TContext = Record<string, unknown>>(
 
     for (const g of applicable) {
       const result = await g.validateInput(input, ctx);
+
       if (result.valid) continue;
 
       const blocking = result.block !== false; // default true, matching the lib
@@ -179,11 +180,13 @@ export function guardrailApproval<TContext = Record<string, unknown>>(
         guardrail: g.name,
         result,
       });
+
       return status;
     }
 
     const status: ToolApprovalStatus = { type: 'approved' };
     options.onDecision?.({ toolName, toolCallId, status });
+
     return status;
   };
 

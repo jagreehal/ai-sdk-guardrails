@@ -10,11 +10,13 @@ export interface PlanRiskSession {
 
 export function createPlanRiskSession(): PlanRiskSession {
   const sequence: string[] = [];
+
   return {
     record(toolNames: string[]) {
       for (const name of toolNames) {
         if (name.trim()) sequence.push(name);
       }
+
       return [...sequence];
     },
     reset() {

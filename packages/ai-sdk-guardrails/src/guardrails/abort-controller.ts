@@ -12,6 +12,7 @@ export class GuardrailViolationAbort extends Error {
       .map((r) => r.message)
       .filter(Boolean)
       .join(', ');
+
     super(`Guardrail violation: ${messages}`);
     this.name = 'GuardrailViolationAbort';
     this.summary = summary;
@@ -77,6 +78,7 @@ export function createGuardrailAbortController() {
       return (summary: GuardrailExecutionSummary) => {
         const hasViolation = summary.blockedResults.some((result) => {
           const resultSeverity = result.severity ?? 'medium';
+
           return severityOrder[resultSeverity] >= minLevel;
         });
 

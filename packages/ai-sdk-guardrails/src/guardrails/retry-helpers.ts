@@ -1,12 +1,13 @@
 /**
  * Default retry helpers for guardrails.
  *
- * This module provides the default `buildRetryParams` implementation that is used
- * when users don't provide their own. It works by calling `getRetryInstruction()`
- * on blocked guardrails and appending the instructions as user messages.
+ * Provides the `buildRetryParams` used when none is configured: it calls
+ * `getRetryInstruction()` on blocked guardrails and appends the instructions
+ * as user messages.
  */
 
 import type { LanguageModelV4CallOptions as LMCallOptions } from '@ai-sdk/provider';
+import type { GuardrailMetadata } from '../enhanced-types';
 import type {
   GuardrailExecutionSummary,
   GuardrailResult,
@@ -15,13 +16,12 @@ import type {
   RetryInstructionContext,
 } from '../types';
 
-// Severity ordering for selecting highest severity guardrail
-const SEVERITY_ORDER: Record<string, number> = {
+const SEVERITY_ORDER = {
   low: 1,
   medium: 2,
   high: 3,
   critical: 4,
-};
+} as const satisfies Record<NonNullable<GuardrailResult['severity']>, number>;
 
 /**
  * Find the guardrail object that produced a given result by matching names.
@@ -30,10 +30,16 @@ function findGuardrailForResult<M>(
   result: GuardrailResult<M>,
   guardrails: OutputGuardrail<M>[],
 ): OutputGuardrail<M> | undefined {
-  const name =
-    result.context?.guardrailName ??
-    (result.info as Record<string, unknown> | undefined)?.guardrailName;
+  const name = result.context?.guardrailName ?? result.info?.guardrailName;
+
   return guardrails.find((g) => g.name === name);
+}
+
+/** True for any object (including cross-realm ones); false for a string. */
+function isInstructionObject(
+  instruction: RetryInstruction | string,
+): instruction is RetryInstruction {
+  return Object(instruction) === instruction;
 }
 
 /**
@@ -45,18 +51,19 @@ function getInstructionFromResult<M>(
   guardrail: OutputGuardrail<M> | undefined,
   context: Omit<RetryInstructionContext<M>, 'result'>,
 ): RetryInstruction | undefined {
-  // Try guardrail's getRetryInstruction first
   if (guardrail?.getRetryInstruction) {
     const instruction = guardrail.getRetryInstruction({ ...context, result });
-    if (typeof instruction === 'string') {
-      return { message: instruction };
-    }
-    return instruction ?? undefined;
+
+    if (instruction === undefined || instruction === null) return undefined;
+
+    return isInstructionObject(instruction)
+      ? instruction
+      : { message: instruction };
   }
 
-  // Default: use the guardrail's message or suggestion
   if (result.message) {
     const suggestionPart = result.suggestion ? `. ${result.suggestion}` : '';
+
     return {
       message: `Please try again. The previous response was blocked: ${result.message}${suggestionPart}`,
     };
@@ -73,21 +80,26 @@ function selectBlockedResults<M>(
   strategy: 'first' | 'all' | 'highest-severity',
 ): GuardrailResult<M>[] {
   const { blockedResults } = summary;
+
   if (blockedResults.length === 0) return [];
 
   switch (strategy) {
     case 'first': {
       return [blockedResults[0]!];
     }
+
     case 'all': {
       return blockedResults;
     }
+
     default: {
       const sorted = [...blockedResults].toSorted((a, b) => {
         const severityA = SEVERITY_ORDER[a.severity ?? 'medium'] ?? 2;
         const severityB = SEVERITY_ORDER[b.severity ?? 'medium'] ?? 2;
+
         return severityB - severityA;
       });
+
       return [sorted[0]!];
     }
   }
@@ -102,6 +114,7 @@ function combineInstructions(
   if (instructions.length === 0) {
     return { message: 'Please try again with a different approach.' };
   }
+
   if (instructions.length === 1) {
     return instructions[0]!;
   }
@@ -110,9 +123,10 @@ function combineInstructions(
     .map((inst, i) => `${i + 1}. ${inst.message}`)
     .join('\n');
 
-  const tempAdjustments = instructions
-    .map((i) => i.temperatureAdjustment)
-    .filter((t): t is number => t !== undefined);
+  const tempAdjustments = instructions.flatMap((i) =>
+    i.temperatureAdjustment === undefined ? [] : [i.temperatureAdjustment],
+  );
+
   const avgTempAdjustment =
     tempAdjustments.length > 0
       ? tempAdjustments.reduce((a, b) => a + b, 0) / tempAdjustments.length
@@ -128,7 +142,7 @@ function combineInstructions(
 /**
  * Options for creating the default buildRetryParams function.
  */
-export interface DefaultBuildRetryParamsOptions<M = Record<string, unknown>> {
+export interface DefaultBuildRetryParamsOptions<M = GuardrailMetadata> {
   /** The output guardrails to search for getRetryInstruction */
   outputGuardrails: OutputGuardrail<M>[];
   /** Strategy for handling multiple blocked guardrails */
@@ -166,7 +180,7 @@ export interface DefaultBuildRetryParamsOptions<M = Record<string, unknown>> {
  * });
  * ```
  */
-export function createDefaultBuildRetryParams<M = Record<string, unknown>>(
+export function createDefaultBuildRetryParams<M = GuardrailMetadata>(
   options: DefaultBuildRetryParamsOptions<M>,
 ): (args: {
   summary: GuardrailExecutionSummary<M>;
@@ -192,11 +206,13 @@ export function createDefaultBuildRetryParams<M = Record<string, unknown>>(
 
     for (const result of selectedResults) {
       const guardrail = findGuardrailForResult(result, outputGuardrails);
+
       const instruction = getInstructionFromResult(
         result,
         guardrail,
         instructionContext,
       );
+
       if (instruction) {
         instructions.push(instruction);
       }
@@ -204,8 +220,8 @@ export function createDefaultBuildRetryParams<M = Record<string, unknown>>(
 
     const finalInstruction = combineInstructions(instructions);
 
-    // Apply temperature adjustment if suggested
     let newTemperature = lastParams.temperature ?? 0.7;
+
     if (finalInstruction.temperatureAdjustment !== undefined) {
       newTemperature = Math.max(
         0,
@@ -213,7 +229,6 @@ export function createDefaultBuildRetryParams<M = Record<string, unknown>>(
       );
     }
 
-    // Get the existing prompt array
     const existingPrompt = Array.isArray(lastParams.prompt)
       ? lastParams.prompt
       : Array.isArray(originalParams.prompt)
@@ -234,6 +249,20 @@ export function createDefaultBuildRetryParams<M = Record<string, unknown>>(
   };
 }
 
+/** Effective retry settings after merging global and guardrail-level config. */
+export interface ResolvedRetryConfig {
+  maxRetries: number;
+  backoffMs: number | ((attempt: number) => number);
+}
+
+/** Milliseconds to wait before retry `attempt`. */
+export function retryDelayMs(
+  backoffMs: ResolvedRetryConfig['backoffMs'],
+  attempt: number,
+): number {
+  return backoffMs instanceof Function ? backoffMs(attempt) : backoffMs;
+}
+
 /**
  * Resolves the effective retry configuration by merging guardrail-level
  * and withGuardrails-level configs. withGuardrails-level takes precedence.
@@ -246,18 +275,19 @@ export function resolveRetryConfig<M>(
       }
     | undefined,
   blockedGuardrails: OutputGuardrail<M>[],
-): { maxRetries: number; backoffMs: number | ((attempt: number) => number) } {
-  // withGuardrails level takes precedence
+): ResolvedRetryConfig {
   let maxRetries = globalRetry?.maxRetries ?? 0;
+
   let backoffMs: number | ((attempt: number) => number) =
     globalRetry?.backoffMs ?? 0;
 
-  // Fall back to guardrail-level config if no global config
+  // Guardrail-level config applies only when no global maxRetries is set.
   if (maxRetries === 0) {
     for (const guardrail of blockedGuardrails) {
       if (guardrail.retry?.maxRetries !== undefined) {
         maxRetries = Math.max(maxRetries, guardrail.retry.maxRetries);
       }
+
       if (guardrail.retry?.backoffMs !== undefined && backoffMs === 0) {
         backoffMs = guardrail.retry.backoffMs;
       }

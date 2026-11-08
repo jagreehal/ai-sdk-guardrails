@@ -36,6 +36,8 @@ import { SEVERITY_RANK } from '../severity';
 import { extractToolNamesFromResult } from './tools';
 import type { PlanRiskSession } from './plan-risk-session';
 
+import type { GuardrailMetadata } from '../enhanced-types';
+
 export type { PlanRiskAssessment } from '../governance';
 
 export type PlanRiskVerdict = PlanRiskAssessment['verdict'];
@@ -77,7 +79,7 @@ export interface PlanRiskGuardrailOptions {
   session?: PlanRiskSession;
 }
 
-export interface PlanRiskMetadata extends Record<string, unknown> {
+export interface PlanRiskMetadata extends GuardrailMetadata {
   toolSequence: string[];
   verdict: PlanRiskVerdict;
   score?: number;
@@ -87,12 +89,16 @@ export interface PlanRiskMetadata extends Record<string, unknown> {
 
 const DESTRUCTIVE_TOOL =
   /\b(delete|remove|send|post|transfer|pay|upload|execute|drop)\b/i;
+
 const UNTRUSTED_READ =
   /\b(read|fetch|get|search|load|parse|inbox|email|web|scrape|browse)\b/i;
+
 const PACKAGE_MANAGER_TOOL =
   /\b(artifactory|registry|package|pip|npm|upload|fetch|list)\b/i;
+
 const EXTERNAL_CHEAT_TOOL =
   /\b(huggingface|modal|external|internet|ssrf|proxy|bypass)\b/i;
+
 const COORDINATION_TOOL = /\b(seek|message|board|swarm|mailbox|note|claim)\b/i;
 
 /**
@@ -112,17 +118,21 @@ export function builtinPlanRiskClassifier(): PlanRiskClassifier {
         .replaceAll(/([a-z0-9])([A-Z])/g, '$1 $2')
         .toLowerCase(),
     );
+
     const hasDestructive = normalized.some((n) => DESTRUCTIVE_TOOL.test(n));
     const hasUntrustedRead = normalized.some((n) => UNTRUSTED_READ.test(n));
 
     const hasPackageManager = normalized.some((n) =>
       PACKAGE_MANAGER_TOOL.test(n),
     );
+
     const hasList = normalized.some((n) => /\blist\b|\bpackages\b/.test(n));
     const hasUpload = normalized.some((n) => /\bupload\b|\bwrite\b/.test(n));
+
     const hasFetch = normalized.some((n) =>
       /\bfetch\b|\bpull\b|\bssrf\b/.test(n),
     );
+
     if (hasPackageManager && hasList && hasUpload && hasFetch) {
       return {
         verdict: 'high',
@@ -133,6 +143,7 @@ export function builtinPlanRiskClassifier(): PlanRiskClassifier {
     }
 
     const hasCoordination = normalized.some((n) => COORDINATION_TOOL.test(n));
+
     if (hasPackageManager && hasCoordination) {
       return {
         verdict: 'high',
@@ -145,6 +156,7 @@ export function builtinPlanRiskClassifier(): PlanRiskClassifier {
     const hasExternalCheat = normalized.some((n) =>
       EXTERNAL_CHEAT_TOOL.test(n),
     );
+
     if (hasExternalCheat && (hasFetch || hasUntrustedRead)) {
       return {
         verdict: 'high',
@@ -192,6 +204,7 @@ export function planRiskGuardrail(
     emitSecurityEvent = false,
     session,
   } = options;
+
   const blockRank = SEVERITY_RANK[blockAtOrAbove];
 
   return createOutputGuardrail<PlanRiskMetadata>(
@@ -202,6 +215,7 @@ export function planRiskGuardrail(
       const toolSequence = session ? session.record(stepTools) : stepTools;
 
       const assessment = await classifier({ toolSequence });
+
       if (!assessment) {
         return {
           tripwireTriggered: false,

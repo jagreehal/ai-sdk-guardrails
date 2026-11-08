@@ -3,7 +3,6 @@ import type { LanguageModelV4, LanguageModelV4CallOptions } from '../types';
 import { guardrailMiddleware } from './middleware';
 import { tokenUsageLimit } from './output';
 
-// V3 usage helper
 const createV3Usage = (inputTotal: number, outputTotal: number) => ({
   inputTokens: {
     total: inputTotal,
@@ -72,17 +71,18 @@ const createMockModel = (response = 'Mock AI response'): LanguageModelV4 => ({
 describe('guardrailMiddleware', () => {
   it('should pass usage data to output guardrails', async () => {
     const mockModel = createMockModel();
+
     const middleware = guardrailMiddleware({
       outputGuardrails: [tokenUsageLimit(5)],
       throwOnBlocked: false,
       replaceOnBlocked: true,
     });
 
-    const params = {
+    const params: LanguageModelV4CallOptions = {
       prompt: [
         { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
       ],
-    } as LanguageModelV4CallOptions;
+    };
 
     const result = await middleware.wrapGenerate!({
       doGenerate: () => mockModel.doGenerate(params),
@@ -98,7 +98,7 @@ describe('guardrailMiddleware', () => {
   });
 
   it('should replace text when output is blocked', async () => {
-    const mockModel = {
+    const mockModel: LanguageModelV4 = {
       ...createMockModel(),
       async doGenerate(options: LanguageModelV4CallOptions) {
         return {
@@ -116,7 +116,7 @@ describe('guardrailMiddleware', () => {
           warnings: [],
         };
       },
-    } as LanguageModelV4;
+    };
 
     const middleware = guardrailMiddleware({
       outputGuardrails: [tokenUsageLimit(5)],
@@ -124,11 +124,11 @@ describe('guardrailMiddleware', () => {
       replaceOnBlocked: true,
     });
 
-    const params = {
+    const params: LanguageModelV4CallOptions = {
       prompt: [
         { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
       ],
-    } as LanguageModelV4CallOptions;
+    };
 
     const result = await middleware.wrapGenerate!({
       doGenerate: () => mockModel.doGenerate(params),
@@ -137,13 +137,15 @@ describe('guardrailMiddleware', () => {
       model: mockModel,
     });
 
-    expect((result as { text?: string }).text).toBe(
+    expect(result).toHaveProperty(
+      'text',
       '[Output blocked: Token usage 20 exceeds limit of 5]',
     );
   });
 
   it('should include text when input is blocked', async () => {
     const mockModel = createMockModel();
+
     const middleware = guardrailMiddleware({
       inputGuardrails: [
         {
@@ -161,11 +163,11 @@ describe('guardrailMiddleware', () => {
       throwOnBlocked: false,
     });
 
-    const params = {
+    const params: LanguageModelV4CallOptions = {
       prompt: [
         { role: 'user', content: [{ type: 'text', text: 'Test prompt' }] },
       ],
-    } as LanguageModelV4CallOptions;
+    };
 
     const transformedParams = await middleware.transformParams!({
       type: 'generate',
@@ -180,8 +182,8 @@ describe('guardrailMiddleware', () => {
       model: mockModel,
     });
 
-    expect((result as { text?: string }).text).toContain(
-      '[Input blocked by guardrails]',
-    );
+    expect(result).toMatchObject({
+      text: expect.stringContaining('[Input blocked by guardrails]'),
+    });
   });
 });

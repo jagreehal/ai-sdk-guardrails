@@ -1,15 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { promptInjectionDetector } from './input';
-import type { InputGuardrailContext } from '../types';
 
 async function blocks(
   prompt: string,
   opts?: Parameters<typeof promptInjectionDetector>[0],
 ): Promise<boolean> {
   const detector = promptInjectionDetector(opts);
-  const result = await detector.execute({
-    prompt,
-  } as unknown as InputGuardrailContext);
+
+  const result = await detector.execute({ prompt, messages: [], system: '' });
+
   return result.tripwireTriggered;
 }
 

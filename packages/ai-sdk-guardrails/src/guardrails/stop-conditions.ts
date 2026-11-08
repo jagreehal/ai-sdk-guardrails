@@ -95,6 +95,7 @@ export function hasViolationSeverity(
         (r) => (r.severity ?? 'medium') === severity,
       ),
     );
+
     return matchingViolations.length >= minCount;
   };
 }
@@ -126,6 +127,7 @@ export function hasGuardrailViolation(
         (r) => r.context?.guardrailName === guardrailName,
       ),
     );
+
     return matchingViolations.length >= minCount;
   };
 }
@@ -152,6 +154,7 @@ export function hasConsecutiveViolations(consecutiveCount: number) {
 
     // Check if the last N violations are consecutive steps/chunks
     const recentViolations = violations.slice(-consecutiveCount);
+
     const indices = recentViolations.map((v) =>
       'step' in v ? v.step : v.chunkIndex,
     );

@@ -15,13 +15,15 @@ describe('executeOutputGuardrailsWithEnhancedRuntime', () => {
       }),
     });
 
+    // SAFETY: the guardrail under test reads only `accumulatedText`, never the
+    // result, so an empty-text result is enough.
     const outputContext = {
       input: {
         prompt: '',
         messages: [],
         system: '',
       },
-      result: { text: '' } as unknown as AIResult,
+      result: { text: '' } as AIResult,
     };
 
     const standardResults = await executeOutputGuardrails(

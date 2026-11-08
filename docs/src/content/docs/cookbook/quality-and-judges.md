@@ -32,12 +32,20 @@ const guarded = withGuardrails({
       const reason = summary.blockedResults[0]?.message ?? 'failed a guardrail';
       return {
         ...lastParams,
-        maxOutputTokens: Math.max(800, (lastParams.maxOutputTokens ?? 400) + 300),
+        maxOutputTokens: Math.max(
+          800,
+          (lastParams.maxOutputTokens ?? 400) + 300,
+        ),
         prompt: [
           ...(Array.isArray(lastParams.prompt) ? lastParams.prompt : []),
           {
             role: 'user',
-            content: [{ type: 'text', text: `Note: the previous answer ${reason}. Provide a comprehensive, detailed answer.` }],
+            content: [
+              {
+                type: 'text',
+                text: `Note: the previous answer ${reason}. Provide a comprehensive, detailed answer.`,
+              },
+            ],
           },
         ],
       };
@@ -129,7 +137,10 @@ const judgedModel = withGuardrails({
       const feedback = `Previous answer was judged score ${meta?.score}/10. Issues: ${meta?.issues?.join(', ')}. Improve clarity, structure, and add concrete details.`;
       return {
         ...lastParams,
-        maxOutputTokens: Math.max(800, (lastParams.maxOutputTokens ?? 400) + 200),
+        maxOutputTokens: Math.max(
+          800,
+          (lastParams.maxOutputTokens ?? 400) + 200,
+        ),
         prompt: [
           ...(Array.isArray(lastParams.prompt) ? lastParams.prompt : []),
           { role: 'user', content: [{ type: 'text', text: feedback }] },

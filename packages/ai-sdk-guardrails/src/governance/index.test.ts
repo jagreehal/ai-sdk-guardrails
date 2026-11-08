@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GuardrailExecutionSummary, GuardrailResult } from '../types';
+import type { GuardrailMetadata } from '../enhanced-types';
 import {
   __setAutotelAgentModule,
   approvalStatusToPolicyDecision,
@@ -12,6 +13,8 @@ import {
   ToolScopeDeniedError,
   withGuardedTool,
 } from './index';
+import { guardrailApproval } from '../guardrails/tool-approval';
+import { sqlInjectionGuardrail } from '../guardrails/tool-parameters';
 
 function result(overrides: Partial<GuardrailResult> = {}): GuardrailResult {
   return {
@@ -47,7 +50,7 @@ function fakeAgent() {
     recordActionRiskClass: vi.fn(),
     recordPlanRiskAssessment: vi.fn(),
     createSignedEventEnvelope: vi.fn(async () => ({ eventHash: 'abc123' })),
-    createAgentAuditMetadata: vi.fn((raw: Record<string, unknown>) => raw),
+    createAgentAuditMetadata: vi.fn((raw: GuardrailMetadata) => raw),
   };
 }
 
@@ -88,6 +91,7 @@ describe('pure mappers', () => {
     const meta = toPolicyDecisionMetadata(result(), {
       agent: { id: 'agent-1', model: 'gpt-4o' },
     });
+
     expect(meta).toMatchObject({
       action: 'prompt-injection',
       agent: { id: 'agent-1' },
@@ -116,6 +120,7 @@ describe('guardrailGovernance hooks', () => {
   it('emits a policy decision per blocked result, plus controller + provenance on input', async () => {
     const agent = fakeAgent();
     __setAutotelAgentModule(agent);
+
     const gov = guardrailGovernance({
       agent: { id: 'a' },
       controllerId: 'user-9',
@@ -167,6 +172,7 @@ describe('guardrailGovernance hooks', () => {
   it('signs blocked events when signBlockedEvents is enabled', async () => {
     const agent = fakeAgent();
     __setAutotelAgentModule(agent);
+
     const gov = guardrailGovernance({
       agent: { id: 'a' },
       signBlockedEvents: true,
@@ -190,6 +196,7 @@ describe('guardrailGovernanceApproval', () => {
   it('records human approval for user-approval and denied, but not approved', async () => {
     const agent = fakeAgent();
     __setAutotelAgentModule(agent);
+
     const onDecision = guardrailGovernanceApproval({
       agent: { id: 'a' },
       controllerId: 'u',
@@ -220,6 +227,7 @@ describe('guardrailGovernanceApproval', () => {
   it('records the action risk class for every gated tool, including not-applicable', async () => {
     const agent = fakeAgent();
     __setAutotelAgentModule(agent);
+
     const onDecision = guardrailGovernanceApproval({
       agent: { id: 'a' },
       toolRiskClass: (toolName) =>
@@ -236,25 +244,67 @@ describe('guardrailGovernanceApproval', () => {
     expect(agent.recordActionRiskClass).toHaveBeenCalledTimes(2);
     expect(agent.recordActionRiskClass).toHaveBeenCalledWith('destructive');
   });
+
+  it('plugs into guardrailApproval as onDecision', async () => {
+    const agent = fakeAgent();
+    __setAutotelAgentModule(agent);
+
+    const gate = guardrailApproval(
+      [sqlInjectionGuardrail({ toolName: 'executeSQL' })],
+      { onDecision: guardrailGovernanceApproval({ agent: { id: 'a' } }) },
+    );
+
+    const status = await gate({
+      toolCall: {
+        toolName: 'executeSQL',
+        toolCallId: 'tc-1',
+        input: { query: 'DROP TABLE users' },
+      },
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(status).toMatchObject({ type: 'denied' });
+    expect(agent.recordPolicyDecision).toHaveBeenCalledTimes(1);
+    expect(agent.recordHumanApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ toolCallId: 'tc-1', required: false }),
+    );
+  });
+
+  it('accepts string and undefined statuses', async () => {
+    const agent = fakeAgent();
+    __setAutotelAgentModule(agent);
+    const onDecision = guardrailGovernanceApproval({ agent: { id: 'a' } });
+
+    onDecision({ toolName: 'sql', status: 'approved' });
+    onDecision({ toolName: 'sql', status: undefined });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(agent.recordPolicyDecision).toHaveBeenCalledTimes(1);
+  });
 });
 
-// Fire the native onToolExecutionStart with a minimal event, cast to the SDK's
-// parameter type (the full event has many fields the bridge never reads).
 function fireToolStart(
   integration: ReturnType<typeof guardrailTelemetry>,
   toolName: string,
 ): void {
   const start = integration.onToolExecutionStart;
+
   if (!start) return;
+  // SAFETY: the bridge reads only `toolCall.toolName` from the event; the
+  // other fields of the SDK's event are absent here.
   start({
     toolCall: { toolName, toolCallId: 'tc', input: {} },
-  } as unknown as Parameters<typeof start>[0]);
+  } as Parameters<typeof start>[0]);
 }
 
 describe('guardrailTelemetry (native Telemetry integration)', () => {
   it('records risk class + an observe decision per executed tool', async () => {
     const agent = fakeAgent();
     __setAutotelAgentModule(agent);
+
     const integration = guardrailTelemetry({
       agent: { id: 'support-agent' },
       toolRiskClass: (toolName) =>
@@ -306,6 +356,7 @@ describe('guardrailGovernance output-block risk class', () => {
   it('records risk class for observed tools when a tool guardrail blocks', async () => {
     const agent = fakeAgent();
     __setAutotelAgentModule(agent);
+
     const gov = guardrailGovernance({
       agent: { id: 'a' },
       toolRiskClass: (toolName) =>
@@ -330,7 +381,9 @@ describe('guardrailGovernance output-block risk class', () => {
 
 describe('withGuardedTool (SAIF Principle 2 — least privilege)', () => {
   function tool(
-    execute = vi.fn<(input?: unknown) => Promise<string>>(async () => 'result'),
+    execute = vi.fn<(input?: { amount?: number }) => Promise<string>>(
+      async () => 'result',
+    ),
   ) {
     return { description: 'd', execute };
   }
@@ -338,9 +391,11 @@ describe('withGuardedTool (SAIF Principle 2 — least privilege)', () => {
   it('denies a call missing a required scope and never runs the tool', async () => {
     const agent = fakeAgent();
     __setAutotelAgentModule(agent);
-    const execute = vi.fn<(input?: unknown) => Promise<string>>(
+
+    const execute = vi.fn<(input?: { amount?: number }) => Promise<string>>(
       async () => 'result',
     );
+
     const guarded = withGuardedTool(tool(execute), {
       agent: { id: 'payments' },
       toolName: 'transferFunds',
@@ -371,9 +426,11 @@ describe('withGuardedTool (SAIF Principle 2 — least privilege)', () => {
   it('permits a call with all required scopes and runs the tool', async () => {
     const agent = fakeAgent();
     __setAutotelAgentModule(agent);
+
     const execute = vi.fn(
       async (input: { amount: number }) => input.amount * 2,
     );
+
     const guarded = withGuardedTool(
       { description: 'd', execute },
       {
@@ -396,9 +453,11 @@ describe('withGuardedTool (SAIF Principle 2 — least privilege)', () => {
 
   it('enforces least privilege even without the autotel peer', async () => {
     __setAutotelAgentModule(null);
-    const execute = vi.fn<(input?: unknown) => Promise<string>>(
+
+    const execute = vi.fn<(input?: { amount?: number }) => Promise<string>>(
       async () => 'result',
     );
+
     const guarded = withGuardedTool(tool(execute), {
       agent: { id: 'a' },
       toolName: 't',

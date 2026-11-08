@@ -74,6 +74,7 @@ describe('retry', () => {
     const mockValidate = vi
       .fn()
       .mockResolvedValue({ blocked: true, message: 'Always blocked' });
+
     const mockBuildRetryParams = vi
       .fn()
       .mockReturnValueOnce({ prompt: 'retry 1' })
@@ -187,6 +188,7 @@ describe('retry', () => {
 
   it('should handle validate function with metadata', async () => {
     const mockGenerate = vi.fn().mockResolvedValue({ text: 'Valid response' });
+
     const mockValidate = vi.fn().mockResolvedValue({
       blocked: false,
       message: 'All good',
@@ -204,7 +206,6 @@ describe('retry', () => {
     expect(mockValidate).toHaveBeenCalledWith({ text: 'Valid response' });
   });
 
-  // Enhanced features tests
   describe('complex scenarios', () => {
     it('should handle generation error on initial attempt followed by successful retry', async () => {
       const mockGenerate = vi
@@ -284,6 +285,7 @@ describe('retry', () => {
 
     it('should handle backoff with cancellation support', async () => {
       const controller = new AbortController();
+
       const mockGenerate = vi
         .fn()
         .mockResolvedValueOnce({ text: 'First' })
@@ -314,6 +316,7 @@ describe('retry', () => {
   describe('enhanced features', () => {
     it('should support cancellation with AbortSignal', async () => {
       const controller = new AbortController();
+
       const mockGenerate = vi
         .fn()
         .mockImplementation(async (_params, signal?: AbortSignal) => {
@@ -322,6 +325,7 @@ describe('retry', () => {
             signal?.throwIfAborted();
             await new Promise((resolve) => setTimeout(resolve, 10));
           }
+
           return { text: 'Response' };
         });
 
@@ -378,6 +382,7 @@ describe('retry', () => {
 
     it('should retry on generation errors when retryOnError returns true', async () => {
       const mockError = new Error('Network error');
+
       const mockGenerate = vi
         .fn()
         .mockRejectedValueOnce(mockError)
@@ -424,6 +429,7 @@ describe('retry', () => {
 
     it('should throw on exhaustion when onExhausted is "throw"', async () => {
       const mockGenerate = vi.fn().mockResolvedValue({ text: 'Short' });
+
       const mockValidate = vi.fn().mockReturnValue({
         blocked: true,
         message: 'Too short',
@@ -484,13 +490,15 @@ describe('retry', () => {
 });
 
 describe('retryHelpers', () => {
+  type TokenParams = { maxOutputTokens?: number };
+
   describe('increaseTokens', () => {
     it('should increase maxOutputTokens by specified amount', () => {
       const helper = retryHelpers.increaseTokens(300);
+      const lastParams: TokenParams = { maxOutputTokens: 500 };
+
       const result = helper({
-        lastParams: {
-          maxOutputTokens: 500,
-        } as { maxOutputTokens?: number },
+        lastParams,
         summary: { blockedResults: [] },
         originalParams: {},
         lastResult: {},
@@ -501,8 +509,10 @@ describe('retryHelpers', () => {
 
     it('should use default minimum when no maxOutputTokens', () => {
       const helper = retryHelpers.increaseTokens(200);
+      const lastParams: TokenParams = {};
+
       const result = helper({
-        lastParams: {} as { maxOutputTokens?: number },
+        lastParams,
         summary: { blockedResults: [] },
         originalParams: {},
         lastResult: {},
@@ -513,10 +523,10 @@ describe('retryHelpers', () => {
 
     it('should use default increase when not specified', () => {
       const helper = retryHelpers.increaseTokens();
+      const lastParams: TokenParams = { maxOutputTokens: 400 };
+
       const result = helper({
-        lastParams: {
-          maxOutputTokens: 400,
-        } as { maxOutputTokens?: number },
+        lastParams,
         summary: { blockedResults: [] },
         originalParams: {},
         lastResult: {},
@@ -531,15 +541,14 @@ describe('retryHelpers', () => {
       const helper = retryHelpers.addEncouragingPrompt(
         'Be more detailed please.',
       );
+
+      const original = {
+        role: 'user',
+        content: [{ type: 'text', text: 'Original question' }],
+      };
+
       const result = helper({
-        lastParams: {
-          prompt: [
-            {
-              role: 'user',
-              content: [{ type: 'text', text: 'Original question' }],
-            },
-          ],
-        },
+        lastParams: { prompt: [original] },
         summary: {
           blockedResults: [{ message: 'Response too short' }],
         },
@@ -547,87 +556,75 @@ describe('retryHelpers', () => {
         lastResult: {},
       });
 
-      const prompt1 = result.prompt as Array<{
-        role: string;
-        content: Array<{ type: string; text: string }>;
-      }>;
-      expect(prompt1).toHaveLength(2);
-      expect(prompt1[1]).toEqual({
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: 'Note: Response too short. Be more detailed please.',
-          },
-        ],
-      });
+      expect(result.prompt).toEqual([
+        original,
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Note: Response too short. Be more detailed please.',
+            },
+          ],
+        },
+      ]);
     });
 
     it('should convert string prompt to array and add encouragement', () => {
       const helper = retryHelpers.addEncouragingPrompt();
+
       const result = helper({
-        lastParams: {
-          prompt: 'What is AI?' as unknown as Array<{
-            role: string;
-            content: Array<{ type: string; text: string }>;
-          }>,
-        },
+        lastParams: { prompt: 'What is AI?' },
         summary: { blockedResults: [{ message: 'Too brief' }] },
         originalParams: {},
         lastResult: {},
       });
 
-      const prompt2 = result.prompt as Array<{
-        role: string;
-        content: Array<{ type: string; text: string }>;
-      }>;
-      expect(Array.isArray(prompt2)).toBe(true);
-      expect(prompt2).toHaveLength(2);
-      expect(prompt2[0]).toEqual({
-        role: 'user',
-        content: [{ type: 'text', text: 'What is AI?' }],
-      });
-      const content1 = (prompt2?.[1]?.content ?? []) as Array<{
-        type: string;
-        text: string;
-      }>;
-      expect(content1[0]?.text ?? '').toContain('Too brief');
+      expect(result.prompt).toEqual([
+        { role: 'user', content: [{ type: 'text', text: 'What is AI?' }] },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: expect.stringContaining('Too brief') },
+          ],
+        },
+      ]);
     });
 
     it('should use default encouragement when not specified', () => {
       const helper = retryHelpers.addEncouragingPrompt();
+
       const result = helper({
-        lastParams: {
-          prompt: 'test' as unknown as Array<{
-            role: string;
-            content: Array<{ type: string; text: string }>;
-          }>,
-        },
+        lastParams: { prompt: 'test' },
         summary: { blockedResults: [] },
         originalParams: {},
         lastResult: {},
       });
-      const prompt3 = result.prompt as Array<{
-        role: string;
-        content: Array<{ type: string; text: string }>;
-      }>;
-      const content2 = (prompt3?.[1]?.content ?? []) as Array<{
-        type: string;
-        text: string;
-      }>;
-      expect(content2[0]?.text ?? '').toContain(
-        'more detailed and comprehensive',
-      );
+
+      expect(result.prompt).toEqual([
+        { role: 'user', content: [{ type: 'text', text: 'test' }] },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: expect.stringContaining('more detailed and comprehensive'),
+            },
+          ],
+        },
+      ]);
     });
   });
 
   describe('noChange', () => {
     it('should return lastParams unchanged', () => {
       const helper = retryHelpers.noChange();
+
       const lastParams = {
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'test' }] }],
         maxOutputTokens: 500,
       };
+
       const result = helper({
         lastParams,
         summary: { blockedResults: [] },
@@ -637,5 +634,42 @@ describe('retryHelpers', () => {
 
       expect(result).toBe(lastParams);
     });
+  });
+});
+
+describe('retry callbacks and backoff', () => {
+  it('passes thrown non-Error values to onError as Error with cause', async () => {
+    const seen: Error[] = [];
+    await expect(
+      retry({
+        generate: async () => {
+          throw 'rate limited';
+        },
+        params: {},
+        validate: () => ({ blocked: false }),
+        buildRetryParams: ({ lastParams }) => lastParams,
+        onError: (error) => seen.push(error),
+      }),
+    ).rejects.toBe('rate limited');
+    expect(seen[0]).toBeInstanceOf(Error);
+    expect(seen[0]?.cause).toBe('rate limited');
+  });
+
+  it('evaluates a backoff function once per retry and waits what it reports', async () => {
+    const backoffMs = vi.fn(() => 0);
+    const waits: Array<number | undefined> = [];
+    let calls = 0;
+    await retry({
+      generate: async () => ++calls,
+      params: {},
+      validate: (n) => ({ blocked: n < 3 }),
+      buildRetryParams: ({ lastParams }) => lastParams,
+      maxRetries: 3,
+      backoffMs,
+      onAttempt: (a) => {
+        if (a.isRetry) waits.push(a.waitMs);
+      },
+    });
+    expect(backoffMs).toHaveBeenCalledTimes(waits.length);
   });
 });

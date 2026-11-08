@@ -6,19 +6,35 @@ import {
   type GuardrailBudget,
 } from './budget';
 
+/** Token count as extractContent parses it: a number or a `{ total }` object. */
+type TokenCount = number | { total: number };
+
+interface UsageResultFixture {
+  content: Array<{ type: 'text'; text: string }>;
+  usage: { inputTokens: TokenCount; outputTokens: TokenCount };
+}
+
 /** Output context carrying V3-style usage. */
 function contextWithUsage(
   inputTokens: number,
   outputTokens: number,
 ): OutputGuardrailContext {
-  const result = {
-    content: [{ type: 'text', text: 'ok' }],
-    usage: {
-      inputTokens: { total: inputTokens },
-      outputTokens: { total: outputTokens },
-    },
-  } as unknown as AIResult;
-  return { result } as OutputGuardrailContext;
+  return {
+    input: { prompt: '', messages: [], system: '' },
+    result: asResult({
+      content: [{ type: 'text', text: 'ok' }],
+      usage: {
+        inputTokens: { total: inputTokens },
+        outputTokens: { total: outputTokens },
+      },
+    }),
+  };
+}
+
+function asResult(fixture: UsageResultFixture): AIResult {
+  // SAFETY: extractContent parses usage at runtime and accepts the `{ total }`
+  // token shape, which the declared result type does not describe.
+  return fixture as AIResult;
 }
 
 describe('createGuardrailBudget', () => {
@@ -63,6 +79,7 @@ describe('budgetGuardrail', () => {
 
   it('uses estimateCost to accumulate spend', async () => {
     const budget = createGuardrailBudget({ maxCostUsd: 0.01 });
+
     const guardrail = budgetGuardrail({
       budget,
       estimateCost: ({ inputTokens = 0, outputTokens = 0 }) =>
@@ -77,6 +94,7 @@ describe('budgetGuardrail', () => {
   it('converts an autotel-style throwing budget into a block', async () => {
     // Mimics a GenAiGuard with onStop:'throw' — record() throws once stopped.
     let stopped = false;
+
     const throwingBudget: GuardrailBudget = {
       record() {
         stopped = true;
@@ -94,6 +112,7 @@ describe('budgetGuardrail', () => {
         errorCount: 0,
       },
     };
+
     const guardrail = budgetGuardrail({ budget: throwingBudget });
     const res = await guardrail.execute(contextWithUsage(1, 1));
     expect(res.tripwireTriggered).toBe(true);
